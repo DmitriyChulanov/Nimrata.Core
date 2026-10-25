@@ -1,0 +1,128 @@
+{
+    "module": "tracker",
+    "version": 1,
+    "types": [
+        {
+            "id": "TasksRoot",
+            "name": "Задачи",
+            "sealed": true,
+            "allowedChildren": []
+        },
+        {
+            "id": "CurrentTasksRoot",
+            "name": "Текущие задачи",
+            "sealed": true,
+            "allowedChildren": []
+        },
+        {
+            "id": "CompletedTasksRoot",
+            "name": "Завершённые задачи",
+            "sealed": true,
+            "allowedChildren": []
+        },
+        {
+            "id": "NotesRoot",
+            "name": "Заметки",
+            "sealed": true,
+            "allowedChildren": ["Note", "NoteGroup"],
+            "actions": [
+                {
+                    "id": "createNote",
+                    "name": "Создать заметку",
+                    "placements": ["contextMenu"]
+                },
+                {
+                    "id": "createNoteGroup",
+                    "name": "Создать группу заметок",
+                    "placements": ["contextMenu"]
+                }
+            ]
+        },
+        {
+            "id": "NoteGroup",
+            "name": "Группа заметок",
+            "allowedChildren": ["Note", "NoteGroup"],
+            "properties": [
+                {
+                    "id": "name",
+                    "name": "Название",
+                    "kind": "string",
+                    "category": "Основное"
+                }
+            ],
+            "actions": [
+                {
+                    "id": "createNote",
+                    "name": "Создать заметку",
+                    "placements": ["contextMenu"]
+                },
+                {
+                    "id": "createNoteGroup",
+                    "name": "Создать группу заметок",
+                    "placements": ["contextMenu"]
+                }
+            ]
+        },
+        {
+            "id": "Note",
+            "name": "Заметка",
+            "sealed": true,
+            "allowedChildren": [],
+            "properties": [
+                {
+                    "id": "name",
+                    "name": "Название",
+                    "kind": "string",
+                    "category": "Основное"
+                },
+                {
+                    "id": "text",
+                    "name": "Текст",
+                    "kind": "text",
+                    "category": "Основное"
+                },
+                {
+                    "id": "priority",
+                    "name": "Приоритет",
+                    "kind": "enum",
+                    "category": "Основное",
+                    "default": "low",
+                    "values": [
+                        { "value": "low", "name": "Низкий" },
+                        { "value": "medium", "name": "Средний" },
+                        { "value": "high", "name": "Высокий" }
+                    ]
+                },
+                {
+                    "id": "status",
+                    "name": "Статус",
+                    "kind": "enum",
+                    "category": "Основное",
+                    "default": "active",
+                    "values": [
+                        { "value": "active", "name": "Активна" },
+                        { "value": "completed", "name": "Завершена" }
+                    ]
+                },
+                {
+                    "id": "link",
+                    "name": "Внешняя ссылка",
+                    "kind": "string",
+                    "category": "Ссылки"
+                }
+            ],
+            "actions": [
+                {
+                    "id": "openExternalLink",
+                    "name": "Перейти по внешней ссылке",
+                    "placements": ["propertyGrid", "contextMenu"]
+                }
+            ],
+            "colorRules": [
+                { "property": "priority", "equals": "medium", "color": "orange" },
+                { "property": "priority", "equals": "high", "color": "red" },
+                { "property": "status", "equals": "completed", "color": "green" }
+            ]
+        }
+    ]
+}

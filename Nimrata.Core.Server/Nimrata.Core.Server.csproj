@@ -28,6 +28,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Манифест модуля лежит в клиентской части; сервер читает тот же файл при старте. -->
+    <Content Include="..\nimrata.core.client\src\modules\tracker\manifest.json"
+             Link="Modules\tracker\manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\nimrata.core.client\nimrata.core.client.esproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>

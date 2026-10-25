@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using Nimrata.Core.Server;
 using Nimrata.Core.Server.Auth;
 using Nimrata.Core.Server.Data;
+using Nimrata.Core.Server.Modules;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -50,6 +51,7 @@ var connectionString = app.Configuration.GetConnectionString("Default")
         "Не задана строка подключения ConnectionStrings:Default (appsettings или переменная ConnectionStrings__Default).");
 
 Startup.ApplyMigrations(connectionString);
+ManifestLoader.Загрузить(connectionString, app.Configuration["Modules:Path"] ?? ManifestLoader.КаталогПоУмолчанию);
 app.Services.GetRequiredService<AdminSeeder>().Выполнить().GetAwaiter().GetResult();
 
 app.UseDefaultFiles();
