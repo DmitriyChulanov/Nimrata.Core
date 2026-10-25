@@ -5,6 +5,7 @@ import { useData } from '../data/DataProvider';
 import type { DataController } from '../data/DataController';
 import { useSelection } from '../selection/SelectionProvider';
 import type { PropertyDefinition } from '../types/types';
+import { ReferenceEditor } from './ReferenceEditor';
 import './PropertyGrid.css';
 
 const OTHER_CATEGORY = 'Прочее';
@@ -144,19 +145,18 @@ function PropertyEditor(props: EditorProps & { data: DataController }) {
                 </select>
             );
         case 'reference':
-            return <span className="property-grid-readonly">{referenceText(data, value)}</span>;
+            return (
+                <ReferenceEditor
+                    data={data}
+                    property={property}
+                    value={value}
+                    disabled={disabled}
+                    onCommit={onCommit}
+                />
+            );
         default:
             return <TextEditor {...props} />;
     }
-}
-
-/** Ссылка показывается названием целевого объекта (редактор ссылок — отдельный тикет). */
-function referenceText(data: DataController, value: unknown): string {
-    if (typeof value !== 'string' || value === '') return '—';
-    const target = data.getObject(value);
-    if (!target) return value;
-    const name = target.properties.name;
-    return typeof name === 'string' && name ? name : (data.getType(target.type)?.name ?? value);
 }
 
 function Row({

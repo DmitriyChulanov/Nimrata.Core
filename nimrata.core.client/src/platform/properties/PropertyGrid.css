@@ -33,3 +33,37 @@
 .property-grid-readonly {
     opacity: 0.8;
 }
+
+.property-grid-reference {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
+}
+
+.property-grid-reference > span:first-child {
+    flex: 1 1 6rem;
+}
+
+.property-grid-unavailable {
+    font-style: italic;
+    opacity: 0.6;
+}
+
+.property-grid-reference [role='dialog'] {
+    flex-basis: 100%;
+    border: 1px solid currentColor;
+    padding: 0.5rem;
+}
+
+.property-grid-reference [role='treeitem'] {
+    cursor: pointer;
+}
+
+.property-grid-reference [role='treeitem'][aria-selected='true'] {
+    font-weight: bold;
+}
+
+.property-grid-reference [role='treeitem'][aria-disabled='true'] {
+    opacity: 0.5;
+}
