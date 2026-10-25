@@ -12,3 +12,6 @@ dist/
 
 # Claude Code
 .claude/settings.local.json
+
+# Локальная конфигурация MCP (Rider)
+.mcp.json

@@ -4,4 +4,5 @@
     <Deploy />
   </Project>
   <Project Path="Nimrata.Core.Server/Nimrata.Core.Server.csproj" />
+  <Project Path="Nimrata.Core.Server.Tests/Nimrata.Core.Server.Tests.csproj" />
 </Solution>

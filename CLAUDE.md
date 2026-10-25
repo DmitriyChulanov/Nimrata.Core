@@ -5,12 +5,14 @@
 ## Структура
 - `Nimrata.Core.Server/` — бэкенд (Web API, контроллеры в `Controllers/`, OpenAPI в Development).
 - `nimrata.core.client/` — фронтенд (Vite, алиас `@` → `src`).
-- `Nimrata.Core.slnx` — solution с обоими проектами.
+- `Nimrata.Core.Server.Tests/` — тесты бэкенда (xUnit).
+- `Nimrata.Core.slnx` — solution со всеми проектами.
 
 ## Команды
 - Сервер (поднимает и Vite через SpaProxy): `dotnet run --project Nimrata.Core.Server --launch-profile https`
 - Сборка бэкенда: `dotnet build Nimrata.Core.slnx`
-- Клиент, из `nimrata.core.client/`: `npm run dev`, `npm run build`, `npm run lint`
+- Тесты бэкенда: `dotnet test Nimrata.Core.slnx`
+- Клиент, из `nimrata.core.client/`: `npm run dev`, `npm run build`, `npm run lint`, `npm test` (Vitest + Testing Library), `npm run format`
 
 ## Порты
 - Бэкенд: https://localhost:7146, http://localhost:5134
@@ -21,3 +23,12 @@
 - `WeatherForecast*` — демо-код шаблона, его можно удалять.
 - Изменения фиксируются в `CHANGELOG.md` соответствующего проекта.
 - Коммиты и комментарии — на русском.
+
+## Проверка изменений
+- После правок запускать `dotnet test Nimrata.Core.slnx`, а для клиента `npm test` и `npm run lint`; новая логика покрывается тестами.
+- Стиль задаёт `.editorconfig` (C#) и `nimrata.core.client/.prettierrc.json` (клиент). Хук `.claude/hooks/format.mjs` сам форматирует изменённые `.cs`, `.ts`, `.tsx`, `.css`, `.json`.
+
+## Навигация по коду
+- Для структурных вопросов (кто вызывает, зависимости, архитектура) использовать граф `codebase-memory-mcp`: `search_graph`, `trace_path`, `get_architecture`. Проект в индексе: `C-Repositories-Nimrata.Core`.
+- `Grep`/`Glob` — для поиска литералов, текста и конфигов, а также если файла нет в индексе.
+- После крупных изменений структуры переиндексировать: `index_repository` с `repo_path` = корень репозитория.
