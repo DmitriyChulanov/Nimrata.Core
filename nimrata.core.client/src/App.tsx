@@ -4,6 +4,7 @@ import {
     DataProvider,
     LoginScreen,
     MainMenu,
+    PropertyGrid,
     SelectionProvider,
     TabContainer,
     TabsProvider,
@@ -17,26 +18,9 @@ import {
     useApi,
     useCurrentUser,
     useData,
-    useSelection,
     useTabs,
 } from '@platform';
 import { useEffect, useState } from 'react';
-
-/** Временная панель свойств: показывает выделенный объект (таблица свойств — отдельный тикет). */
-function SelectedObject() {
-    const data = useData();
-    const { selectedId } = useSelection();
-    const object = selectedId ? data.getObject(selectedId) : undefined;
-    if (!object) return <p>Объект не выбран.</p>;
-    const name = object.properties.name;
-    return (
-        <h2>
-            {typeof name === 'string' && name
-                ? name
-                : (data.getType(object.type)?.name ?? object.type)}
-        </h2>
-    );
-}
 
 function Main() {
     const data = useData();
@@ -61,7 +45,7 @@ function Main() {
             center={<TabContainer />}
             initialWidths={widths}
             onWidthsChange={setWidths}
-            right={<SelectedObject />}
+            right={<PropertyGrid />}
         />
     );
 }

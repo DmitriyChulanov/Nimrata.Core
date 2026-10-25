@@ -211,7 +211,13 @@ export function createDataController(options: DataControllerOptions): DataContro
                     const order =
                         input.order ??
                         (siblings.length ? siblings[siblings.length - 1].order + 1 : 0);
-                    const properties = { ...input.properties };
+                    // Значения по умолчанию из определения типа; заданные явно приоритетнее.
+                    const properties: Record<string, unknown> = {};
+                    for (const p of types.get(input.type)?.properties ?? []) {
+                        if (p.default !== undefined && p.default !== null)
+                            properties[p.id] = p.default;
+                    }
+                    Object.assign(properties, input.properties);
                     return {
                         operations: [
                             { op: 'create', id, type: input.type, parent, order, properties },

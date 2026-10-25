@@ -61,7 +61,12 @@ describe('DataController: изменения через набор', () => {
         const result = await data.create({ type: 'Note', parent: 'root' });
         const id = result.ok ? result.id : '';
         expect(data.getObject(id)?.order).toBe(3);
-        expect(data.getChildren('root').map((o) => o.id).at(-1)).toBe(id);
+        expect(
+            data
+                .getChildren('root')
+                .map((o) => o.id)
+                .at(-1),
+        ).toBe(id);
     });
 
     it('изменение свойства отправляет «было» и «стало»; null удаляет значение', async () => {
@@ -180,9 +185,15 @@ describe('DataController: отказ, откат, расхождение, пер
         const { api, data } = await loaded();
         api.rejectNext(409, 'расхождение');
         await data.setProperty('a', 'title', 'X');
-        api.objects = [{ id: 'z', type: 'Note', parent: null, order: 0, properties: { title: 'Z' } }];
+        api.objects = [
+            { id: 'z', type: 'Note', parent: null, order: 0, properties: { title: 'Z' } },
+        ];
         await data.load();
-        expect(data.getSnapshot()).toMatchObject({ status: 'ready', needsReload: false, error: null });
+        expect(data.getSnapshot()).toMatchObject({
+            status: 'ready',
+            needsReload: false,
+            error: null,
+        });
         expect(data.getObject('a')).toBeUndefined();
         expect(data.getObject('z')?.properties).toEqual({ title: 'Z' });
         expect((await data.setProperty('z', 'title', 'Q')).ok).toBe(true);
@@ -242,5 +253,34 @@ describe('DataController: загрузка и чтение', () => {
         expect(data.orderAt('empty', 0)).toBe(0); // нет соседей
         // перемещаемый объект исключается из соседей: a между началом и b -> перед b
         expect(data.orderAt('root', 1, 'a')).toBe(3);
+    });
+});
+
+describe('DataController: значения по умолчанию', () => {
+    it('при создании подставляет default свойств, заданные значения не затирает', async () => {
+        const api = createFakeApi(
+            [
+                {
+                    id: 'Task',
+                    name: 'Задача',
+                    module: 't',
+                    moduleVersion: 1,
+                    properties: [
+                        { id: 'status', name: 'Статус', kind: 'string', default: 'new' },
+                        { id: 'priority', name: 'Приоритет', kind: 'integer', default: 3 },
+                        { id: 'note', name: 'Заметка', kind: 'string' },
+                    ],
+                },
+            ],
+            [],
+        );
+        const data = createDataController({ api });
+        await data.load();
+
+        const result = await data.create({ type: 'Task', properties: { priority: 7 } });
+
+        const id = result.ok ? result.id : '';
+        expect(data.getObject(id)?.properties).toEqual({ status: 'new', priority: 7 });
+        expect(api.changesets[0].operations[0].properties).toEqual({ status: 'new', priority: 7 });
     });
 });

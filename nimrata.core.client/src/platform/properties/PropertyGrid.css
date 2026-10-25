@@ -1,0 +1,35 @@
+.property-grid {
+    padding: 0 0.75rem 1rem;
+}
+
+.property-grid h3 {
+    margin: 1rem 0 0.25rem;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
+.property-grid-row {
+    display: grid;
+    grid-template-columns: minmax(6rem, 35%) 1fr;
+    gap: 0.5rem;
+    align-items: start;
+    padding: 0.2rem 0;
+}
+
+.property-grid-row input[type='text'],
+.property-grid-row input[type='date'],
+.property-grid-row input[type='time'],
+.property-grid-row textarea,
+.property-grid-row select {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.property-grid-row input[type='checkbox'] {
+    justify-self: start;
+}
+
+.property-grid-readonly {
+    opacity: 0.8;
+}
