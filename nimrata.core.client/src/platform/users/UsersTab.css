@@ -1,0 +1,31 @@
+.users-tab {
+    padding: 8px;
+    overflow: auto;
+}
+
+.users-tab__form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-end;
+    margin-bottom: 12px;
+}
+
+.users-tab__form label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.85em;
+}
+
+.users-tab__table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.users-tab__table th,
+.users-tab__table td {
+    text-align: left;
+    padding: 4px 8px;
+    border-bottom: 1px solid #8884;
+}
