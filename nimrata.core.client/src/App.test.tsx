@@ -7,18 +7,13 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-it('показывает прогнозы, полученные с сервера', async () => {
-    vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue({
-            ok: true,
-            json: async () => [
-                { date: '2026-01-01', temperatureC: 0, temperatureF: 32, summary: 'Freezing' },
-            ],
-        }),
-    );
+it('показывает заглушку приложения и не обращается к серверу', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
 
-    expect(await screen.findByText('Freezing')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Nimrata' })).toBeInTheDocument();
+    expect(screen.getByText(/интерфейс появится здесь/i)).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
 });
