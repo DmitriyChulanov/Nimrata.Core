@@ -19,6 +19,7 @@ export type {
     MoveInput,
 } from './data/DataController';
 export { DataProvider, useData } from './data/DataProvider';
+export { UndoControls } from './data/UndoControls';
 export { SelectionProvider, useSelection } from './selection/SelectionProvider';
 export type { SelectionValue } from './selection/SelectionProvider';
 export { Tree } from './tree/Tree';

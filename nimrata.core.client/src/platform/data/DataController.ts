@@ -1,6 +1,7 @@
 ﻿import { ApiError } from '../api/apiClient';
 import type { ApiClient } from '../api/apiClient';
 import type { TypeDefinition } from '../types/types';
+import { applyOperations, createUndoHistory, invertOperations, touchedIds } from './undoHistory';
 import { uuid7 } from './uuid7';
 
 /** Объект в дереве: значения свойств лежат в `properties`, отсутствующее значение — нет ключа. */
@@ -71,6 +72,12 @@ ull удаляет значение. */
     move(id: string, to: MoveInput): Promise<ChangeResult>;
     /** Удаляет объект вместе с потомками одним набором. */
     remove(id: string): Promise<ChangeResult>;
+    /** Отменяет последнее действие (обратным набором, без хуков); при отказе сервера стек не меняется. */
+    undo(): Promise<ChangeResult>;
+    /** Повторяет последнее отменённое действие. */
+    redo(): Promise<ChangeResult>;
+    canUndo(): boolean;
+    canRedo(): boolean;
 }
 
 function errorMessage(error: unknown): string {
@@ -112,6 +119,7 @@ export function createDataController(options: DataControllerOptions): DataContro
     }
 
     const newId = options.newId ?? uuid7;
+    const history = createUndoHistory();
     // Изменения выполняются строго по очереди, чтобы откат одного не затирал соседние.
     let queue: Promise<unknown> = Promise.resolve();
 
@@ -129,6 +137,14 @@ export function createDataController(options: DataControllerOptions): DataContro
     function commit(
         touched: () => string[],
         build: () => { operations: Record<string, unknown>[]; apply: () => void } | string,
+        options: {
+            /** Записывать ли набор в стек отмены (обычные действия — да, отмена и повтор — нет). */
+            record?: boolean;
+            /** Вызывается после успешной отправки набора. */
+            onSuccess?: () => void;
+            /** Считать ли 409 расхождением данных (отмена и повтор показывают лишь сообщение). */
+            conflictNeedsReload?: boolean;
+        } = {},
     ): Promise<ChangeResult> {
         const run = async (): Promise<ChangeResult> => {
             if (snapshot.needsReload) {
@@ -148,6 +164,14 @@ export function createDataController(options: DataControllerOptions): DataContro
             publish({ error: null });
             try {
                 await api.post('changesets', { operations: built.operations });
+                if (options.record !== false) {
+                    history.record({
+                        forward: built.operations,
+                        inverse: invertOperations(built.operations, before),
+                    });
+                }
+                options.onSuccess?.();
+                publish({}, false);
                 return { ok: true };
             } catch (error) {
                 for (const [id, o] of before) {
@@ -156,7 +180,10 @@ export function createDataController(options: DataControllerOptions): DataContro
                 }
                 publish({
                     error: errorMessage(error),
-                    needsReload: error instanceof ApiError && error.status === 409,
+                    needsReload:
+                        options.conflictNeedsReload !== false &&
+                        error instanceof ApiError &&
+                        error.status === 409,
                 });
                 return { ok: false, error: errorMessage(error) };
             }
@@ -164,6 +191,29 @@ export function createDataController(options: DataControllerOptions): DataContro
         const result = queue.then(run);
         queue = result;
         return result;
+    }
+
+    /** Отмена и повтор: применяют сохранённый набор без хуков; при отказе стек остаётся прежним. */
+    function replay(kind: 'undo' | 'redo'): Promise<ChangeResult> {
+        let operations: Record<string, unknown>[] = [];
+        return commit(
+            () => touchedIds(operations),
+            () => {
+                const entry = kind === 'undo' ? history.peekUndo() : history.peekRedo();
+                if (!entry) return kind === 'undo' ? 'Нечего отменять.' : 'Нечего повторять.';
+                operations = kind === 'undo' ? entry.inverse : entry.forward;
+                return { operations, apply: () => applyOperations(objects, operations) };
+            },
+            {
+                record: false,
+                conflictNeedsReload: false,
+                onSuccess: () => (kind === 'undo' ? history.markUndone() : history.markRedone()),
+            },
+        ).then((result): ChangeResult => {
+            if (result.ok || operations.length === 0) return result;
+            const verb = kind === 'undo' ? 'отменить' : 'повторить';
+            return { ok: false, error: `Не удалось ${verb}: ${result.error}` };
+        });
     }
 
     return {
@@ -176,6 +226,7 @@ export function createDataController(options: DataControllerOptions): DataContro
                 ]);
                 types = new Map(loadedTypes.map((t) => [t.id, t]));
                 objects = new Map(loadedObjects.map((o) => [o.id, { ...o }]));
+                history.clear();
                 publish({ status: 'ready', error: null, needsReload: false });
             } catch (error) {
                 publish({ status: 'error', error: errorMessage(error) }, false);
@@ -284,6 +335,10 @@ export function createDataController(options: DataControllerOptions): DataContro
                     };
                 },
             ),
+        undo: () => replay('undo'),
+        redo: () => replay('redo'),
+        canUndo: () => history.canUndo(),
+        canRedo: () => history.canRedo(),
         remove: (id) => {
             const ids = () => (objects.has(id) ? descendantsFirst(id) : []);
             return commit(ids, () =>

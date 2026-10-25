@@ -30,12 +30,21 @@ export interface MenuItem {
     run(context: MenuContext): void;
     /** Если задана, пункт показывается только пользователям этой роли. */
     role?: UserRole;
+    /** Если задана и возвращает `false`, пункт показывается отключённым. */
+    enabled?: () => boolean;
+    /** Подсказка с горячей клавишей (например, `Ctrl+Z`). */
+    shortcut?: string;
+    /** Подписка на изменение `enabled`; меню перерисуется. Возвращает отписку. */
+    subscribe?: (listener: () => void) => () => void;
 }
 
 export interface MenuRegistry {
-    register(item: MenuItem): void;
+    /** Регистрирует пункт; возвращает функцию, снимающую регистрацию. */
+    register(item: MenuItem): () => void;
     /** Пункты, доступные роли, в порядке регистрации. */
     listFor(role: UserRole): MenuItem[];
+    /** Подписка на добавление и снятие пунктов. */
+    subscribe(listener: () => void): () => void;
 }
 
 export function createTabRegistry(): TabRegistry {
@@ -53,11 +62,25 @@ export function createTabRegistry(): TabRegistry {
 
 export function createMenuRegistry(): MenuRegistry {
     const items: MenuItem[] = [];
+    const listeners = new Set<() => void>();
+    const notify = () => listeners.forEach((l) => l());
     return {
         register(item) {
             items.push(item);
+            notify();
+            return () => {
+                const index = items.indexOf(item);
+                if (index >= 0) items.splice(index, 1);
+                notify();
+            };
         },
         listFor: (role) => items.filter((item) => !item.role || item.role === role),
+        subscribe(listener) {
+            listeners.add(listener);
+            return () => {
+                listeners.delete(listener);
+            };
+        },
     };
 }
 
