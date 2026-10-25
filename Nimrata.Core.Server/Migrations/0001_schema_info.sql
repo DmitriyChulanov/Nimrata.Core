@@ -1,4 +1,4 @@
-﻿create table app_info (
+create table app_info (
     key   text primary key,
     value text not null
 );

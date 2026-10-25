@@ -1,4 +1,4 @@
-﻿@Nimrata.Core.Server_HostAddress = http://localhost:5134
+@Nimrata.Core.Server_HostAddress = http://localhost:5134
 
 GET {{Nimrata.Core.Server_HostAddress}}/health
 Accept: application/json
