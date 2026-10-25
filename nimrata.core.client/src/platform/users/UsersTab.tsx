@@ -23,6 +23,7 @@ export function UsersTab() {
     const api = useApi();
     const [users, setUsers] = useState<ManagedUser[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
     const [email, setEmail] = useState('');
     const [name, setName] = useState('');
     const [password, setPassword] = useState('');
@@ -36,6 +37,7 @@ export function UsersTab() {
     const run = useCallback(
         async (operation: () => Promise<unknown>): Promise<boolean> => {
             setError(null);
+            setNotice(null);
             try {
                 await operation();
                 await load();
@@ -79,6 +81,7 @@ export function UsersTab() {
     return (
         <section className="users-tab" aria-label="Пользователи">
             {error && <p role="alert">{error}</p>}
+            {notice && <p role="status">{notice}</p>}
             <form className="users-tab__form" onSubmit={(e) => void create(e)}>
                 <label>
                     Электронная почта
@@ -159,6 +162,22 @@ export function UsersTab() {
                                 >
                                     {u.isActive ? 'Отключить' : 'Включить'}
                                 </button>
+                                {u.isActive && (
+                                    <button
+                                        type="button"
+                                        aria-label={`Отправить ссылку на смену пароля ${u.email}`}
+                                        onClick={() =>
+                                            void run(async () => {
+                                                await api.post(`${BASE}/${u.id}/password-reset`);
+                                                setNotice(
+                                                    `Ссылка на смену пароля отправлена на ${u.email}.`,
+                                                );
+                                            })
+                                        }
+                                    >
+                                        Отправить ссылку на смену пароля
+                                    </button>
+                                )}
                             </td>
                         </tr>
                     ))}

@@ -21,6 +21,8 @@ services:
       Admin__Password: ${ADMIN_PASSWORD:-dev-admin-password}
       Smtp__Host: mailpit
       Smtp__Port: "1025"
+      Smtp__From: nimrata@localhost
+      PasswordReset__PublicUrl: http://localhost:${APP_PORT:-8080}
 
   postgres:
     image: postgres:17-alpine
