@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 
-import type { MenuRegistry } from '../tabs/registries';
+import { useData } from './useData';
+
+import type { MenuRegistry } from '@platform/tabs/registries';
 import type { ChangeResult } from './DataController';
-import { useData } from './DataProvider';
 
 function isTextInput(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
@@ -17,7 +18,7 @@ function isTextInput(target: EventTarget | null): boolean {
 /**
  * Отмена и повтор для пользователя: пункты «Правка → Отменить / Повторить» в реестре меню,
  * горячие клавиши (Ctrl/Cmd+Z, Ctrl+Y, Ctrl/Cmd+Shift+Z) и сообщение об отказе сервера.
- * В полях ввода клавиши остаются за браузером.
+ * В полях ввода клавиши остаются за браузером
  */
 export function UndoControls({ registry }: { registry: MenuRegistry }) {
     const data = useData();

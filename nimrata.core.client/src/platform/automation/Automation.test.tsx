@@ -2,15 +2,16 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import { createDataController } from '../data/DataController';
-import { DataProvider } from '../data/DataProvider';
-import { createFakeApi } from '../data/fakeApi';
-import { SelectionProvider } from '../selection/SelectionProvider';
-import { MainMenu } from '../tabs/MainMenu';
-import { TabContainer } from '../tabs/TabContainer';
-import { TabsProvider } from '../tabs/TabsProvider';
-import { createMenuRegistry, createTabRegistry } from '../tabs/registries';
-import { Tree } from '../tree/Tree';
+import { createDataController } from '@platform/data/DataController';
+import { DataProvider } from '@platform/data/DataProvider';
+import { createFakeApi } from '@platform/data/fakeApi';
+import { SelectionProvider } from '@platform/selection/SelectionProvider';
+import { MainMenu } from '@platform/tabs/MainMenu';
+import { TabContainer } from '@platform/tabs/TabContainer';
+import { TabsProvider } from '@platform/tabs/TabsProvider';
+import { createMenuRegistry, createTabRegistry } from '@platform/tabs/registries';
+import { Tree } from '@platform/tree/Tree';
+
 import { AutomationTab } from './AutomationTab';
 import { registerAutomation } from './registerAutomation';
 
@@ -79,8 +80,8 @@ async function setup() {
     return { data, ran };
 }
 
-describe('Вкладка «Автоматизация»', () => {
-    it('показывает механизмы и их действия с placement automation', async () => {
+describe('Automation tab', () => {
+    it('automation_tab_showsMechanismsAndTheirActionsWithAutomationPlacement', async () => {
         await setup();
 
         const group = screen.getByRole('group', { name: 'Импорт задач' });
@@ -91,14 +92,14 @@ describe('Вкладка «Автоматизация»', () => {
         expect(screen.queryByRole('group', { name: 'Простой' })).toBeNull();
     });
 
-    it('не показывает механизмы с hiddenInTree в основном дереве', async () => {
+    it('automation_tab_doesNotShowMechanismsHiddenInTreeInMainTree', async () => {
         await setup();
 
         expect(screen.getByRole('treeitem', { name: 'Простой' })).toBeInTheDocument();
         expect(screen.queryByRole('treeitem', { name: 'Импорт задач' })).toBeNull();
     });
 
-    it('запускает действие одним кликом', async () => {
+    it('automation_action_runsWithOneClick', async () => {
         const { ran } = await setup();
 
         await userEvent.click(screen.getByRole('button', { name: 'Запустить' }));
@@ -106,7 +107,7 @@ describe('Вкладка «Автоматизация»', () => {
         expect(ran).toEqual(['run']);
     });
 
-    it('показывает ошибку действия', async () => {
+    it('automation_actionFailure_isShown', async () => {
         await setup();
 
         await userEvent.click(screen.getByRole('button', { name: 'Сломаться' }));
@@ -114,7 +115,7 @@ describe('Вкладка «Автоматизация»', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('Не вышло');
     });
 
-    it('открывает диалог параметров и запускает с введёнными значениями', async () => {
+    it('automation_actionWithParameters_opensDialogAndRunsWithEnteredValues', async () => {
         const { ran } = await setup();
 
         await userEvent.click(screen.getByRole('button', { name: 'Спросить' }));
@@ -124,7 +125,7 @@ describe('Вкладка «Автоматизация»', () => {
         expect(ran).toEqual([{ days: 3 }]);
     });
 
-    it('обновляется при создании и удалении механизмов', async () => {
+    it('automation_tab_updatesOnMechanismCreationAndDeletion', async () => {
         const { data } = await setup();
 
         const created = await data.create({
@@ -139,7 +140,7 @@ describe('Вкладка «Автоматизация»', () => {
         expect(screen.queryByRole('group', { name: 'Импорт задач' })).toBeNull();
     });
 
-    it('показывает подсказку, если механизмов нет', async () => {
+    it('automation_noMechanisms_showsHint', async () => {
         const { data } = await load([]);
         render(
             <DataProvider controller={data}>
@@ -151,8 +152,8 @@ describe('Вкладка «Автоматизация»', () => {
     });
 });
 
-describe('Регистрация вкладки «Автоматизация»', () => {
-    it('пункт «Вид → Автоматизация» открывает вкладку', async () => {
+describe('Automation tab registration', () => {
+    it('automationRegistration_menuViewAutomation_opensTab', async () => {
         const tabs = createTabRegistry();
         const menu = createMenuRegistry();
         registerAutomation(tabs, menu);
@@ -176,7 +177,7 @@ describe('Регистрация вкладки «Автоматизация»',
     });
 });
 
-describe('Вкладка «Автоматизация»: показ цели механизма (revealTarget)', () => {
+describe('Automation tab: mechanism target reveal (revealTarget)', () => {
     const refType = (id: string, property: string, extra: object) => ({
         id,
         name: id,
@@ -193,7 +194,7 @@ describe('Вкладка «Автоматизация»: показ цели м�
     const refTypes = [
         ...types,
         refType('Shortcut', 'goal', { revealTarget: true }),
-        // Имя `target` само по себе ничего не значит: нужен признак в определении свойства.
+        // Имя `target` само по себе ничего не значит: нужен признак в определении свойства
         refType('Plain2', 'target', {}),
     ];
     const refObjects = [
@@ -227,7 +228,7 @@ describe('Вкладка «Автоматизация»: показ цели м�
         );
     }
 
-    it('название механизма со свойством revealTarget выделяет цель в дереве', async () => {
+    it('revealTarget_mechanismNameWithRevealTarget_selectsTargetInTree', async () => {
         await setupRef();
 
         await userEvent.click(screen.getByRole('button', { name: 'Ярлык' }));
@@ -238,7 +239,7 @@ describe('Вкладка «Автоматизация»: показ цели м�
         );
     });
 
-    it('ссылочное свойство без признака revealTarget (даже с именем target) названия кнопкой не делает', async () => {
+    it('revealTarget_referencePropertyWithoutFlag_evenNamedTarget_isNotMadeButton', async () => {
         await setupRef();
 
         expect(screen.queryByRole('button', { name: 'Без признака' })).toBeNull();

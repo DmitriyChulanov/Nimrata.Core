@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 
 import { menuRegistry, tabRegistry } from '@platform';
 
-import App from './App';
+import { App } from './App';
 
 function jsonResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {
@@ -17,7 +17,7 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-it('без действующей сессии показывает экран входа', async () => {
+it('app_withoutSession_showsLoginScreen', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
 
     render(<App />);
@@ -27,7 +27,7 @@ it('без действующей сессии показывает экран �
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
 });
 
-it('после обновления страницы сессия восстанавливается через refresh без ввода пароля', async () => {
+it('app_afterPageReload_restoresSessionViaRefresh', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ accessToken: 'tok' }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -38,7 +38,7 @@ it('после обновления страницы сессия восстан
     expect(fetchMock.mock.calls[0][0]).toBe('/api/auth/refresh');
 });
 
-it('вход по e-mail и паролю открывает приложение', async () => {
+it('app_loginWithEmailAndPassword_opensApplication', async () => {
     const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(new Response(null, { status: 401 })) // refresh при загрузке
@@ -59,7 +59,7 @@ it('вход по e-mail и паролю открывает приложение
     });
 });
 
-it('неверный пароль показывает сообщение и остаётся на экране входа', async () => {
+it('app_wrongPassword_showsMessageAndStaysOnLogin', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
     vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
@@ -73,7 +73,7 @@ it('неверный пароль показывает сообщение и о�
     expect(screen.getByLabelText('Пароль')).toBeInTheDocument();
 });
 
-it('выход возвращает на экран входа', async () => {
+it('app_logout_returnsToLoginScreen', async () => {
     const fetchMock = vi
         .fn()
         .mockImplementation((url: string) =>
@@ -93,7 +93,7 @@ it('выход возвращает на экран входа', async () => {
     expect(fetchMock.mock.calls.some(([url]) => url === '/api/auth/logout')).toBe(true);
 });
 
-it('после входа показывает три панели; выделенный в дереве объект виден в панели свойств', async () => {
+it('app_afterLogin_showsThreePanelsAndSelectedObjectInProperties', async () => {
     const types = [
         {
             id: 'Note',
@@ -135,7 +135,7 @@ it('после входа показывает три панели; выделе
     ).toHaveValue('Идея');
 });
 
-it('зарегистрированные в платформе вкладка и пункт меню работают без модулей; роль скрывает пункты', async () => {
+it('app_platformTabAndMenuItem_workWithoutModulesAndRoleHidesItems', async () => {
     tabRegistry.register({
         id: 'app-test',
         title: 'Проверка',
@@ -192,7 +192,7 @@ function stubSession(isAdmin: boolean) {
     );
 }
 
-it('администратор открывает вкладку «Пользователи» из меню «Администрирование»', async () => {
+it('app_administrator_opensUsersTabFromAdministrationMenu', async () => {
     stubSession(true);
     const user = userEvent.setup();
     render(<App />);
@@ -204,7 +204,7 @@ it('администратор открывает вкладку «Пользо�
     expect(await screen.findByRole('button', { name: 'Создать' })).toBeInTheDocument();
 });
 
-it('участник не видит меню «Администрирование»', async () => {
+it('app_member_doesNotSeeAdministrationMenu', async () => {
     stubSession(false);
     render(<App />);
 
@@ -212,7 +212,7 @@ it('участник не видит меню «Администрировани
     expect(screen.queryByRole('menuitem', { name: 'Администрирование' })).not.toBeInTheDocument();
 });
 
-it('переход по ссылке из письма открывает форму нового пароля с токеном из адреса', async () => {
+it('app_resetLinkFromEmail_opensNewPasswordFormWithTokenFromAddress', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
     vi.stubGlobal('fetch', fetchMock);
     window.history.pushState({}, '', '/reset-password?token=abc');
@@ -228,8 +228,8 @@ it('переход по ссылке из письма открывает фор
 
         expect(await screen.findByRole('button', { name: 'Войти' })).toBeInTheDocument();
         expect(window.location.pathname).toBe('/');
-        const вызов = fetchMock.mock.calls.find(([url]) => url === '/api/auth/reset-password');
-        expect(JSON.parse(String((вызов![1] as RequestInit).body))).toEqual({
+        const call = fetchMock.mock.calls.find(([url]) => url === '/api/auth/reset-password');
+        expect(JSON.parse(String((call![1] as RequestInit).body))).toEqual({
             token: 'abc',
             password: 'new-password-1',
         });

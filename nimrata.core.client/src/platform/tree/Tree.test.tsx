@@ -2,10 +2,12 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import { createDataController } from '../data/DataController';
-import { DataProvider } from '../data/DataProvider';
-import { createFakeApi } from '../data/fakeApi';
-import { SelectionProvider, useSelection } from '../selection/SelectionProvider';
+import { createDataController } from '@platform/data/DataController';
+import { DataProvider } from '@platform/data/DataProvider';
+import { createFakeApi } from '@platform/data/fakeApi';
+import { SelectionProvider } from '@platform/selection/SelectionProvider';
+import { useSelection } from '@platform/selection/useSelection';
+
 import { Tree } from './Tree';
 
 const types = [
@@ -47,21 +49,21 @@ async function renderTree(objects: unknown[]) {
 
 const names = () => screen.getAllByRole('treeitem').map((n) => n.getAttribute('aria-label'));
 
-describe('Tree: отрисовка', () => {
-    it('показывает корневые узлы с названием из свойства и иконкой типа', async () => {
+describe('Tree: rendering', () => {
+    it('tree_renders_rootNodesWithNameFromPropertyAndTypeIcon', async () => {
         await renderTree([obj('r', 'Folder', null, 0, 'Мои папки')]);
 
         const item = screen.getByRole('treeitem', { name: 'Мои папки' });
         expect(within(item).getByText('📁')).toBeInTheDocument();
     });
 
-    it('без названия показывает название типа', async () => {
+    it('tree_withoutName_showsTypeName', async () => {
         await renderTree([obj('n', 'Note', null, 0)]);
 
         expect(screen.getByRole('treeitem', { name: 'Заметка' })).toBeInTheDocument();
     });
 
-    it('сортирует узлы по порядку, затем по названию', async () => {
+    it('tree_nodes_sortedByOrderThenByName', async () => {
         await renderTree([
             obj('c', 'Note', null, 2, 'Аааа'),
             obj('b', 'Note', null, 1, 'Яблоко'),
@@ -71,7 +73,7 @@ describe('Tree: отрисовка', () => {
         expect(names()).toEqual(['Арбуз', 'Яблоко', 'Аааа']);
     });
 
-    it('не показывает объекты типов с hiddenInTree', async () => {
+    it('tree_hiddenInTreeTypes_objectsAreNotShown', async () => {
         await renderTree([
             obj('h', 'Hidden', null, 0, 'Скрытый'),
             obj('n', 'Note', null, 1, 'Видимый'),
@@ -81,12 +83,12 @@ describe('Tree: отрисовка', () => {
     });
 });
 
-describe('Tree: виртуализация', () => {
+describe('Tree: virtualization', () => {
     const many = Array.from({ length: 10000 }, (_, i) =>
         obj(`n${i}`, 'Note', null, i, `Заметка ${i}`),
     );
 
-    it('большое дерево рисует только видимое окно строк', async () => {
+    it('tree_largeTree_rendersOnlyVisibleRowWindow', async () => {
         await renderTree(many);
 
         const rendered = screen.getAllByRole('treeitem').length;
@@ -98,7 +100,7 @@ describe('Tree: виртуализация', () => {
         );
     });
 
-    it('при прокрутке подставляются строки из нужного места списка', async () => {
+    it('tree_scroll_substitutesRowsFromRightPlaceOfList', async () => {
         await renderTree(many);
 
         fireEvent.scroll(screen.getByRole('tree'), { target: { scrollTop: 24 * 5000 } });
@@ -108,7 +110,7 @@ describe('Tree: виртуализация', () => {
     });
 });
 
-describe('Tree: контекстное меню', () => {
+describe('Tree: context menu', () => {
     const family = [
         obj('f', 'Folder', null, 0, 'Папка'),
         obj('a', 'Note', 'f', 1, 'А'),
@@ -117,7 +119,7 @@ describe('Tree: контекстное меню', () => {
 
     const menuItems = () => screen.getAllByRole('menuitem').map((i) => i.textContent);
 
-    it('«Создать» предлагает только допустимые неабстрактные дочерние типы, затем «Удалить»', async () => {
+    it('tree_createMenu_offersOnlyAllowedNonAbstractChildTypesThenDelete', async () => {
         const user = userEvent.setup();
         await renderTree(family);
 
@@ -129,7 +131,7 @@ describe('Tree: контекстное меню', () => {
         expect(menuItems()).toEqual(['Создать: Заметка', 'Создать: Папка', 'Удалить']);
     });
 
-    it('у типа без допустимых дочерних в меню только «Удалить»', async () => {
+    it('tree_typeWithoutAllowedChildren_menuHasOnlyDelete', async () => {
         const user = userEvent.setup();
         await renderTree(family);
 
@@ -141,7 +143,7 @@ describe('Tree: контекстное меню', () => {
         expect(menuItems()).toEqual(['Удалить']);
     });
 
-    it('«Создать» добавляет дочерний объект набором изменений и показывает его в дереве', async () => {
+    it('tree_create_addsChildByChangesetAndShowsItInTree', async () => {
         const user = userEvent.setup();
         const { api } = await renderTree(family);
 
@@ -161,7 +163,7 @@ describe('Tree: контекстное меню', () => {
         expect(names()).toEqual(['Папка', 'А', 'Заметка', 'Лист']);
     });
 
-    it('«Удалить» просит подтверждение; отмена ничего не меняет', async () => {
+    it('tree_delete_asksConfirmationCancelChangesNothing', async () => {
         const user = userEvent.setup();
         const { api } = await renderTree(family);
 
@@ -179,7 +181,7 @@ describe('Tree: контекстное меню', () => {
         expect(names()).toEqual(['Папка', 'Лист']);
     });
 
-    it('подтверждённое удаление убирает объект вместе с потомками одним набором', async () => {
+    it('tree_confirmedDelete_removesObjectWithDescendantsInOneChangeset', async () => {
         const user = userEvent.setup();
         const { api, controller } = await renderTree(family);
 
@@ -198,7 +200,7 @@ describe('Tree: контекстное меню', () => {
         expect(api.changesets[0].operations.map((o) => o.id)).toEqual(['a', 'f']);
     });
 
-    it('отказ сервера показывается сообщением и дерево возвращается к прежнему виду', async () => {
+    it('tree_serverRejection_isShownAsMessageAndTreeReturnsToPreviousView', async () => {
         const user = userEvent.setup();
         const { api } = await renderTree(family);
         api.rejectNext(400, 'Нельзя удалить');
@@ -216,7 +218,7 @@ describe('Tree: контекстное меню', () => {
         expect(names()).toEqual(['Папка', 'Лист']);
     });
 
-    it('Escape закрывает меню', async () => {
+    it('tree_escape_closesMenu', async () => {
         const user = userEvent.setup();
         await renderTree(family);
 
@@ -230,7 +232,7 @@ describe('Tree: контекстное меню', () => {
     });
 });
 
-describe('Tree: раскрытие и выделение', () => {
+describe('Tree: expanding and selection', () => {
     const family = [
         obj('f', 'Folder', null, 0, 'Папка'),
         obj('b', 'Note', 'f', 2, 'Б'),
@@ -238,7 +240,7 @@ describe('Tree: раскрытие и выделение', () => {
         obj('h', 'Hidden', 'f', 0, 'Скрытый'),
     ];
 
-    it('потомки скрыты, пока узел не раскрыт; раскрытие и сворачивание кнопкой', async () => {
+    it('tree_descendants_hiddenUntilNodeIsExpandedExpandAndCollapseWithButton', async () => {
         const user = userEvent.setup();
         await renderTree(family);
         expect(names()).toEqual(['Папка']);
@@ -254,13 +256,13 @@ describe('Tree: раскрытие и выделение', () => {
         expect(names()).toEqual(['Папка']);
     });
 
-    it('у узла без видимых потомков нет кнопки раскрытия', async () => {
+    it('tree_nodeWithoutVisibleDescendants_hasNoExpandButton', async () => {
         await renderTree([obj('n', 'Note', null, 0, 'Лист'), obj('h', 'Hidden', 'n', 0)]);
 
         expect(screen.queryByRole('button', { name: 'Развернуть' })).not.toBeInTheDocument();
     });
 
-    it('клик по узлу выделяет объект, выделение доступно остальным панелям', async () => {
+    it('tree_clickOnNode_selectsObjectAndSelectionIsAvailableToOtherPanels', async () => {
         const user = userEvent.setup();
         await renderTree(family);
 

@@ -2,12 +2,13 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import { createDataController } from '../data/DataController';
-import { DataProvider } from '../data/DataProvider';
-import { createFakeApi } from '../data/fakeApi';
-import { PropertyGrid } from '../properties/PropertyGrid';
-import { SelectionProvider, useSelection } from '../selection/SelectionProvider';
-import { Tree } from '../tree/Tree';
+import { createDataController } from '@platform/data/DataController';
+import { DataProvider } from '@platform/data/DataProvider';
+import { createFakeApi } from '@platform/data/fakeApi';
+import { PropertyGrid } from '@platform/properties/PropertyGrid';
+import { SelectionProvider } from '@platform/selection/SelectionProvider';
+import { useSelection } from '@platform/selection/useSelection';
+import { Tree } from '@platform/tree/Tree';
 
 const types = [
     {
@@ -117,8 +118,8 @@ async function expandAndContextMenu() {
     return screen.getByRole('menu', { name: 'Действия с объектом' });
 }
 
-describe('Действия в таблице свойств', () => {
-    it('показывает кнопки действий с placement propertyGrid и обработчиком', async () => {
+describe('Property grid actions', () => {
+    it('actions_propertyGrid_showsButtonsWithPropertyGridPlacementAndHandler', async () => {
         await setup();
         await openJob();
 
@@ -129,7 +130,7 @@ describe('Действия в таблице свойств', () => {
         expect(labels).toEqual(['Завершить', 'Только в таблице', 'Отложить']);
     });
 
-    it('кнопка без параметров запускает обработчик: один набор изменений, таблица обновляется', async () => {
+    it('actions_buttonWithoutParameters_runsHandlerInOneChangesetAndGridUpdates', async () => {
         const { api } = await setup();
         await openJob();
 
@@ -139,7 +140,7 @@ describe('Действия в таблице свойств', () => {
         expect(screen.getByLabelText('Статус')).toHaveValue('done');
     });
 
-    it('отмена хуком показывается сообщением и ничего не меняет', async () => {
+    it('actions_hookCancellation_isShownAsMessageAndChangesNothing', async () => {
         const { api, data } = await setup();
         data.registerHook('Job', 'setProperty', 'before', () => ({ cancel: 'Хук против.' }));
         await openJob();
@@ -150,7 +151,7 @@ describe('Действия в таблице свойств', () => {
         expect(api.changesets).toHaveLength(0);
     });
 
-    it('у объекта без действий панель действий не показывается', async () => {
+    it('actions_objectWithoutActions_hasNoActionPanel', async () => {
         await setup();
         await userEvent.click(screen.getByRole('button', { name: 'Развернуть' }));
         await userEvent.click(screen.getByRole('treeitem', { name: 'Входящие' }));
@@ -159,8 +160,8 @@ describe('Действия в таблице свойств', () => {
     });
 });
 
-describe('Действия в контекстном меню дерева', () => {
-    it('показывает пункты с placement contextMenu и обработчиком, рядом с «Удалить»', async () => {
+describe('Tree context menu actions', () => {
+    it('actions_contextMenu_showsItemsWithContextMenuPlacementAndHandlerNextToDelete', async () => {
         await setup();
         const menu = await expandAndContextMenu();
 
@@ -175,7 +176,7 @@ describe('Действия в контекстном меню дерева', () 
         expect(items).not.toContain('Без обработчика');
     });
 
-    it('клик по пункту запускает действие над объектом узла', async () => {
+    it('actions_contextMenuClick_runsActionOnNodeObject', async () => {
         const { api, data } = await setup();
         const menu = await expandAndContextMenu();
 
@@ -186,7 +187,7 @@ describe('Действия в контекстном меню дерева', () 
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
 
-    it('отказ действия показывается сообщением', async () => {
+    it('actions_contextMenuFailure_isShownAsMessage', async () => {
         const { data } = await setup();
         data.registerHook('Job', 'setProperty', 'before', () => ({ cancel: 'Нельзя.' }));
         const menu = await expandAndContextMenu();
@@ -197,7 +198,7 @@ describe('Действия в контекстном меню дерева', () 
     });
 });
 
-describe('Диалог параметров действия', () => {
+describe('Action parameters dialog', () => {
     async function openDefer() {
         const ctx = await setup();
         await openJob();
@@ -205,7 +206,7 @@ describe('Диалог параметров действия', () => {
         return { ...ctx, dialog: screen.getByRole('dialog', { name: 'Отложить' }) };
     }
 
-    it('строит поля по восьми видам параметров', async () => {
+    it('actionDialog_builds_fieldsForAllEightParameterKinds', async () => {
         const { dialog } = await openDefer();
 
         expect(within(dialog).getByLabelText(/Дней/)).toHaveAttribute('inputmode', 'numeric');
@@ -228,7 +229,7 @@ describe('Диалог параметров действия', () => {
         ).toEqual(['', 'Входящие']);
     });
 
-    it('не отправляет форму без обязательного параметра и показывает причину', async () => {
+    it('actionDialog_missingRequiredParameter_blocksSubmitAndShowsReason', async () => {
         const { api, calls, dialog } = await openDefer();
 
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
@@ -238,7 +239,7 @@ describe('Диалог параметров действия', () => {
         expect(api.changesets).toHaveLength(0);
     });
 
-    it('передаёт обработчику собранные параметры и закрывается; пустые не передаются', async () => {
+    it('actionDialog_submit_passesCollectedParametersToHandlerAndClosesEmptyOnesOmitted', async () => {
         const { api, calls, dialog } = await openDefer();
 
         await userEvent.type(within(dialog).getByLabelText(/Дней/), '3');
@@ -253,7 +254,7 @@ describe('Диалог параметров действия', () => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    it('проверяет формат числа', async () => {
+    it('actionDialog_number_formatIsValidated', async () => {
         const { calls, dialog } = await openDefer();
 
         await userEvent.type(within(dialog).getByLabelText(/Дней/), 'abc');
@@ -263,7 +264,7 @@ describe('Диалог параметров действия', () => {
         expect(calls).toEqual([]);
     });
 
-    it('«Отмена» закрывает диалог без запуска', async () => {
+    it('actionDialog_cancel_closesWithoutRunning', async () => {
         const { api, calls, dialog } = await openDefer();
 
         await userEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }));
@@ -273,7 +274,7 @@ describe('Диалог параметров действия', () => {
         expect(api.changesets).toHaveLength(0);
     });
 
-    it('отказ хука при запуске показывается в диалоге, и диалог остаётся открытым', async () => {
+    it('actionDialog_hookRejectionOnRun_isShownInDialogAndDialogStaysOpen', async () => {
         const { data, dialog } = await openDefer();
         data.registerHook('Job', 'setProperty', 'before', () => ({ cancel: 'Хук против.' }));
 

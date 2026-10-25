@@ -1,3 +1,4 @@
+using Nimrata.Core.Server.Controllers.Responses;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -10,10 +11,10 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Объекты и наборы изменений: загрузка, атомарное применение, проверки по типам, журнал.</summary>
-public sealed class ObjectsTests(ServerFactory фабрика) : IClassFixture<ServerFactory>, IAsyncLifetime
+/// <summary>Объекты и наборы изменений: загрузка, атомарное применение, проверки по типам, журнал</summary>
+public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFactory>, IAsyncLifetime
 {
-    private const string Манифест = """
+    private const string Manifest = """
         {
           "module": "demo", "version": 1,
           "types": [
@@ -37,68 +38,68 @@ public sealed class ObjectsTests(ServerFactory фабрика) : IClassFixture<S
         }
         """;
 
-    private const string ЧужойEmail = "other@example.test";
-    private const string ЧужойПароль = "other-password-1";
+    private const string ForeignEmail = "other@example.test";
+    private const string ForeignPassword = "other-password-1";
 
-    private string _каталог = null!;
-    private string _база = null!;
-    private WebApplicationFactory<Program> _сервер = null!;
-    private HttpClient _я = null!;
-    private HttpClient _другой = null!;
+    private string _directory = null!;
+    private string _database = null!;
+    private WebApplicationFactory<Program> _server = null!;
+    private HttpClient _me = null!;
+    private HttpClient _other = null!;
 
     public async Task InitializeAsync()
     {
-        _каталог = Path.Combine(Path.GetTempPath(), "nimrata-objects-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(_каталог, "demo"));
-        await File.WriteAllTextAsync(Path.Combine(_каталог, "demo", "manifest.json"), Манифест);
-        _база = new NpgsqlConnectionStringBuilder(фабрика.ConnectionString) { Database = "o" + Guid.NewGuid().ToString("N"), Pooling = false }
+        _directory = Path.Combine(Path.GetTempPath(), "nimrata-objects-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(_directory, "demo"));
+        await File.WriteAllTextAsync(Path.Combine(_directory, "demo", "manifest.json"), Manifest);
+        _database = new NpgsqlConnectionStringBuilder(factory.ConnectionString) { Database = "o" + Guid.NewGuid().ToString("N"), Pooling = false }
             .ConnectionString;
-        _сервер = фабрика.WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, конфигурация) =>
-            конфигурация.AddInMemoryCollection(new Dictionary<string, string?>
+        _server = factory.WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, configuration) =>
+            configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:Default"] = _база,
-                ["Modules:Path"] = _каталог,
+                ["ConnectionStrings:Default"] = _database,
+                ["Modules:Path"] = _directory,
             })));
-        _я = await Войти(ServerFactory.AdminEmail, ServerFactory.AdminPassword);
-        await _сервер.Services.GetRequiredService<AuthService>().СоздатьПользователя(ЧужойEmail, ЧужойПароль, false);
-        _другой = await Войти(ЧужойEmail, ЧужойПароль);
+        _me = await Login(ServerFactory.AdminEmail, ServerFactory.AdminPassword);
+        await _server.Services.GetRequiredService<AuthService>().CreateUserAsync(ForeignEmail, ForeignPassword, false);
+        _other = await Login(ForeignEmail, ForeignPassword);
     }
 
     public Task DisposeAsync()
     {
-        _я?.Dispose();
-        _другой?.Dispose();
-        _сервер?.Dispose();
-        if (Directory.Exists(_каталог)) Directory.Delete(_каталог, recursive: true);
+        _me?.Dispose();
+        _other?.Dispose();
+        _server?.Dispose();
+        if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);
         return Task.CompletedTask;
     }
 
-    private async Task<HttpClient> Войти(string email, string пароль)
+    private async Task<HttpClient> Login(string email, string password)
     {
-        var клиент = _сервер.CreateClient();
-        var вход = await клиент.PostAsJsonAsync("/api/auth/login", new { email, password = пароль });
-        var токен = (await вход.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken;
-        клиент.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", токен);
-        return клиент;
+        var client = _server.CreateClient();
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password = password });
+        var token = (await login.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken;
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
     }
 
-    private static object Создать(Guid id, string тип, Guid? родитель = null, double порядок = 1, object? свойства = null) =>
-        new { op = "create", id, type = тип, parent = родитель, order = порядок, properties = свойства ?? new { } };
+    private static object Create(Guid id, string type, Guid? parent = null, double order = 1, object? properties = null) =>
+        new { op = "create", id, type = type, parent = parent, order = order, properties = properties ?? new { } };
 
-    private static Task<HttpResponseMessage> Применить(HttpClient клиент, params object[] операции) =>
-        клиент.PostAsJsonAsync("/api/changesets", new { operations = операции });
+    private static Task<HttpResponseMessage> Apply(HttpClient client, params object[] operations) =>
+        client.PostAsJsonAsync("/api/changesets", new { operations = operations });
 
-    private static async Task<JsonElement[]> Загрузить(HttpClient клиент) =>
-        (await клиент.GetFromJsonAsync<JsonElement[]>("/api/objects"))!;
+    private static async Task<JsonElement[]> Load(HttpClient client) =>
+        (await client.GetFromJsonAsync<JsonElement[]>("/api/objects"))!;
 
-    private static async Task ПроверитьОтказ(HttpResponseMessage ответ, HttpStatusCode статус, string подстрока)
+    private static async Task AssertRejected(HttpResponseMessage response, HttpStatusCode status, string substring)
     {
-        Assert.Equal(статус, ответ.StatusCode);
-        var причина = (await ответ.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString();
-        Assert.Contains(подстрока, причина);
+        Assert.Equal(status, response.StatusCode);
+        var reason = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString();
+        Assert.Contains(substring, reason);
     }
 
-    public static TheoryData<string, object, string> НевалидныеСвойства => new()
+    public static TheoryData<string, object, string> InvalidProperties => new()
     {
         { "string", new { title = 5 }, "title" },
         { "text", new { body = true }, "body" },
@@ -114,125 +115,125 @@ public sealed class ObjectsTests(ServerFactory фабрика) : IClassFixture<S
     };
 
     [Theory]
-    [MemberData(nameof(НевалидныеСвойства))]
-    public async Task Набор_СоздатьСОшибочнымЗначениемСвойства_Отклоняется(string _, object свойства, string имя)
+    [MemberData(nameof(InvalidProperties))]
+    public async Task Changeset_CreateWithInvalidPropertyValue_IsRejected(string _, object properties, string name)
     {
-        var ответ = await Применить(_я, Создать(Guid.CreateVersion7(), "Item", null, 1, свойства));
+        var response = await Apply(_me, Create(Guid.CreateVersion7(), "Item", null, 1, properties));
 
-        await ПроверитьОтказ(ответ, HttpStatusCode.UnprocessableEntity, имя);
-        Assert.Empty(await Загрузить(_я));
+        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, name);
+        Assert.Empty(await Load(_me));
     }
 
     [Fact]
-    public async Task Набор_СоздатьСВерными_ЗначениямиВсехВидов_Принимается()
+    public async Task Changeset_CreateWithValidValuesOfAllKinds_IsAccepted()
     {
-        var папка = Guid.CreateVersion7();
-        var ответ = await Применить(_я,
-            Создать(папка, "Folder"),
-            Создать(Guid.CreateVersion7(), "Item", папка, 1, new
+        var folder = Guid.CreateVersion7();
+        var response = await Apply(_me,
+            Create(folder, "Folder"),
+            Create(Guid.CreateVersion7(), "Item", folder, 1, new
             {
                 title = "a", body = "b\nc", count = -2, done = true, day = "2026-02-28", at = "09:05",
-                level = "low", @ref = папка, folderRef = папка,
+                level = "low", @ref = folder, folderRef = folder,
             }));
 
-        Assert.Equal(HttpStatusCode.OK, ответ.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
-    public async Task Набор_СсылкаНаЧужойИлиНесуществующийОбъект_Отклоняется()
+    public async Task Changeset_ReferenceToForeignOrMissingObject_IsRejected()
     {
-        var чужой = Guid.CreateVersion7();
-        await Применить(_другой, Создать(чужой, "Folder"));
+        var foreign = Guid.CreateVersion7();
+        await Apply(_other, Create(foreign, "Folder"));
 
-        var наЧужой = await Применить(_я, Создать(Guid.CreateVersion7(), "Item", null, 1, new { @ref = чужой }));
-        var наНесуществующий = await Применить(_я, Создать(Guid.CreateVersion7(), "Item", null, 1, new { @ref = Guid.NewGuid() }));
+        var toForeign = await Apply(_me, Create(Guid.CreateVersion7(), "Item", null, 1, new { @ref = foreign }));
+        var toMissing = await Apply(_me, Create(Guid.CreateVersion7(), "Item", null, 1, new { @ref = Guid.NewGuid() }));
 
-        await ПроверитьОтказ(наЧужой, HttpStatusCode.UnprocessableEntity, "ref");
-        await ПроверитьОтказ(наНесуществующий, HttpStatusCode.UnprocessableEntity, "ref");
+        await AssertRejected(toForeign, HttpStatusCode.UnprocessableEntity, "ref");
+        await AssertRejected(toMissing, HttpStatusCode.UnprocessableEntity, "ref");
     }
 
     [Fact]
-    public async Task Набор_СсылкаНаОбъектНедопустимогоТипа_Отклоняется()
+    public async Task Changeset_ReferenceToDisallowedType_IsRejected()
     {
-        var элемент = Guid.CreateVersion7();
-        var папка = Guid.CreateVersion7();
-        await Применить(_я, Создать(папка, "Folder"), Создать(элемент, "Item", папка));
+        var item = Guid.CreateVersion7();
+        var folder = Guid.CreateVersion7();
+        await Apply(_me, Create(folder, "Folder"), Create(item, "Item", folder));
 
-        var ответ = await Применить(_я, Создать(Guid.CreateVersion7(), "Item", папка, 2, new { folderRef = элемент }));
+        var response = await Apply(_me, Create(Guid.CreateVersion7(), "Item", folder, 2, new { folderRef = item }));
 
-        await ПроверитьОтказ(ответ, HttpStatusCode.UnprocessableEntity, "folderRef");
+        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "folderRef");
     }
 
     [Fact]
-    public async Task Набор_НеизвестныйТип_Отклоняется()
+    public async Task Changeset_UnknownType_IsRejected()
     {
-        var ответ = await Применить(_я, Создать(Guid.CreateVersion7(), "Nope"));
+        var response = await Apply(_me, Create(Guid.CreateVersion7(), "Nope"));
 
-        await ПроверитьОтказ(ответ, HttpStatusCode.UnprocessableEntity, "Nope");
+        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "Nope");
     }
 
     [Fact]
-    public async Task Набор_АбстрактныйТип_Отклоняется()
+    public async Task Changeset_AbstractType_IsRejected()
     {
-        var ответ = await Применить(_я, Создать(Guid.CreateVersion7(), "Base"));
+        var response = await Apply(_me, Create(Guid.CreateVersion7(), "Base"));
 
-        await ПроверитьОтказ(ответ, HttpStatusCode.UnprocessableEntity, "абстракт");
+        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "абстракт");
     }
 
     [Fact]
-    public async Task Набор_РодительНеСуществует_Отклоняется()
+    public async Task Changeset_ParentDoesNotExist_IsRejected()
     {
-        var ответ = await Применить(_я, Создать(Guid.CreateVersion7(), "Item", Guid.NewGuid()));
+        var response = await Apply(_me, Create(Guid.CreateVersion7(), "Item", Guid.NewGuid()));
 
-        await ПроверитьОтказ(ответ, HttpStatusCode.UnprocessableEntity, "родител");
+        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "родител");
     }
 
     [Fact]
-    public async Task Набор_РодительЧужой_ОтклоняетсяКакНесуществующий()
+    public async Task Changeset_ForeignParent_RejectedAsMissing()
     {
-        var чужаяПапка = Guid.CreateVersion7();
-        await Применить(_другой, Создать(чужаяПапка, "Folder"));
+        var foreignFolder = Guid.CreateVersion7();
+        await Apply(_other, Create(foreignFolder, "Folder"));
 
-        var ответ = await Применить(_я, Создать(Guid.CreateVersion7(), "Item", чужаяПапка));
+        var response = await Apply(_me, Create(Guid.CreateVersion7(), "Item", foreignFolder));
 
-        await ПроверитьОтказ(ответ, HttpStatusCode.UnprocessableEntity, "родител");
-        Assert.Empty(await Загрузить(_я));
+        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "родител");
+        Assert.Empty(await Load(_me));
     }
 
     [Fact]
-    public async Task Набор_РодительНеДопускаетТипРебёнка_Отклоняется()
+    public async Task Changeset_ParentDisallowsChildType_IsRejected()
     {
-        var элемент = Guid.CreateVersion7();
-        await Применить(_я, Создать(элемент, "Item"));
+        var item = Guid.CreateVersion7();
+        await Apply(_me, Create(item, "Item"));
 
-        var ответ = await Применить(_я, Создать(Guid.CreateVersion7(), "Folder", элемент));
+        var response = await Apply(_me, Create(Guid.CreateVersion7(), "Folder", item));
 
-        await ПроверитьОтказ(ответ, HttpStatusCode.UnprocessableEntity, "Folder");
+        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "Folder");
     }
 
     [Fact]
-    public async Task Набор_ИдентификаторУжеЗанят_Отклоняется()
+    public async Task Changeset_IdAlreadyTaken_IsRejected()
     {
         var id = Guid.CreateVersion7();
-        await Применить(_я, Создать(id, "Folder"));
+        await Apply(_me, Create(id, "Folder"));
 
-        var своим = await Применить(_я, Создать(id, "Folder"));
-        var чужим = await Применить(_другой, Создать(id, "Folder"));
+        var own = await Apply(_me, Create(id, "Folder"));
+        var foreign = await Apply(_other, Create(id, "Folder"));
 
-        await ПроверитьОтказ(своим, HttpStatusCode.Conflict, "занят");
-        await ПроверитьОтказ(чужим, HttpStatusCode.Conflict, "занят");
+        await AssertRejected(own, HttpStatusCode.Conflict, "занят");
+        await AssertRejected(foreign, HttpStatusCode.Conflict, "занят");
     }
 
     [Fact]
-    public async Task Набор_ПоследняяОперацияОтклонена_НеПрименяетсяНиОдна()
+    public async Task Changeset_LastOperationRejected_NoneIsApplied()
     {
-        var папка = Guid.CreateVersion7();
+        var folder = Guid.CreateVersion7();
 
-        var ответ = await Применить(_я, Создать(папка, "Folder"), Создать(Guid.CreateVersion7(), "Nope"));
+        var response = await Apply(_me, Create(folder, "Folder"), Create(Guid.CreateVersion7(), "Nope"));
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, ответ.StatusCode);
-        Assert.Empty(await Загрузить(_я));
-        Assert.Equal(0, await ЧислоЗаписейЖурнала());
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Empty(await Load(_me));
+        Assert.Equal(0, await JournalEntryCount());
     }
 
     [Theory]
@@ -240,304 +241,304 @@ public sealed class ObjectsTests(ServerFactory фабрика) : IClassFixture<S
     [InlineData("""{ "operations": [] }""")]
     [InlineData("""{ "operations": [ { "op": "fly" } ] }""")]
     [InlineData("""{ "operations": [ { "op": "create", "type": "Folder" } ] }""")]
-    public async Task Набор_НеверныйФормат_ОтклоняетсяСПричиной(string тело)
+    public async Task Changeset_InvalidFormat_RejectedWithReason(string body)
     {
-        var ответ = await _я.PostAsync("/api/changesets",
-            new StringContent(тело, System.Text.Encoding.UTF8, "application/json"));
+        var response = await _me.PostAsync("/api/changesets",
+            new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
 
-        await ПроверитьОтказ(ответ, HttpStatusCode.UnprocessableEntity, "");
+        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "");
     }
 
-    private static object Изменить(Guid id, object изменения) => new { op = "update", id, changes = изменения };
+    private static object Update(Guid id, object changes) => new { op = "update", id, changes = changes };
 
-    private static object Переместить(Guid id, object? родитель = null, object? порядок = null) =>
-        new { op = "move", id, parent = родитель, order = порядок };
+    private static object Move(Guid id, object? parent = null, object? order = null) =>
+        new { op = "move", id, parent = parent, order = order };
 
-    private static object Удалить(Guid id) => new { op = "delete", id };
+    private static object Delete(Guid id) => new { op = "delete", id };
 
-    private static JsonElement Найти(JsonElement[] объекты, Guid id) =>
-        объекты.Single(о => о.GetProperty("id").GetGuid() == id);
+    private static JsonElement Find(JsonElement[] objects, Guid id) =>
+        objects.Single(element => element.GetProperty("id").GetGuid() == id);
 
     [Fact]
-    public async Task Набор_ИзменениеСвойства_ПриСовпавшемБылоПрименяется()
+    public async Task Changeset_UpdateProperty_MatchingOld_IsApplied()
     {
         var id = Guid.CreateVersion7();
-        await Применить(_я, Создать(id, "Item", null, 1, new { title = "Старое", count = 1 }));
+        await Apply(_me, Create(id, "Item", null, 1, new { title = "Старое", count = 1 }));
 
-        var ответ = await Применить(_я, Изменить(id, new
+        var response = await Apply(_me, Update(id, new
         {
             title = new { old = "Старое", @new = "Новое" },
             done = new { old = (string?)null, @new = true },
         }));
 
-        Assert.Equal(HttpStatusCode.OK, ответ.StatusCode);
-        var свойства = Найти(await Загрузить(_я), id).GetProperty("properties");
-        Assert.Equal("Новое", свойства.GetProperty("title").GetString());
-        Assert.True(свойства.GetProperty("done").GetBoolean());
-        Assert.Equal(1, свойства.GetProperty("count").GetInt32());
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var properties = Find(await Load(_me), id).GetProperty("properties");
+        Assert.Equal("Новое", properties.GetProperty("title").GetString());
+        Assert.True(properties.GetProperty("done").GetBoolean());
+        Assert.Equal(1, properties.GetProperty("count").GetInt32());
     }
 
     [Fact]
-    public async Task Набор_ИзменениеСвойства_СНовымNull_УдаляетЗначение()
+    public async Task Changeset_UpdateProperty_NewNull_RemovesValue()
     {
         var id = Guid.CreateVersion7();
-        await Применить(_я, Создать(id, "Item", null, 1, new { title = "Есть" }));
+        await Apply(_me, Create(id, "Item", null, 1, new { title = "Есть" }));
 
-        var ответ = await Применить(_я, Изменить(id, new { title = new { old = "Есть", @new = (string?)null } }));
+        var response = await Apply(_me, Update(id, new { title = new { old = "Есть", @new = (string?)null } }));
 
-        Assert.Equal(HttpStatusCode.OK, ответ.StatusCode);
-        Assert.False(Найти(await Загрузить(_я), id).GetProperty("properties").TryGetProperty("title", out _));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(Find(await Load(_me), id).GetProperty("properties").TryGetProperty("title", out _));
     }
 
     [Fact]
-    public async Task Набор_ИзменениеСвойства_БылоНеСовпало_ОтклоняетсяКонфликтомИНичегоНеМеняет()
+    public async Task Changeset_UpdateProperty_OldMismatch_RejectedAsConflictAndChangesNothing()
     {
         var id = Guid.CreateVersion7();
-        await Применить(_я, Создать(id, "Item", null, 1, new { title = "Текущее", count = 1 }));
+        await Apply(_me, Create(id, "Item", null, 1, new { title = "Текущее", count = 1 }));
 
-        var ответ = await Применить(_я, Изменить(id, new
+        var response = await Apply(_me, Update(id, new
         {
             count = new { old = 1, @new = 2 },
             title = new { old = "Другое", @new = "Новое" },
         }));
 
-        await ПроверитьОтказ(ответ, HttpStatusCode.Conflict, "title");
-        var свойства = Найти(await Загрузить(_я), id).GetProperty("properties");
-        Assert.Equal("Текущее", свойства.GetProperty("title").GetString());
-        Assert.Equal(1, свойства.GetProperty("count").GetInt32());
+        await AssertRejected(response, HttpStatusCode.Conflict, "title");
+        var properties = Find(await Load(_me), id).GetProperty("properties");
+        Assert.Equal("Текущее", properties.GetProperty("title").GetString());
+        Assert.Equal(1, properties.GetProperty("count").GetInt32());
     }
 
     [Fact]
-    public async Task Набор_ИзменениеСвойства_ЗначениеНеПодходит_Отклоняется()
+    public async Task Changeset_UpdateProperty_InvalidValue_IsRejected()
     {
         var id = Guid.CreateVersion7();
-        await Применить(_я, Создать(id, "Item", null, 1, new { level = "low" }));
+        await Apply(_me, Create(id, "Item", null, 1, new { level = "low" }));
 
-        var ответ = await Применить(_я, Изменить(id, new { level = new { old = "low", @new = "medium" } }));
+        var response = await Apply(_me, Update(id, new { level = new { old = "low", @new = "medium" } }));
 
-        await ПроверитьОтказ(ответ, HttpStatusCode.UnprocessableEntity, "level");
+        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "level");
     }
 
     [Fact]
-    public async Task Набор_ИзменениеЧужогоИлиНесуществующегоОбъекта_Отклоняется()
+    public async Task Changeset_UpdateForeignOrMissingObject_IsRejected()
     {
-        var чужой = Guid.CreateVersion7();
-        await Применить(_другой, Создать(чужой, "Item", null, 1, new { title = "Секрет" }));
+        var foreign = Guid.CreateVersion7();
+        await Apply(_other, Create(foreign, "Item", null, 1, new { title = "Секрет" }));
 
-        var наЧужой = await Применить(_я, Изменить(чужой, new { title = new { old = "Секрет", @new = "Взлом" } }));
-        var наНесуществующий = await Применить(_я,
-            Изменить(Guid.NewGuid(), new { title = new { old = (string?)null, @new = "x" } }));
+        var toForeign = await Apply(_me, Update(foreign, new { title = new { old = "Секрет", @new = "Взлом" } }));
+        var toMissing = await Apply(_me,
+            Update(Guid.NewGuid(), new { title = new { old = (string?)null, @new = "x" } }));
 
-        await ПроверитьОтказ(наЧужой, HttpStatusCode.UnprocessableEntity, "не найден");
-        await ПроверитьОтказ(наНесуществующий, HttpStatusCode.UnprocessableEntity, "не найден");
-        Assert.Equal("Секрет", Найти(await Загрузить(_другой), чужой).GetProperty("properties").GetProperty("title").GetString());
+        await AssertRejected(toForeign, HttpStatusCode.UnprocessableEntity, "не найден");
+        await AssertRejected(toMissing, HttpStatusCode.UnprocessableEntity, "не найден");
+        Assert.Equal("Секрет", Find(await Load(_other), foreign).GetProperty("properties").GetProperty("title").GetString());
     }
 
     [Fact]
-    public async Task Набор_ПерваяОперацияВерна_ВтораяНет_ПерваяОткатывается()
+    public async Task Changeset_FirstOperationValidSecondNot_FirstIsRolledBack()
     {
         var id = Guid.CreateVersion7();
-        await Применить(_я, Создать(id, "Item", null, 1, new { title = "Исходное" }));
+        await Apply(_me, Create(id, "Item", null, 1, new { title = "Исходное" }));
 
-        var ответ = await Применить(_я,
-            Изменить(id, new { title = new { old = "Исходное", @new = "Изменено" } }),
-            Изменить(id, new { title = new { old = "Исходное", @new = "Опять" } }));
+        var response = await Apply(_me,
+            Update(id, new { title = new { old = "Исходное", @new = "Изменено" } }),
+            Update(id, new { title = new { old = "Исходное", @new = "Опять" } }));
 
-        Assert.Equal(HttpStatusCode.Conflict, ответ.StatusCode);
-        Assert.Equal("Исходное", Найти(await Загрузить(_я), id).GetProperty("properties").GetProperty("title").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("Исходное", Find(await Load(_me), id).GetProperty("properties").GetProperty("title").GetString());
     }
 
     [Fact]
-    public async Task Набор_Перемещение_МенятРодителяИПорядок()
+    public async Task Changeset_Move_ChangesParentAndOrder()
     {
-        var а = Guid.CreateVersion7();
-        var б = Guid.CreateVersion7();
-        var элемент = Guid.CreateVersion7();
-        await Применить(_я, Создать(а, "Folder", null, 1), Создать(б, "Folder", null, 2), Создать(элемент, "Item", а, 5));
+        var first = Guid.CreateVersion7();
+        var second = Guid.CreateVersion7();
+        var item = Guid.CreateVersion7();
+        await Apply(_me, Create(first, "Folder", null, 1), Create(second, "Folder", null, 2), Create(item, "Item", first, 5));
 
-        var ответ = await Применить(_я, Переместить(элемент,
-            родитель: new { old = а, @new = б }, порядок: new { old = 5, @new = 1.5 }));
+        var response = await Apply(_me, Move(item,
+            parent: new { old = first, @new = second }, order: new { old = 5, @new = 1.5 }));
 
-        Assert.Equal(HttpStatusCode.OK, ответ.StatusCode);
-        var после = Найти(await Загрузить(_я), элемент);
-        Assert.Equal(б, после.GetProperty("parent").GetGuid());
-        Assert.Equal(1.5, после.GetProperty("order").GetDouble());
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var after = Find(await Load(_me), item);
+        Assert.Equal(second, after.GetProperty("parent").GetGuid());
+        Assert.Equal(1.5, after.GetProperty("order").GetDouble());
     }
 
     [Fact]
-    public async Task Набор_ПеремещениеВКорень_СбрасываетРодителя()
+    public async Task Changeset_MoveToRoot_ClearsParent()
     {
-        var папка = Guid.CreateVersion7();
-        var вложенная = Guid.CreateVersion7();
-        await Применить(_я, Создать(папка, "Folder"), Создать(вложенная, "Folder", папка));
+        var folder = Guid.CreateVersion7();
+        var nested = Guid.CreateVersion7();
+        await Apply(_me, Create(folder, "Folder"), Create(nested, "Folder", folder));
 
-        var ответ = await Применить(_я, Переместить(вложенная, родитель: new { old = папка, @new = (Guid?)null }));
+        var response = await Apply(_me, Move(nested, parent: new { old = folder, @new = (Guid?)null }));
 
-        Assert.Equal(HttpStatusCode.OK, ответ.StatusCode);
-        Assert.Equal(JsonValueKind.Null, Найти(await Загрузить(_я), вложенная).GetProperty("parent").ValueKind);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(JsonValueKind.Null, Find(await Load(_me), nested).GetProperty("parent").ValueKind);
     }
 
     [Fact]
-    public async Task Набор_ПеремещениеСНевернымБыло_ОтклоняетсяКонфликтом()
+    public async Task Changeset_MoveWithWrongOld_RejectedAsConflict()
     {
-        var а = Guid.CreateVersion7();
-        var б = Guid.CreateVersion7();
-        var папка = Guid.CreateVersion7();
-        await Применить(_я, Создать(а, "Folder"), Создать(б, "Folder"), Создать(папка, "Folder", а, 3));
+        var first = Guid.CreateVersion7();
+        var second = Guid.CreateVersion7();
+        var folder = Guid.CreateVersion7();
+        await Apply(_me, Create(first, "Folder"), Create(second, "Folder"), Create(folder, "Folder", first, 3));
 
-        var неверныйРодитель = await Применить(_я, Переместить(папка, родитель: new { old = б, @new = (Guid?)null }));
-        var неверныйПорядок = await Применить(_я, Переместить(папка, порядок: new { old = 99, @new = 1 }));
+        var wrongParent = await Apply(_me, Move(folder, parent: new { old = second, @new = (Guid?)null }));
+        var wrongOrder = await Apply(_me, Move(folder, order: new { old = 99, @new = 1 }));
 
-        await ПроверитьОтказ(неверныйРодитель, HttpStatusCode.Conflict, "parent");
-        await ПроверитьОтказ(неверныйПорядок, HttpStatusCode.Conflict, "order");
+        await AssertRejected(wrongParent, HttpStatusCode.Conflict, "parent");
+        await AssertRejected(wrongOrder, HttpStatusCode.Conflict, "order");
     }
 
     [Fact]
-    public async Task Набор_ПеремещениеПодНедопустимогоРодителяИлиВСебя_Отклоняется()
+    public async Task Changeset_MoveUnderInvalidParentOrIntoSelf_IsRejected()
     {
-        var папка = Guid.CreateVersion7();
-        var вложенная = Guid.CreateVersion7();
-        var элемент = Guid.CreateVersion7();
-        await Применить(_я, Создать(папка, "Folder"), Создать(вложенная, "Folder", папка), Создать(элемент, "Item", папка));
+        var folder = Guid.CreateVersion7();
+        var nested = Guid.CreateVersion7();
+        var item = Guid.CreateVersion7();
+        await Apply(_me, Create(folder, "Folder"), Create(nested, "Folder", folder), Create(item, "Item", folder));
 
-        var подЭлемент = await Применить(_я, Переместить(вложенная, родитель: new { old = папка, @new = элемент }));
-        var вСебя = await Применить(_я, Переместить(папка, родитель: new { old = (Guid?)null, @new = папка }));
-        var вПотомка = await Применить(_я, Переместить(папка, родитель: new { old = (Guid?)null, @new = вложенная }));
+        var underItem = await Apply(_me, Move(nested, parent: new { old = folder, @new = item }));
+        var intoSelf = await Apply(_me, Move(folder, parent: new { old = (Guid?)null, @new = folder }));
+        var intoDescendant = await Apply(_me, Move(folder, parent: new { old = (Guid?)null, @new = nested }));
 
-        await ПроверитьОтказ(подЭлемент, HttpStatusCode.UnprocessableEntity, "Folder");
-        await ПроверитьОтказ(вСебя, HttpStatusCode.UnprocessableEntity, "цикл");
-        await ПроверитьОтказ(вПотомка, HttpStatusCode.UnprocessableEntity, "цикл");
+        await AssertRejected(underItem, HttpStatusCode.UnprocessableEntity, "Folder");
+        await AssertRejected(intoSelf, HttpStatusCode.UnprocessableEntity, "цикл");
+        await AssertRejected(intoDescendant, HttpStatusCode.UnprocessableEntity, "цикл");
     }
 
     [Fact]
-    public async Task Набор_ПеремещениеЧужогоОбъектаИлиПодЧужогоРодителя_Отклоняется()
+    public async Task Changeset_MoveForeignObjectOrUnderForeignParent_IsRejected()
     {
-        var чужаяПапка = Guid.CreateVersion7();
-        var моя = Guid.CreateVersion7();
-        await Применить(_другой, Создать(чужаяПапка, "Folder"));
-        await Применить(_я, Создать(моя, "Folder"));
+        var foreignFolder = Guid.CreateVersion7();
+        var my = Guid.CreateVersion7();
+        await Apply(_other, Create(foreignFolder, "Folder"));
+        await Apply(_me, Create(my, "Folder"));
 
-        var чужогоОбъекта = await Применить(_я, Переместить(чужаяПапка, порядок: new { old = 1, @new = 2 }));
-        var подЧужого = await Применить(_я, Переместить(моя, родитель: new { old = (Guid?)null, @new = чужаяПапка }));
+        var foreignObject = await Apply(_me, Move(foreignFolder, order: new { old = 1, @new = 2 }));
+        var underForeign = await Apply(_me, Move(my, parent: new { old = (Guid?)null, @new = foreignFolder }));
 
-        await ПроверитьОтказ(чужогоОбъекта, HttpStatusCode.UnprocessableEntity, "не найден");
-        await ПроверитьОтказ(подЧужого, HttpStatusCode.UnprocessableEntity, "родител");
+        await AssertRejected(foreignObject, HttpStatusCode.UnprocessableEntity, "не найден");
+        await AssertRejected(underForeign, HttpStatusCode.UnprocessableEntity, "родител");
     }
 
     [Fact]
-    public async Task Набор_УдалениеПоддерева_ПеречисленныеОбъектыУдаляются()
+    public async Task Changeset_DeleteSubtree_ListedObjectsAreDeleted()
     {
-        var папка = Guid.CreateVersion7();
-        var элемент = Guid.CreateVersion7();
-        var остаётся = Guid.CreateVersion7();
-        await Применить(_я, Создать(папка, "Folder"), Создать(элемент, "Item", папка), Создать(остаётся, "Folder"));
+        var folder = Guid.CreateVersion7();
+        var item = Guid.CreateVersion7();
+        var remaining = Guid.CreateVersion7();
+        await Apply(_me, Create(folder, "Folder"), Create(item, "Item", folder), Create(remaining, "Folder"));
 
-        var ответ = await Применить(_я, Удалить(элемент), Удалить(папка));
+        var response = await Apply(_me, Delete(item), Delete(folder));
 
-        Assert.Equal(HttpStatusCode.OK, ответ.StatusCode);
-        Assert.Equal([остаётся], (await Загрузить(_я)).Select(о => о.GetProperty("id").GetGuid()));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal([remaining], (await Load(_me)).Select(element => element.GetProperty("id").GetGuid()));
     }
 
     [Fact]
-    public async Task Набор_УдалениеРодителяБезПотомков_ОтклоняетсяПотомкиНеУдаляютсяНеявно()
+    public async Task Changeset_DeleteParentWithoutChildren_RejectedChildrenNotDeletedImplicitly()
     {
-        var папка = Guid.CreateVersion7();
-        var элемент = Guid.CreateVersion7();
-        await Применить(_я, Создать(папка, "Folder"), Создать(элемент, "Item", папка));
+        var folder = Guid.CreateVersion7();
+        var item = Guid.CreateVersion7();
+        await Apply(_me, Create(folder, "Folder"), Create(item, "Item", folder));
 
-        var ответ = await Применить(_я, Удалить(папка));
+        var response = await Apply(_me, Delete(folder));
 
-        await ПроверитьОтказ(ответ, HttpStatusCode.UnprocessableEntity, "потомк");
-        Assert.Equal(2, (await Загрузить(_я)).Length);
+        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "потомк");
+        Assert.Equal(2, (await Load(_me)).Length);
     }
 
     [Fact]
-    public async Task Набор_УдалениеЧужогоИлиНесуществующего_Отклоняется()
+    public async Task Changeset_DeleteForeignOrMissing_IsRejected()
     {
-        var чужой = Guid.CreateVersion7();
-        await Применить(_другой, Создать(чужой, "Folder"));
+        var foreign = Guid.CreateVersion7();
+        await Apply(_other, Create(foreign, "Folder"));
 
-        var чужого = await Применить(_я, Удалить(чужой));
-        var несуществующего = await Применить(_я, Удалить(Guid.NewGuid()));
+        var foreignResponse = await Apply(_me, Delete(foreign));
+        var missing = await Apply(_me, Delete(Guid.NewGuid()));
 
-        await ПроверитьОтказ(чужого, HttpStatusCode.UnprocessableEntity, "не найден");
-        await ПроверитьОтказ(несуществующего, HttpStatusCode.UnprocessableEntity, "не найден");
-        Assert.Single(await Загрузить(_другой));
+        await AssertRejected(foreignResponse, HttpStatusCode.UnprocessableEntity, "не найден");
+        await AssertRejected(missing, HttpStatusCode.UnprocessableEntity, "не найден");
+        Assert.Single(await Load(_other));
     }
 
-    private sealed record ЗаписьЖурнала(string Operation, string? Property, JsonElement? Old, JsonElement? New, JsonElement? Snapshot);
+    private sealed record JournalEntry(string Operation, string? Property, JsonElement? Old, JsonElement? New, JsonElement? Snapshot);
 
-    private async Task<List<ЗаписьЖурнала>> Журнал(Guid объект)
+    private async Task<List<JournalEntry>> Journal(Guid obj)
     {
-        await using var соединение = new NpgsqlConnection(_база);
-        return (await Dapper.SqlMapper.QueryAsync<ЗаписьЖурнала>(соединение,
+        await using var connection = new NpgsqlConnection(_database);
+        return (await Dapper.SqlMapper.QueryAsync<JournalEntry>(connection,
             """
             select operation as Operation, property as Property, old_value as Old, new_value as New, snapshot as Snapshot
-            from changeset_entries where object_id = @объект order by id
-            """, new { объект })).ToList();
+            from changeset_entries where object_id = @obj order by id
+            """, new { obj })).ToList();
     }
 
     [Fact]
-    public async Task Журнал_ОперацииНабора_ЗаписываютсяСБылоСтало()
+    public async Task Journal_ChangesetOperations_AreRecordedWithOldAndNew()
     {
-        var а = Guid.CreateVersion7();
-        var б = Guid.CreateVersion7();
+        var first = Guid.CreateVersion7();
+        var second = Guid.CreateVersion7();
         var id = Guid.CreateVersion7();
-        await Применить(_я, Создать(а, "Folder"), Создать(б, "Folder"));
-        await Применить(_я, Создать(id, "Item", а, 1, new { title = "Один" }));
-        await Применить(_я, Изменить(id, new { title = new { old = "Один", @new = "Два" } }));
-        await Применить(_я, Переместить(id, родитель: new { old = а, @new = б }));
+        await Apply(_me, Create(first, "Folder"), Create(second, "Folder"));
+        await Apply(_me, Create(id, "Item", first, 1, new { title = "Один" }));
+        await Apply(_me, Update(id, new { title = new { old = "Один", @new = "Два" } }));
+        await Apply(_me, Move(id, parent: new { old = first, @new = second }));
 
-        var журнал = await Журнал(id);
+        var journal = await Journal(id);
 
-        Assert.Equal(["create", "update", "move"], журнал.Select(з => з.Operation));
-        Assert.Equal("Item", журнал[0].New!.Value.GetProperty("type").GetString());
-        Assert.Equal("Один", журнал[0].New!.Value.GetProperty("properties").GetProperty("title").GetString());
-        Assert.Equal("title", журнал[1].Property);
-        Assert.Equal("Один", журнал[1].Old!.Value.GetString());
-        Assert.Equal("Два", журнал[1].New!.Value.GetString());
-        Assert.Equal(а, журнал[2].Old!.Value.GetProperty("parent").GetGuid());
-        Assert.Equal(б, журнал[2].New!.Value.GetProperty("parent").GetGuid());
+        Assert.Equal(["create", "update", "move"], journal.Select(entry => entry.Operation));
+        Assert.Equal("Item", journal[0].New!.Value.GetProperty("type").GetString());
+        Assert.Equal("Один", journal[0].New!.Value.GetProperty("properties").GetProperty("title").GetString());
+        Assert.Equal("title", journal[1].Property);
+        Assert.Equal("Один", journal[1].Old!.Value.GetString());
+        Assert.Equal("Два", journal[1].New!.Value.GetString());
+        Assert.Equal(first, journal[2].Old!.Value.GetProperty("parent").GetGuid());
+        Assert.Equal(second, journal[2].New!.Value.GetProperty("parent").GetGuid());
     }
 
     [Fact]
-    public async Task Журнал_Удаление_ХранитПолныйСнимокОбъекта()
+    public async Task Journal_Delete_StoresFullObjectSnapshot()
     {
-        var папка = Guid.CreateVersion7();
+        var folder = Guid.CreateVersion7();
         var id = Guid.CreateVersion7();
-        await Применить(_я, Создать(папка, "Folder"), Создать(id, "Item", папка, 4, new { title = "Память", count = 7 }));
+        await Apply(_me, Create(folder, "Folder"), Create(id, "Item", folder, 4, new { title = "Память", count = 7 }));
 
-        await Применить(_я, Удалить(id));
+        await Apply(_me, Delete(id));
 
-        var запись = (await Журнал(id)).Last();
-        Assert.Equal("delete", запись.Operation);
-        var снимок = запись.Snapshot!.Value;
-        Assert.Equal("Item", снимок.GetProperty("type").GetString());
-        Assert.Equal(папка, снимок.GetProperty("parent").GetGuid());
-        Assert.Equal(4, снимок.GetProperty("order").GetDouble());
-        Assert.Equal("Память", снимок.GetProperty("properties").GetProperty("title").GetString());
-        Assert.Equal(7, снимок.GetProperty("properties").GetProperty("count").GetInt32());
+        var entry = (await Journal(id)).Last();
+        Assert.Equal("delete", entry.Operation);
+        var snapshot = entry.Snapshot!.Value;
+        Assert.Equal("Item", snapshot.GetProperty("type").GetString());
+        Assert.Equal(folder, snapshot.GetProperty("parent").GetGuid());
+        Assert.Equal(4, snapshot.GetProperty("order").GetDouble());
+        Assert.Equal("Память", snapshot.GetProperty("properties").GetProperty("title").GetString());
+        Assert.Equal(7, snapshot.GetProperty("properties").GetProperty("count").GetInt32());
     }
 
     [Fact]
-    public async Task Журнал_ОтклонённыйНабор_НеОставляетСледов()
+    public async Task Journal_RejectedChangeset_LeavesNoTrace()
     {
-        await Применить(_я, Удалить(Guid.NewGuid()));
+        await Apply(_me, Delete(Guid.NewGuid()));
 
-        await using var соединение = new NpgsqlConnection(_база);
-        Assert.Equal(0, await Dapper.SqlMapper.ExecuteScalarAsync<long>(соединение, "select count(*) from changesets"));
+        await using var connection = new NpgsqlConnection(_database);
+        Assert.Equal(0, await Dapper.SqlMapper.ExecuteScalarAsync<long>(connection, "select count(*) from changesets"));
     }
 
     [Fact]
-    public async Task Журнал_ЗаписьНабора_ПринадлежитАвтору()
+    public async Task Journal_ChangesetEntry_BelongsToAuthor()
     {
-        var ответ = await Применить(_другой, Создать(Guid.CreateVersion7(), "Folder"));
-        var набор = (await ответ.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var response = await Apply(_other, Create(Guid.CreateVersion7(), "Folder"));
+        var changeset = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        await using var соединение = new NpgsqlConnection(_база);
-        var автор = await Dapper.SqlMapper.ExecuteScalarAsync<string>(соединение,
-            "select u.email from changesets c join users u on u.id = c.user_id where c.id = @набор", new { набор });
-        Assert.Equal(ЧужойEmail, автор);
+        await using var connection = new NpgsqlConnection(_database);
+        var author = await Dapper.SqlMapper.ExecuteScalarAsync<string>(connection,
+            "select u.email from changesets c join users u on u.id = c.user_id where c.id = @changeset", new { changeset });
+        Assert.Equal(ForeignEmail, author);
     }
 
     [Theory]
@@ -545,65 +546,65 @@ public sealed class ObjectsTests(ServerFactory фабрика) : IClassFixture<S
     [InlineData("delete from changeset_entries")]
     [InlineData("update changesets set created_at = now()")]
     [InlineData("delete from changesets")]
-    public async Task Журнал_ПравкаИУдаление_ЗапрещеныВБазе(string запрос)
+    public async Task Journal_UpdateAndDelete_AreForbiddenInDatabase(string request)
     {
-        await Применить(_я, Создать(Guid.CreateVersion7(), "Folder"));
-        await using var соединение = new NpgsqlConnection(_база);
+        await Apply(_me, Create(Guid.CreateVersion7(), "Folder"));
+        await using var connection = new NpgsqlConnection(_database);
 
-        await Assert.ThrowsAsync<PostgresException>(() => Dapper.SqlMapper.ExecuteAsync(соединение, запрос));
+        await Assert.ThrowsAsync<PostgresException>(() => Dapper.SqlMapper.ExecuteAsync(connection, request));
     }
 
-    private async Task<long> ЧислоЗаписейЖурнала()
+    private async Task<long> JournalEntryCount()
     {
-        await using var соединение = new NpgsqlConnection(_база);
-        return await Dapper.SqlMapper.ExecuteScalarAsync<long>(соединение, "select count(*) from changeset_entries");
-    }
-
-    [Fact]
-    public async Task Объекты_БезТокена_Возвращает401()
-    {
-        using var аноним = _сервер.CreateClient();
-
-        var ответ = await аноним.GetAsync("/api/objects");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, ответ.StatusCode);
+        await using var connection = new NpgsqlConnection(_database);
+        return await Dapper.SqlMapper.ExecuteScalarAsync<long>(connection, "select count(*) from changeset_entries");
     }
 
     [Fact]
-    public async Task Набор_СозданиеОбъектов_ПоявляетсяВЗагрузкеСДаннымиКлиента()
+    public async Task Objects_WithoutToken_Returns401()
     {
-        var папка = Guid.CreateVersion7();
-        var элемент = Guid.CreateVersion7();
+        using var anonymous = _server.CreateClient();
 
-        var ответ = await Применить(_я,
-            Создать(папка, "Folder", null, 1),
-            Создать(элемент, "Item", папка, 2.5, new { title = "Первый", count = 3, done = false, level = "high" }));
+        var response = await anonymous.GetAsync("/api/objects");
 
-        Assert.Equal(HttpStatusCode.OK, ответ.StatusCode);
-        var объекты = await Загрузить(_я);
-        Assert.Equal(2, объекты.Length);
-        var загружен = объекты.Single(о => о.GetProperty("id").GetGuid() == элемент);
-        Assert.Equal("Item", загружен.GetProperty("type").GetString());
-        Assert.Equal(папка, загружен.GetProperty("parent").GetGuid());
-        Assert.Equal(2.5, загружен.GetProperty("order").GetDouble());
-        Assert.Equal("Первый", загружен.GetProperty("properties").GetProperty("title").GetString());
-        Assert.Equal(3, загружен.GetProperty("properties").GetProperty("count").GetInt32());
-        var корень = объекты.Single(о => о.GetProperty("id").GetGuid() == папка);
-        Assert.Equal(JsonValueKind.Null, корень.GetProperty("parent").ValueKind);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task Загрузка_ВозвращаетТолькоОбъектыТекущегоПользователя()
+    public async Task Changeset_CreateObjects_AppearInLoadWithClientData()
     {
-        var мой = Guid.CreateVersion7();
-        var чужой = Guid.CreateVersion7();
-        await Применить(_я, Создать(мой, "Folder"));
-        await Применить(_другой, Создать(чужой, "Folder"));
+        var folder = Guid.CreateVersion7();
+        var item = Guid.CreateVersion7();
 
-        var моиОбъекты = await Загрузить(_я);
-        var чужиеОбъекты = await Загрузить(_другой);
+        var response = await Apply(_me,
+            Create(folder, "Folder", null, 1),
+            Create(item, "Item", folder, 2.5, new { title = "Первый", count = 3, done = false, level = "high" }));
 
-        Assert.Equal([мой], моиОбъекты.Select(о => о.GetProperty("id").GetGuid()));
-        Assert.Equal([чужой], чужиеОбъекты.Select(о => о.GetProperty("id").GetGuid()));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var objects = await Load(_me);
+        Assert.Equal(2, objects.Length);
+        var loaded = objects.Single(element => element.GetProperty("id").GetGuid() == item);
+        Assert.Equal("Item", loaded.GetProperty("type").GetString());
+        Assert.Equal(folder, loaded.GetProperty("parent").GetGuid());
+        Assert.Equal(2.5, loaded.GetProperty("order").GetDouble());
+        Assert.Equal("Первый", loaded.GetProperty("properties").GetProperty("title").GetString());
+        Assert.Equal(3, loaded.GetProperty("properties").GetProperty("count").GetInt32());
+        var root = objects.Single(element => element.GetProperty("id").GetGuid() == folder);
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("parent").ValueKind);
+    }
+
+    [Fact]
+    public async Task Load_ReturnsOnlyCurrentUserObjects()
+    {
+        var mine = Guid.CreateVersion7();
+        var foreign = Guid.CreateVersion7();
+        await Apply(_me, Create(mine, "Folder"));
+        await Apply(_other, Create(foreign, "Folder"));
+
+        var myObjects = await Load(_me);
+        var foreignObjects = await Load(_other);
+
+        Assert.Equal([mine], myObjects.Select(element => element.GetProperty("id").GetGuid()));
+        Assert.Equal([foreign], foreignObjects.Select(element => element.GetProperty("id").GetGuid()));
     }
 }

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 
-import { useTabs } from './TabsProvider';
-import type { MenuItem, MenuRegistry, UserRole } from './registries';
-
+import { useTabs } from './useTabs';
 import './Tabs.css';
+
+import type { MenuItem, MenuRegistry, UserRole } from './registries';
 
 interface MenuNode {
     label: string;
@@ -33,7 +33,7 @@ export interface MainMenuProps {
     role: UserRole;
 }
 
-/** Главное меню: строится из реестра, показывает только пункты, доступные роли. */
+/** Главное меню: строится из реестра, показывает только пункты, доступные роли */
 export function MainMenu({ registry, role }: MainMenuProps) {
     const { openTab } = useTabs();
     const [openPath, setOpenPath] = useState<string[]>([]);
@@ -41,13 +41,13 @@ export function MainMenu({ registry, role }: MainMenuProps) {
     const items = registry.listFor(role);
     const nodes = buildTree(items);
 
-    // Меню перерисовывается при смене состава пунктов и при изменении их доступности.
+    // Меню перерисовывается при смене состава пунктов и при изменении их доступности
     useEffect(() => {
         const rerender = () => setRevision((n) => n + 1);
         const stops = [registry.subscribe(rerender)];
         for (const item of items) if (item.subscribe) stops.push(item.subscribe(rerender));
         return () => stops.forEach((stop) => stop());
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- подписки зависят от состава пунктов, а не от ссылки на массив
     }, [registry, role, items.length]);
 
     const render = (list: MenuNode[], parents: string[]) =>

@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createApiClient } from '../api/apiClient';
-import type { FetchFn } from '../api/apiClient';
+import { createApiClient } from '@platform/api/apiClient';
+
 import { createAuthSession } from './authSession';
+
+import type { FetchFn } from '@platform/api/apiClient';
 
 function jsonResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {
@@ -21,7 +23,7 @@ afterEach(() => {
 });
 
 describe('AuthSession', () => {
-    it('вход сохраняет access в памяти и переводит в authenticated; в хранилища браузера токен не попадает', async () => {
+    it('login_success_keepsAccessInMemoryAndAuthenticatesWithoutBrowserStorage', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ accessToken: 'tok-1' }));
         const session = setup(fetchMock);
 
@@ -38,7 +40,7 @@ describe('AuthSession', () => {
         expect(JSON.stringify({ ...sessionStorage })).not.toContain('tok-1');
     });
 
-    it('неверный пароль: login бросает ошибку и состояние остаётся anonymous', async () => {
+    it('login_wrongPassword_throwsAndStateStaysAnonymous', async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
         const session = setup(fetchMock);
         await session.restore();
@@ -49,7 +51,7 @@ describe('AuthSession', () => {
         expect(session.getHeaders()).toEqual({});
     });
 
-    it('restore восстанавливает сессию через refresh (после обновления страницы)', async () => {
+    it('restore_viaRefresh_restoresSessionAfterPageReload', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ accessToken: 'tok-2' }));
         const session = setup(fetchMock);
         expect(session.getState().status).toBe('loading');
@@ -62,7 +64,7 @@ describe('AuthSession', () => {
         expect(session.getHeaders()).toEqual({ Authorization: 'Bearer tok-2' });
     });
 
-    it('restore без действующего refresh переводит в anonymous', async () => {
+    it('restore_withoutValidRefresh_becomesAnonymous', async () => {
         const session = setup(vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
 
         await session.restore();
@@ -70,7 +72,7 @@ describe('AuthSession', () => {
         expect(session.getState().status).toBe('anonymous');
     });
 
-    it('одновременные обновления сливаются в один запрос refresh', async () => {
+    it('refresh_concurrentCalls_mergeIntoOneRefreshRequest', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ accessToken: 'tok-3' }));
         const session = setup(fetchMock);
 
@@ -80,7 +82,7 @@ describe('AuthSession', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    it('выход вызывает сервер и сбрасывает токен, даже если сервер недоступен', async () => {
+    it('logout_callsServerAndClearsTokenEvenIfServerUnavailable', async () => {
         const fetchMock = vi
             .fn()
             .mockResolvedValueOnce(jsonResponse({ accessToken: 'tok-4' }))
@@ -95,7 +97,7 @@ describe('AuthSession', () => {
         expect(session.getHeaders()).toEqual({});
     });
 
-    it('уведомляет подписчиков об изменении состояния', async () => {
+    it('subscribe_stateChange_notifiesSubscribers', async () => {
         const session = setup(vi.fn().mockResolvedValue(jsonResponse({ accessToken: 't' })));
         const listener = vi.fn();
         session.subscribe(listener);

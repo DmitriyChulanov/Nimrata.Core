@@ -10,11 +10,12 @@ import {
     Tree,
     createDataController,
 } from '@platform';
-import type { DataController, TypeDefinition } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { ensureStartStructure, registerTracker } from './tracker';
+
+import type { DataController, TypeDefinition } from '@platform';
 
 const types = manifest.types.map((t) => ({
     ...t,
@@ -47,8 +48,8 @@ function mount(data: DataController) {
     );
 }
 
-describe('Трекер: интерфейс быстрого доступа', () => {
-    it('записи не видны в основном дереве, а во вкладке «Автоматизация» сгруппированы под названием цели', async () => {
+describe('Tracker: quick access interface', () => {
+    it('quickAccessUi_entries_hiddenInMainTreeAndGroupedByTargetNameInAutomationTab', async () => {
         const { data, group, note } = await setup();
         await data.runAction(group.id, 'addToQuickAccess');
         await data.runAction(note.id, 'addToQuickAccess');
@@ -59,7 +60,7 @@ describe('Трекер: интерфейс быстрого доступа', () 
         expect(screen.queryByRole('treeitem', { name: /Быстрый доступ/ })).toBeNull();
     });
 
-    it('клик по записи выделяет цель в основном дереве и раскрывает путь к ней', async () => {
+    it('quickAccessUi_clickOnEntry_selectsTargetInMainTreeAndExpandsPath', async () => {
         const { data, note } = await setup();
         await data.runAction(note.id, 'addToQuickAccess');
         mount(data);
@@ -78,7 +79,7 @@ describe('Трекер: интерфейс быстрого доступа', () 
         expect(screen.getByRole('treeitem', { name: /Работа/ })).toBeInTheDocument();
     });
 
-    it('«Добавить» из таблицы свойств создаёт запись, «Убрать» — удаляет', async () => {
+    it('quickAccessUi_addFromPropertyGrid_createsEntryAndRemoveDeletesIt', async () => {
         const { data } = await setup();
         mount(data);
         await userEvent.click(

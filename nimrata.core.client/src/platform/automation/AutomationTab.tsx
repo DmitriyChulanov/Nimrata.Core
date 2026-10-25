@@ -1,9 +1,10 @@
-import { useActionLauncher } from '../actions/useActionLauncher';
-import { useData } from '../data/DataProvider';
-import { useOptionalSelection } from '../selection/SelectionProvider';
-import type { DataController, DataObject } from '../data/DataController';
+import { useActionLauncher } from '@platform/actions/useActionLauncher';
+import { useData } from '@platform/data/useData';
+import { useOptionalSelection } from '@platform/selection/useOptionalSelection';
 
-/** Все объекты типов с отметкой `automation` (включая скрытые в дереве), в порядке обхода. */
+import type { DataController, DataObject } from '@platform/data/DataController';
+
+/** Все объекты типов с отметкой `automation` (включая скрытые в дереве), в порядке обхода */
 function collectMechanisms(data: DataController): DataObject[] {
     const result: DataObject[] = [];
     const walk = (parent: string | null) => {
@@ -16,7 +17,7 @@ function collectMechanisms(data: DataController): DataObject[] {
     return result;
 }
 
-/** Цель механизма: значение ссылочного свойства с признаком `revealTarget`, если объект существует. */
+/** Цель механизма: значение ссылочного свойства с признаком `revealTarget`, если объект существует */
 function revealTargetOf(data: DataController, object: DataObject): string | undefined {
     const property = data
         .getType(object.type)
@@ -25,7 +26,7 @@ function revealTargetOf(data: DataController, object: DataObject): string | unde
     return typeof value === 'string' && data.getObject(value) ? value : undefined;
 }
 
-/** Вкладка «Автоматизация»: механизмы и их действия с размещением `automation`. */
+/** Вкладка «Автоматизация»: механизмы и их действия с размещением `automation` */
 export function AutomationTab() {
     const data = useData();
     const selection = useOptionalSelection();
@@ -42,7 +43,7 @@ export function AutomationTab() {
                     data.getType(object.type)?.name ||
                     object.type;
                 // Механизм со ссылочным свойством revealTarget: клик по названию выделяет цель
-                // в основном дереве.
+                // в основном дереве
                 const targetId = revealTargetOf(data, object);
                 return (
                     <section key={object.id} role="group" aria-label={title}>

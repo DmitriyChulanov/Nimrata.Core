@@ -4,7 +4,7 @@ import { createMenuRegistry, createTabRegistry } from './registries';
 
 const stub = () => null;
 
-it('реестр видов вкладок отдаёт зарегистрированный вид по идентификатору', () => {
+it('tabRegistry_registeredKind_isReturnedById', () => {
     const tabs = createTabRegistry();
     tabs.register({ id: 'journal', title: 'Журнал', component: stub });
 
@@ -13,7 +13,7 @@ it('реестр видов вкладок отдаёт зарегистриро
     expect(tabs.list().map((k) => k.id)).toEqual(['journal']);
 });
 
-it('повторная регистрация вида с тем же идентификатором отклоняется', () => {
+it('tabRegistry_duplicateKindId_isRejected', () => {
     const tabs = createTabRegistry();
     tabs.register({ id: 'journal', title: 'Журнал', component: stub });
 
@@ -22,7 +22,7 @@ it('повторная регистрация вида с тем же идент
     );
 });
 
-it('пункты меню без условия видны всем, с условием — только своей роли', () => {
+it('menuRegistry_itemsWithoutCondition_visibleToAllWithConditionOnlyToTheirRole', () => {
     const menu = createMenuRegistry();
     menu.register({ path: ['Вид', 'Журнал'], run: () => {} });
     menu.register({ path: ['Администрирование', 'Пользователи'], role: 'admin', run: () => {} });

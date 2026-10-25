@@ -1,7 +1,7 @@
 /**
  * Мост между логикой Трекера (создаётся до React-дерева) и выбором узла в интерфейсе:
  * `reveal` передаётся в `registerTracker`, а `RevealBinding` внутри `SelectionProvider`
- * подключает к нему настоящий `reveal` платформы.
+ * подключает к нему настоящий `reveal` платформы
  */
 export interface RevealBridge {
     reveal(id: string): void;

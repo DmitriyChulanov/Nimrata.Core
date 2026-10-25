@@ -1,23 +1,40 @@
 import type { DataObject } from './DataController';
 
-/** Операция набора изменений в том виде, в каком она уходит на сервер. */
-export type Operation = Record<string, unknown>;
+/** Изменение значения: было и стало */
+export interface ValueChange<T> {
+    old: T;
+    new: T;
+}
 
-/** Одно действие пользователя: набор изменений и обратный ему набор. */
+/** Операция набора изменений в том виде, в каком она уходит на сервер */
+export type Operation =
+    | {
+          op: 'create';
+          id: string;
+          type: string;
+          parent: string | null;
+          order: number;
+          properties: Record<string, unknown>;
+      }
+    | { op: 'update'; id: string; changes: Record<string, ValueChange<unknown>> }
+    | { op: 'move'; id: string; parent?: ValueChange<string | null>; order?: ValueChange<number> }
+    | { op: 'delete'; id: string };
+
+/** Одно действие пользователя: набор изменений и обратный ему набор */
 export interface HistoryEntry {
     forward: Operation[];
     inverse: Operation[];
 }
 
-/** Стеки отмены и повтора (живут в памяти вкладки). */
+/** Стеки отмены и повтора (живут в памяти вкладки) */
 export interface UndoHistory {
-    /** Записывает успешно применённое действие; стек повторов очищается. */
+    /** Записывает успешно применённое действие; стек повторов очищается */
     record(entry: HistoryEntry): void;
     peekUndo(): HistoryEntry | undefined;
     peekRedo(): HistoryEntry | undefined;
-    /** Переносит верхнее действие из стека отмены в стек повторов. */
+    /** Переносит верхнее действие из стека отмены в стек повторов */
     markUndone(): void;
-    /** Переносит верхнее действие из стека повторов в стек отмены. */
+    /** Переносит верхнее действие из стека повторов в стек отмены */
     markRedone(): void;
     canUndo(): boolean;
     canRedo(): boolean;
@@ -51,72 +68,73 @@ export function createUndoHistory(): UndoHistory {
     };
 }
 
-function swap(change: unknown): unknown {
-    const { old, new: next } = change as { old: unknown; new: unknown };
-    return { old: next, new: old };
+function assertNever(value: never): never {
+    throw new Error(`Неизвестная операция: ${JSON.stringify(value)}.`);
+}
+
+function swap<T>(change: ValueChange<T>): ValueChange<T> {
+    return { old: change.new, new: change.old };
 }
 
 /**
  * Обратная операция. `before` — состояние объекта до применения `operation`
- * (нужно, чтобы пересоздать удалённый объект).
+ * (нужно, чтобы пересоздать удалённый объект)
  */
 export function invertOperation(operation: Operation, before: DataObject | undefined): Operation {
-    const id = operation.id as string;
     switch (operation.op) {
         case 'create':
-            return { op: 'delete', id };
+            return { op: 'delete', id: operation.id };
         case 'delete':
+            if (!before) throw new Error(`Нет состояния удалённого объекта ${operation.id}.`);
             return {
                 op: 'create',
-                id,
-                type: before?.type,
-                parent: before?.parent ?? null,
-                order: before?.order ?? 0,
-                properties: { ...before?.properties },
+                id: operation.id,
+                type: before.type,
+                parent: before.parent ?? null,
+                order: before.order,
+                properties: { ...before.properties },
             };
         case 'update': {
-            const changes: Record<string, unknown> = {};
-            for (const [name, change] of Object.entries(
-                operation.changes as Record<string, unknown>,
-            )) {
+            const changes: Record<string, ValueChange<unknown>> = {};
+            for (const [name, change] of Object.entries(operation.changes)) {
                 changes[name] = swap(change);
             }
-            return { op: 'update', id, changes };
+            return { op: 'update', id: operation.id, changes };
         }
         case 'move': {
-            const inverse: Operation = { op: 'move', id };
+            const inverse: Extract<Operation, { op: 'move' }> = { op: 'move', id: operation.id };
             if (operation.parent) inverse.parent = swap(operation.parent);
             if (operation.order) inverse.order = swap(operation.order);
             return inverse;
         }
         default:
-            throw new Error(`Неизвестная операция «${String(operation.op)}».`);
+            return assertNever(operation);
     }
 }
 
-/** Обратный набор: операции в обратном порядке, каждая инвертирована. */
+/** Обратный набор: операции в обратном порядке, каждая инвертирована */
 export function invertOperations(
     operations: Operation[],
     before: ReadonlyMap<string, DataObject | undefined>,
 ): Operation[] {
     return [...operations]
         .reverse()
-        .map((operation) => invertOperation(operation, before.get(operation.id as string)));
+        .map((operation) => invertOperation(operation, before.get(operation.id)));
 }
 
-/** Применяет операции набора к модели (без хуков и без обращения к серверу). */
+/** Применяет операции набора к модели (без хуков и без обращения к серверу) */
 export function applyOperations(objects: Map<string, DataObject>, operations: Operation[]): void {
     for (const operation of operations) {
-        const id = operation.id as string;
+        const id = operation.id;
         const existing = objects.get(id);
         switch (operation.op) {
             case 'create':
                 objects.set(id, {
                     id,
-                    type: operation.type as string,
-                    parent: (operation.parent as string | null) ?? null,
-                    order: (operation.order as number) ?? 0,
-                    properties: { ...(operation.properties as Record<string, unknown>) },
+                    type: operation.type,
+                    parent: operation.parent,
+                    order: operation.order,
+                    properties: { ...operation.properties },
                 });
                 break;
             case 'delete':
@@ -125,9 +143,7 @@ export function applyOperations(objects: Map<string, DataObject>, operations: Op
             case 'update': {
                 if (!existing) break;
                 const properties = { ...existing.properties };
-                for (const [name, change] of Object.entries(
-                    operation.changes as Record<string, { new: unknown }>,
-                )) {
+                for (const [name, change] of Object.entries(operation.changes)) {
                     if (change.new === null || change.new === undefined) delete properties[name];
                     else properties[name] = change.new;
                 }
@@ -136,8 +152,7 @@ export function applyOperations(objects: Map<string, DataObject>, operations: Op
             }
             case 'move': {
                 if (!existing) break;
-                const parent = operation.parent as { new: string | null } | undefined;
-                const order = operation.order as { new: number } | undefined;
+                const { parent, order } = operation;
                 objects.set(id, {
                     ...existing,
                     parent: parent ? parent.new : existing.parent,
@@ -149,7 +164,7 @@ export function applyOperations(objects: Map<string, DataObject>, operations: Op
     }
 }
 
-/** Идентификаторы объектов, которых касаются операции (без повторов). */
+/** Идентификаторы объектов, которых касаются операции (без повторов) */
 export function touchedIds(operations: Operation[]): string[] {
-    return [...new Set(operations.map((o) => o.id as string))];
+    return [...new Set(operations.map((o) => o.id))];
 }

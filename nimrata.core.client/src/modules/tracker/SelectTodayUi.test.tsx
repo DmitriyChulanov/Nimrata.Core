@@ -9,13 +9,14 @@ import {
     Tree,
     createDataController,
 } from '@platform';
-import type { TypeDefinition } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { RevealBinding } from './RevealBinding';
 import { createRevealBridge } from './revealBridge';
 import { ensureStartStructure, registerTracker } from './tracker';
+
+import type { TypeDefinition } from '@platform';
 
 const types = manifest.types.map((t) => ({
     ...t,
@@ -46,7 +47,7 @@ async function mount(withToday: boolean) {
     );
 }
 
-describe('Трекер: интерфейс «Выделить текущий день»', () => {
+describe('Tracker: "Select today" interface', () => {
     afterEach(() => vi.useRealTimers());
 
     function freezeToday() {
@@ -54,7 +55,7 @@ describe('Трекер: интерфейс «Выделить текущий д�
         vi.setSystemTime(new Date(2026, 5, 10, 12, 0));
     }
 
-    it('механизм виден во вкладке «Автоматизация», но не в основном дереве', async () => {
+    it('selectTodayUi_mechanism_visibleInAutomationTabButNotInMainTree', async () => {
         freezeToday();
         await mount(true);
 
@@ -62,7 +63,7 @@ describe('Трекер: интерфейс «Выделить текущий д�
         expect(screen.queryByRole('treeitem', { name: /Выделить текущий день/ })).toBeNull();
     });
 
-    it('клик выделяет сегодняшний день и раскрывает родителей', async () => {
+    it('selectTodayUi_click_selectsTodayAndExpandsParents', async () => {
         freezeToday();
         await mount(true);
 
@@ -79,7 +80,7 @@ describe('Трекер: интерфейс «Выделить текущий д�
         );
     });
 
-    it('если дня на сегодня нет — понятное сообщение и дерево не меняется', async () => {
+    it('selectTodayUi_noDayForToday_showsClearMessageAndTreeUnchanged', async () => {
         freezeToday();
         await mount(false);
         const itemsBefore = screen.getAllByRole('treeitem').length;

@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import type { FormEvent } from 'react';
 
-import { ApiError } from '../api/apiClient';
+import { ApiError } from '@platform/api/apiClient';
+
 import { ForgotPasswordForm } from './ForgotPasswordForm';
+
+import type { FormEvent } from 'react';
 
 interface LoginScreenProps {
     onLogin: (email: string, password: string) => Promise<void>;

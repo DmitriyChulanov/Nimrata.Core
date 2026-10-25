@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import type { UserRole } from '../tabs/registries';
-import { useApi } from './AuthProvider';
+import { useApi } from './useApi';
+
+import type { UserRole } from '@platform/tabs/registries';
 
 export interface CurrentUser {
     id: string;
@@ -13,7 +14,7 @@ interface MeResponse {
     isAdmin?: boolean;
 }
 
-/** Текущий пользователь (`GET /api/auth/me`). `undefined` — ещё загружается; при ошибке — гость с ролью участника. */
+/** Текущий пользователь (`GET /api/auth/me`). `undefined` — ещё загружается; при ошибке — гость с ролью участника */
 export function useCurrentUser(): CurrentUser | undefined {
     const api = useApi();
     const [user, setUser] = useState<CurrentUser>();

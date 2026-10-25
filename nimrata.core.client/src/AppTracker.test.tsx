@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import App from './App';
+import { App } from './App';
 import { todayIso } from './modules/tracker/dates';
 import manifest from './modules/tracker/manifest.json';
 
@@ -41,7 +41,7 @@ function stubApi(objects: unknown[], rejectChangesets?: string) {
 const changesets = (fetchMock: ReturnType<typeof stubApi>) =>
     fetchMock.mock.calls.filter(([url]) => url === '/api/changesets');
 
-it('при первом входе без корней Трекер создаёт стартовую структуру одним набором изменений', async () => {
+it('tracker_firstLoginWithoutRoots_createsStartStructureInOneChangeset', async () => {
     const fetchMock = stubApi([]);
     render(<App />);
 
@@ -50,7 +50,7 @@ it('при первом входе без корней Трекер создаё
     expect(changesets(fetchMock)).toHaveLength(1);
 });
 
-it('при входе с уже созданными корнями дублей нет и наборы не отправляются', async () => {
+it('tracker_loginWithExistingRoots_createsNoDuplicatesAndSendsNoChangesets', async () => {
     const fetchMock = stubApi([
         { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
         { id: 'n', type: 'NotesRoot', parent: null, order: 1, properties: {} },
@@ -63,14 +63,14 @@ it('при входе с уже созданными корнями дублей
     expect(changesets(fetchMock)).toHaveLength(0);
 });
 
-it('если сервер отклонил стартовую структуру, пользователь видит ошибку', async () => {
+it('tracker_serverRejectsStartStructure_showsErrorToUser', async () => {
     stubApi([], 'тип "CurrentTasksRoot" нельзя разместить внутри типа "TasksRoot".');
     render(<App />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('нельзя разместить');
 });
 
-it('если сервер отклонил достройку повторов, пользователь видит ошибку', async () => {
+it('tracker_serverRejectsRepeatsTopUp_showsErrorToUser', async () => {
     const today = todayIso();
     const month = `${today.slice(0, 8)}01`;
     stubApi(

@@ -3,13 +3,14 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DataProvider, createDataController } from '@platform';
-import type { TypeDefinition } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { NotificationsBinding } from './NotificationsBinding';
-import type { BrowserNotifications } from './notifications';
 import { ensureStartStructure, registerTracker } from './tracker';
+
+import type { TypeDefinition } from '@platform';
+import type { BrowserNotifications } from './notifications';
 
 const types = manifest.types.map((t) => ({
     ...t,
@@ -60,11 +61,11 @@ async function setup(
     return data;
 }
 
-describe('Трекер: уведомления в интерфейсе', () => {
+describe('Tracker: notifications in the interface', () => {
     beforeEach(() => vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] }));
     afterEach(() => vi.useRealTimers());
 
-    it('разрешение не запрашивается само: только по нажатию кнопки, один раз', async () => {
+    it('notificationsUi_permission_isNotRequestedAutomaticallyOnlyOnButtonOnce', async () => {
         const browser = fakeBrowser('default', 'granted');
         await setup(browser);
         expect(browser.requestPermission).not.toHaveBeenCalled();
@@ -76,7 +77,7 @@ describe('Трекер: уведомления в интерфейсе', () => {
         expect(screen.queryByRole('button', { name: 'Включить уведомления' })).toBeNull();
     });
 
-    it('после отказа кнопка пропадает и запрос не повторяется', async () => {
+    it('notificationsUi_afterDenial_buttonDisappearsAndRequestIsNotRepeated', async () => {
         const browser = fakeBrowser('default', 'denied');
         await setup(browser);
 
@@ -90,24 +91,24 @@ describe('Трекер: уведомления в интерфейсе', () => {
         expect(browser.requestPermission).toHaveBeenCalledTimes(1);
     });
 
-    it('если решение уже принято, кнопки нет', async () => {
+    it('notificationsUi_permissionAlreadyDecided_hasNoButton', async () => {
         await setup(fakeBrowser('denied', 'denied'));
         expect(screen.queryByRole('button', { name: 'Включить уведомления' })).toBeNull();
     });
 
-    it('без поддержки Notification API ничего не показывает и не падает', async () => {
+    it('notificationsUi_withoutNotificationApi_showsNothingAndDoesNotCrash', async () => {
         await setup(null);
         expect(screen.queryByRole('button')).toBeNull();
     });
 
-    it('при выданном разрешении показывает уведомление задачи', async () => {
+    it('notificationsUi_permissionGranted_showsTaskNotification', async () => {
         const browser = fakeBrowser('granted', 'granted');
         await setup(browser);
 
         expect(browser.show).toHaveBeenCalledWith('09:00', 'Созвон');
     });
 
-    it('с пользователем показанное запоминается: после перемонтирования (перезагрузки) не дублируется', async () => {
+    it('notificationsUi_withUser_shownIsRememberedAndNotDuplicatedAfterRemount', async () => {
         localStorage.clear();
         const browser = fakeBrowser('granted', 'granted');
         const data = await setup(browser, undefined, 'u1');
@@ -127,7 +128,7 @@ describe('Трекер: уведомления в интерфейсе', () => {
         expect(browser.show).toHaveBeenCalledTimes(1);
     });
 
-    it('без разрешения уведомление не показывается, приложение работает', async () => {
+    it('notificationsUi_withoutPermission_showsNothingAndAppWorks', async () => {
         const browser = fakeBrowser('denied', 'denied');
         await setup(browser);
 

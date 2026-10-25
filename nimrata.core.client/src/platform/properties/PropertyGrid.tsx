@@ -1,17 +1,19 @@
 import { useId, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
 
-import { useActionLauncher } from '../actions/useActionLauncher';
-import { useData } from '../data/DataProvider';
-import type { DataController } from '../data/DataController';
-import { useSelection } from '../selection/SelectionProvider';
-import type { PropertyDefinition } from '../types/types';
+import { useActionLauncher } from '@platform/actions/useActionLauncher';
+import { useData } from '@platform/data/useData';
+import { useSelection } from '@platform/selection/useSelection';
+
 import { ReferenceEditor } from './ReferenceEditor';
 import './PropertyGrid.css';
 
+import type { ReactNode } from 'react';
+import type { DataController } from '@platform/data/DataController';
+import type { PropertyDefinition } from '@platform/types/types';
+
 const OTHER_CATEGORY = 'Прочее';
 
-/** Результат разбора введённого текста: значение (`null` — очистить) либо причина отказа. */
+/** Результат разбора введённого текста: значение (`null` — очистить) либо причина отказа */
 type Parsed = { ok: true; value: unknown } | { ok: false; error: string };
 
 function parseInput(property: PropertyDefinition, text: string): Parsed {
@@ -49,7 +51,7 @@ function groupByCategory(properties: PropertyDefinition[]) {
         if (list) list.push(p);
         else groups.set(category, [p]);
     }
-    // «Прочее» всегда последним, остальные категории — в порядке появления в описании типа.
+    // «Прочее» всегда последним, остальные категории — в порядке появления в описании типа
     const other = groups.get(OTHER_CATEGORY);
     groups.delete(OTHER_CATEGORY);
     if (other) groups.set(OTHER_CATEGORY, other);
@@ -61,12 +63,12 @@ interface EditorProps {
     value: unknown;
     disabled: boolean;
     inputId: string;
-    /** Отправляет значение; возвращает `false`, если оно отклонено. */
+    /** Отправляет значение; возвращает `false`, если оно отклонено */
     onCommit: (value: unknown) => Promise<boolean>;
     onInvalid: (message: string) => void;
 }
 
-/** Строка, многострочный текст, целое, дата, время: правка черновика, отправка по Enter или уходу фокуса. */
+/** Строка, многострочный текст, целое, дата, время: правка черновика, отправка по Enter или уходу фокуса */
 function TextEditor({ property, value, disabled, inputId, onCommit, onInvalid }: EditorProps) {
     const [draft, setDraft] = useState<string | null>(null);
     const submitted = useRef<string | null>(null);
@@ -86,7 +88,7 @@ function TextEditor({ property, value, disabled, inputId, onCommit, onInvalid }:
         }
         submitted.current = draft;
         await onCommit(parsed.value);
-        // Успех: в модели новое значение; отказ: модель откатилась, поле возвращается к ней.
+        // Успех: в модели новое значение; отказ: модель откатилась, поле возвращается к ней
         submitted.current = null;
         setDraft(null);
     }
@@ -199,7 +201,7 @@ function Row({
     );
 }
 
-/** Таблица свойств выбранного объекта: категории, редакторы по виду свойства, правка наборами изменений. */
+/** Таблица свойств выбранного объекта: категории, редакторы по виду свойства, правка наборами изменений */
 export function PropertyGrid() {
     const data = useData();
     const { selectedId } = useSelection();

@@ -23,7 +23,7 @@ async function loaded() {
 }
 
 describe('DataController: Undo/Redo', () => {
-    it('без действий отменять и повторять нечего', async () => {
+    it('undo_withoutActions_hasNothingToUndoOrRedo', async () => {
         const { data, api } = await loaded();
         expect(data.canUndo()).toBe(false);
         expect(data.canRedo()).toBe(false);
@@ -32,7 +32,7 @@ describe('DataController: Undo/Redo', () => {
         expect(api.changesets).toEqual([]);
     });
 
-    it('отмена изменения свойства отправляет обратный набор и возвращает значение', async () => {
+    it('undo_propertyChange_sendsInverseChangesetAndRestoresValue', async () => {
         const { data, api } = await loaded();
         await data.setProperty('a', 'title', 'Новое');
         expect(data.canUndo()).toBe(true);
@@ -48,7 +48,7 @@ describe('DataController: Undo/Redo', () => {
         expect(data.canRedo()).toBe(true);
     });
 
-    it('повтор применяет изменение снова', async () => {
+    it('redo_appliesChangeAgain', async () => {
         const { data, api } = await loaded();
         await data.setProperty('a', 'title', 'Новое');
         await data.undo();
@@ -62,14 +62,14 @@ describe('DataController: Undo/Redo', () => {
         expect(data.canRedo()).toBe(false);
     });
 
-    it('отмена возвращает удалённое значение свойства', async () => {
+    it('undo_propertyRemoval_restoresRemovedValue', async () => {
         const { data } = await loaded();
         await data.setProperty('c', 'done', null);
         await data.undo();
         expect(data.getObject('c')?.properties.done).toBe(true);
     });
 
-    it('отмена перемещения возвращает родителя и порядок', async () => {
+    it('undo_move_restoresParentAndOrder', async () => {
         const { data, api } = await loaded();
         await data.move('b', { parent: 'a', order: 7 });
 
@@ -86,7 +86,7 @@ describe('DataController: Undo/Redo', () => {
         ]);
     });
 
-    it('отмена создания удаляет объект, повтор создаёт его с тем же идентификатором', async () => {
+    it('undo_create_deletesObjectAndRedoRecreatesItWithSameId', async () => {
         const { data, api } = await loaded();
         const created = await data.create({
             type: 'Note',
@@ -103,7 +103,7 @@ describe('DataController: Undo/Redo', () => {
         expect(data.getObject(id)?.properties.title).toBe('N');
     });
 
-    it('отмена удаления пересоздаёт поддерево с теми же идентификаторами, значениями и положением', async () => {
+    it('undo_remove_recreatesSubtreeWithSameIdsValuesAndPosition', async () => {
         const { data, api } = await loaded();
         await data.remove('a');
         expect(data.getObject('a')).toBeUndefined();
@@ -115,7 +115,7 @@ describe('DataController: Undo/Redo', () => {
         expect(data.getObject('a')).toEqual(objects[1]);
         expect(data.getObject('c')).toEqual(objects[3]);
         expect(data.getChildren('root').map((o) => o.id)).toEqual(['a', 'b']);
-        // Родитель создаётся раньше потомка.
+        // Родитель создаётся раньше потомка
         expect(api.changesets[1].operations.map((o) => `${o.op}:${o.id}`)).toEqual([
             'create:a',
             'create:c',
@@ -130,7 +130,7 @@ describe('DataController: Undo/Redo', () => {
         });
     });
 
-    it('повтор удаления удаляет поддерево снова', async () => {
+    it('redo_remove_deletesSubtreeAgain', async () => {
         const { data } = await loaded();
         await data.remove('a');
         await data.undo();
@@ -139,7 +139,7 @@ describe('DataController: Undo/Redo', () => {
         expect(data.getObject('c')).toBeUndefined();
     });
 
-    it('отмена идёт в обратном порядке действий', async () => {
+    it('undo_runsInReverseOrderOfActions', async () => {
         const { data } = await loaded();
         await data.setProperty('a', 'title', 'X');
         await data.setProperty('a', 'title', 'Y');
@@ -149,7 +149,7 @@ describe('DataController: Undo/Redo', () => {
         expect(data.getObject('a')?.properties.title).toBe('A');
     });
 
-    it('новое действие очищает стек повторов', async () => {
+    it('newAction_clearsRedoStack', async () => {
         const { data } = await loaded();
         await data.setProperty('a', 'title', 'X');
         await data.undo();
@@ -160,14 +160,14 @@ describe('DataController: Undo/Redo', () => {
         expect(data.canRedo()).toBe(false);
     });
 
-    it('отклонённый набор в стек не попадает', async () => {
+    it('undo_rejectedChangeset_doesNotEnterStack', async () => {
         const { data, api } = await loaded();
         api.rejectNext(400, 'нельзя');
         await data.setProperty('a', 'title', 'X');
         expect(data.canUndo()).toBe(false);
     });
 
-    it('конфликт по «было/стало»: стек и модель не меняются, показывается сообщение', async () => {
+    it('undo_oldNewConflict_stackAndModelUnchangedAndMessageShown', async () => {
         const { data, api } = await loaded();
         await data.setProperty('a', 'title', 'X');
         api.rejectNext(409, 'Значение изменено другим пользователем.');
@@ -181,12 +181,12 @@ describe('DataController: Undo/Redo', () => {
         expect(data.canRedo()).toBe(false);
         expect(data.getSnapshot().error).toContain('Значение изменено другим пользователем.');
         expect(data.getSnapshot().needsReload).toBe(false);
-        // После конфликта отмену можно повторить.
+        // После конфликта отмену можно повторить
         expect(await data.undo()).toEqual({ ok: true });
         expect(data.getObject('a')?.properties.title).toBe('A');
     });
 
-    it('конфликт при повторе оставляет стек повторов', async () => {
+    it('redo_conflict_keepsRedoStack', async () => {
         const { data, api } = await loaded();
         await data.setProperty('a', 'title', 'X');
         await data.undo();
@@ -199,14 +199,14 @@ describe('DataController: Undo/Redo', () => {
         expect(data.getObject('a')?.properties.title).toBe('A');
     });
 
-    it('перезагрузка данных очищает стеки', async () => {
+    it('reload_clearsStacks', async () => {
         const { data } = await loaded();
         await data.setProperty('a', 'title', 'X');
         await data.load();
         expect(data.canUndo()).toBe(false);
     });
 
-    it('подписчики узнают об изменении доступности отмены', async () => {
+    it('undoAvailability_change_notifiesSubscribers', async () => {
         const { data } = await loaded();
         let calls = 0;
         data.subscribe(() => calls++);

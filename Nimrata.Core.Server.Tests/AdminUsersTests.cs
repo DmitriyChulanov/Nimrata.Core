@@ -1,3 +1,4 @@
+using Nimrata.Core.Server.Controllers.Responses;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -8,181 +9,181 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Tests;
 
-public class AdminUsersTests(ServerFactory фабрика) : IClassFixture<ServerFactory>
+public class AdminUsersTests(ServerFactory factory) : IClassFixture<ServerFactory>
 {
     private record UserDto(Guid Id, string Email, string Name, string Role, bool IsActive);
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    private static HttpClient Клиент(ServerFactory ф) => ф.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+    private static HttpClient NewClient(ServerFactory factory) => factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
 
-    private static async Task<HttpClient> Авторизованный(HttpClient клиент, string email, string пароль)
+    private static async Task<HttpClient> Authorize(HttpClient client, string email, string password)
     {
-        var вход = await клиент.PostAsJsonAsync("/api/auth/login", new { email, password = пароль });
-        Assert.Equal(HttpStatusCode.OK, вход.StatusCode);
-        var токен = (await вход.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken;
-        клиент.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", токен);
-        return клиент;
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password = password });
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        var token = (await login.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken;
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
     }
 
-    private Task<HttpClient> КакАдминистратор() =>
-        Авторизованный(Клиент(фабрика), ServerFactory.AdminEmail, ServerFactory.AdminPassword);
+    private Task<HttpClient> AsAdministrator() =>
+        Authorize(NewClient(factory), ServerFactory.AdminEmail, ServerFactory.AdminPassword);
 
-    private static string Уникальный() => $"u{Guid.NewGuid():N}@example.test";
+    private static string UniqueEmail() => $"u{Guid.NewGuid():N}@example.test";
 
-    private static async Task<UserDto> Создать(HttpClient админ, string email, string роль = "member", string пароль = "password-1234")
+    private static async Task<UserDto> Create(HttpClient admin, string email, string role = "member", string password = "password-1234")
     {
-        var ответ = await админ.PostAsJsonAsync("/api/admin/users", new { email, name = "Имя " + email, password = пароль, role = роль });
-        Assert.Equal(HttpStatusCode.Created, ответ.StatusCode);
-        return (await ответ.Content.ReadFromJsonAsync<UserDto>(Json))!;
+        var response = await admin.PostAsJsonAsync("/api/admin/users", new { email, name = "Имя " + email, password = password, role = role });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<UserDto>(Json))!;
     }
 
-    private static async Task<string> Причина(HttpResponseMessage ответ)
+    private static async Task<string> ReasonOf(HttpResponseMessage response)
     {
-        using var док = JsonDocument.Parse(await ответ.Content.ReadAsStringAsync());
-        return док.RootElement.GetProperty("error").GetString()!;
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.GetProperty("detail").GetString()!;
     }
 
     [Fact]
-    public async Task Участник_НаЭндпоинтахАдминистрирования_Получает403()
+    public async Task Member_OnAdminEndpoints_Gets403()
     {
-        using var админ = await КакАдминистратор();
-        var email = Уникальный();
-        var пользователь = await Создать(админ, email);
-        using var участник = await Авторизованный(Клиент(фабрика), email, "password-1234");
+        using var admin = await AsAdministrator();
+        var email = UniqueEmail();
+        var user = await Create(admin, email);
+        using var member = await Authorize(NewClient(factory), email, "password-1234");
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await участник.GetAsync("/api/admin/users")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await member.GetAsync("/api/admin/users")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,
-            (await участник.PostAsJsonAsync("/api/admin/users", new { email = Уникальный(), name = "x", password = "password-1234", role = "member" })).StatusCode);
+            (await member.PostAsJsonAsync("/api/admin/users", new { email = UniqueEmail(), name = "x", password = "password-1234", role = "member" })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,
-            (await участник.PutAsJsonAsync($"/api/admin/users/{пользователь.Id}/role", new { role = "admin" })).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await участник.PostAsync($"/api/admin/users/{пользователь.Id}/disable", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await участник.PostAsync($"/api/admin/users/{пользователь.Id}/enable", null)).StatusCode);
+            (await member.PutAsJsonAsync($"/api/admin/users/{user.Id}/role", new { role = "admin" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await member.PostAsync($"/api/admin/users/{user.Id}/disable", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await member.PostAsync($"/api/admin/users/{user.Id}/enable", null)).StatusCode);
     }
 
     [Fact]
-    public async Task БезТокена_Возвращает401()
+    public async Task WithoutToken_Returns401()
     {
-        using var клиент = Клиент(фабрика);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await клиент.GetAsync("/api/admin/users")).StatusCode);
+        using var client = NewClient(factory);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/admin/users")).StatusCode);
     }
 
     [Fact]
-    public async Task Администратор_СоздаётПользователя_ОнВходитИВидитсяВСписке()
+    public async Task Administrator_CreatesUser_UserCanLoginAndAppearsInList()
     {
-        using var админ = await КакАдминистратор();
-        var email = Уникальный();
+        using var admin = await AsAdministrator();
+        var email = UniqueEmail();
 
-        var созданный = await Создать(админ, email);
+        var created = await Create(admin, email);
 
-        Assert.Equal("member", созданный.Role);
-        Assert.True(созданный.IsActive);
-        var список = await админ.GetFromJsonAsync<List<UserDto>>("/api/admin/users", Json);
-        Assert.Contains(список!, u => u.Id == созданный.Id && u.Email == email && u.Role == "member");
-        Assert.Contains(список!, u => u.Email == ServerFactory.AdminEmail && u.Role == "admin");
-        using var _ = await Авторизованный(Клиент(фабрика), email, "password-1234");
+        Assert.Equal("member", created.Role);
+        Assert.True(created.IsActive);
+        var list = await admin.GetFromJsonAsync<List<UserDto>>("/api/admin/users", Json);
+        Assert.Contains(list!, u => u.Id == created.Id && u.Email == email && u.Role == "member");
+        Assert.Contains(list!, u => u.Email == ServerFactory.AdminEmail && u.Role == "admin");
+        using var _ = await Authorize(NewClient(factory), email, "password-1234");
     }
 
     [Fact]
-    public async Task Создание_ОтклоняетКороткийПарольДубльИНевернуюРоль()
+    public async Task Create_RejectsShortPasswordDuplicateAndInvalidRole()
     {
-        using var админ = await КакАдминистратор();
-        var email = Уникальный();
+        using var admin = await AsAdministrator();
+        var email = UniqueEmail();
 
-        var короткий = await админ.PostAsJsonAsync("/api/admin/users", new { email, name = "x", password = "short", role = "member" });
-        Assert.Equal(HttpStatusCode.BadRequest, короткий.StatusCode);
-        Assert.Contains("8", await Причина(короткий));
+        var tooShort = await admin.PostAsJsonAsync("/api/admin/users", new { email, name = "x", password = "short", role = "member" });
+        Assert.Equal(HttpStatusCode.BadRequest, tooShort.StatusCode);
+        Assert.Contains("8", await ReasonOf(tooShort));
 
-        var роль = await админ.PostAsJsonAsync("/api/admin/users", new { email, name = "x", password = "password-1234", role = "boss" });
-        Assert.Equal(HttpStatusCode.BadRequest, роль.StatusCode);
+        var role = await admin.PostAsJsonAsync("/api/admin/users", new { email, name = "x", password = "password-1234", role = "boss" });
+        Assert.Equal(HttpStatusCode.BadRequest, role.StatusCode);
 
-        var пустойEmail = await админ.PostAsJsonAsync("/api/admin/users", new { email = " ", name = "x", password = "password-1234", role = "member" });
-        Assert.Equal(HttpStatusCode.BadRequest, пустойEmail.StatusCode);
+        var blankEmail = await admin.PostAsJsonAsync("/api/admin/users", new { email = " ", name = "x", password = "password-1234", role = "member" });
+        Assert.Equal(HttpStatusCode.BadRequest, blankEmail.StatusCode);
 
-        await Создать(админ, email);
-        var дубль = await админ.PostAsJsonAsync("/api/admin/users", new { email = email.ToUpperInvariant(), name = "x", password = "password-1234", role = "member" });
-        Assert.Equal(HttpStatusCode.Conflict, дубль.StatusCode);
+        await Create(admin, email);
+        var duplicate = await admin.PostAsJsonAsync("/api/admin/users", new { email = email.ToUpperInvariant(), name = "x", password = "password-1234", role = "member" });
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
     }
 
     [Fact]
-    public async Task СменаРоли_ПовышаетИПонижает()
+    public async Task ChangeRole_PromotesAndDemotes()
     {
-        using var админ = await КакАдминистратор();
-        var пользователь = await Создать(админ, Уникальный());
+        using var admin = await AsAdministrator();
+        var user = await Create(admin, UniqueEmail());
 
-        var повышение = await админ.PutAsJsonAsync($"/api/admin/users/{пользователь.Id}/role", new { role = "admin" });
-        Assert.Equal(HttpStatusCode.NoContent, повышение.StatusCode);
-        var понижение = await админ.PutAsJsonAsync($"/api/admin/users/{пользователь.Id}/role", new { role = "member" });
-        Assert.Equal(HttpStatusCode.NoContent, понижение.StatusCode);
+        var promotion = await admin.PutAsJsonAsync($"/api/admin/users/{user.Id}/role", new { role = "admin" });
+        Assert.Equal(HttpStatusCode.NoContent, promotion.StatusCode);
+        var demotion = await admin.PutAsJsonAsync($"/api/admin/users/{user.Id}/role", new { role = "member" });
+        Assert.Equal(HttpStatusCode.NoContent, demotion.StatusCode);
 
-        var список = await админ.GetFromJsonAsync<List<UserDto>>("/api/admin/users", Json);
-        Assert.Equal("member", список!.Single(u => u.Id == пользователь.Id).Role);
+        var list = await admin.GetFromJsonAsync<List<UserDto>>("/api/admin/users", Json);
+        Assert.Equal("member", list!.Single(u => u.Id == user.Id).Role);
     }
 
     [Fact]
-    public async Task НеизвестныйПользователь_Возвращает404()
+    public async Task UnknownUser_Returns404()
     {
-        using var админ = await КакАдминистратор();
+        using var admin = await AsAdministrator();
         var id = Guid.NewGuid();
-        Assert.Equal(HttpStatusCode.NotFound, (await админ.PostAsync($"/api/admin/users/{id}/disable", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await админ.PutAsJsonAsync($"/api/admin/users/{id}/role", new { role = "member" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsync($"/api/admin/users/{id}/disable", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsJsonAsync($"/api/admin/users/{id}/role", new { role = "member" })).StatusCode);
     }
 
     [Fact]
-    public async Task ПоследнегоАдминистратора_НельзяОтключитьИПонизить_СПонятнойПричиной()
+    public async Task LastAdministrator_CannotBeDisabledOrDemoted_WithClearReason()
     {
         // отдельный стенд: в общей базе другие тесты заводят администраторов
-        await using var отдельная = new ServerFactory();
-        await ((IAsyncLifetime)отдельная).InitializeAsync();
-        using var админ = await Авторизованный(Клиент(отдельная), ServerFactory.AdminEmail, ServerFactory.AdminPassword);
-        var список = await админ.GetFromJsonAsync<List<UserDto>>("/api/admin/users", Json);
-        var единственный = список!.Single(u => u.Role == "admin");
+        await using var separate = new ServerFactory();
+        await ((IAsyncLifetime)separate).InitializeAsync();
+        using var admin = await Authorize(NewClient(separate), ServerFactory.AdminEmail, ServerFactory.AdminPassword);
+        var list = await admin.GetFromJsonAsync<List<UserDto>>("/api/admin/users", Json);
+        var only = list!.Single(u => u.Role == "admin");
 
-        var отключение = await админ.PostAsync($"/api/admin/users/{единственный.Id}/disable", null);
-        Assert.Equal(HttpStatusCode.Conflict, отключение.StatusCode);
-        Assert.Contains("администратор", await Причина(отключение), StringComparison.OrdinalIgnoreCase);
+        var disable = await admin.PostAsync($"/api/admin/users/{only.Id}/disable", null);
+        Assert.Equal(HttpStatusCode.Conflict, disable.StatusCode);
+        Assert.Contains("администратор", await ReasonOf(disable), StringComparison.OrdinalIgnoreCase);
 
-        var понижение = await админ.PutAsJsonAsync($"/api/admin/users/{единственный.Id}/role", new { role = "member" });
-        Assert.Equal(HttpStatusCode.Conflict, понижение.StatusCode);
-        Assert.Contains("администратор", await Причина(понижение), StringComparison.OrdinalIgnoreCase);
+        var demotion = await admin.PutAsJsonAsync($"/api/admin/users/{only.Id}/role", new { role = "member" });
+        Assert.Equal(HttpStatusCode.Conflict, demotion.StatusCode);
+        Assert.Contains("администратор", await ReasonOf(demotion), StringComparison.OrdinalIgnoreCase);
 
         // со вторым администратором операции разрешены
-        var второй = await Создать(админ, Уникальный(), "admin");
-        Assert.Equal(HttpStatusCode.NoContent, (await админ.PostAsync($"/api/admin/users/{второй.Id}/disable", null)).StatusCode);
+        var second = await Create(admin, UniqueEmail(), "admin");
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PostAsync($"/api/admin/users/{second.Id}/disable", null)).StatusCode);
         // отключённый администратор не считается: единственный действующий снова защищён
-        Assert.Equal(HttpStatusCode.Conflict, (await админ.PostAsync($"/api/admin/users/{единственный.Id}/disable", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await админ.PostAsync($"/api/admin/users/{второй.Id}/enable", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await admin.PostAsync($"/api/admin/users/{only.Id}/disable", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PostAsync($"/api/admin/users/{second.Id}/enable", null)).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent,
-            (await админ.PutAsJsonAsync($"/api/admin/users/{единственный.Id}/role", new { role = "member" })).StatusCode);
+            (await admin.PutAsJsonAsync($"/api/admin/users/{only.Id}/role", new { role = "member" })).StatusCode);
     }
 
     [Fact]
-    public async Task Отключение_ЗапрещаетВходИОтзываетRefresh_ВключениеВозвращаетВход()
+    public async Task Disable_BlocksLoginAndRevokesRefresh_EnableRestoresLogin()
     {
-        using var админ = await КакАдминистратор();
-        var email = Уникальный();
-        var пользователь = await Создать(админ, email);
-        using var клиент = Клиент(фабрика);
-        var вход = await клиент.PostAsJsonAsync("/api/auth/login", new { email, password = "password-1234" });
-        var cookie = вход.Headers.GetValues("Set-Cookie").First(v => v.StartsWith("refresh_token=")).Split(';')[0];
+        using var admin = await AsAdministrator();
+        var email = UniqueEmail();
+        var user = await Create(admin, email);
+        using var client = NewClient(factory);
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password = "password-1234" });
+        var cookie = login.Headers.GetValues("Set-Cookie").First(v => v.StartsWith("refresh_token=")).Split(';')[0];
 
-        var отключение = await админ.PostAsync($"/api/admin/users/{пользователь.Id}/disable", null);
-        Assert.Equal(HttpStatusCode.NoContent, отключение.StatusCode);
+        var disable = await admin.PostAsync($"/api/admin/users/{user.Id}/disable", null);
+        Assert.Equal(HttpStatusCode.NoContent, disable.StatusCode);
 
         Assert.Equal(HttpStatusCode.Unauthorized,
-            (await клиент.PostAsJsonAsync("/api/auth/login", new { email, password = "password-1234" })).StatusCode);
-        var запрос = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
-        запрос.Headers.Add("Cookie", cookie);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await клиент.SendAsync(запрос)).StatusCode);
-        await using (var соединение = new NpgsqlConnection(фабрика.ConnectionString))
+            (await client.PostAsJsonAsync("/api/auth/login", new { email, password = "password-1234" })).StatusCode);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        request.Headers.Add("Cookie", cookie);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.SendAsync(request)).StatusCode);
+        await using (var connection = new NpgsqlConnection(factory.ConnectionString))
         {
-            var неотозванные = await соединение.ExecuteScalarAsync<int>(
-                "select count(*) from refresh_tokens where user_id = @id and revoked_at is null", new { id = пользователь.Id });
-            Assert.Equal(0, неотозванные);
+            var notRevoked = await connection.ExecuteScalarAsync<int>(
+                "select count(*) from refresh_tokens where user_id = @id and revoked_at is null", new { id = user.Id });
+            Assert.Equal(0, notRevoked);
         }
 
-        Assert.Equal(HttpStatusCode.NoContent, (await админ.PostAsync($"/api/admin/users/{пользователь.Id}/enable", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PostAsync($"/api/admin/users/{user.Id}/enable", null)).StatusCode);
         Assert.Equal(HttpStatusCode.OK,
-            (await клиент.PostAsJsonAsync("/api/auth/login", new { email, password = "password-1234" })).StatusCode);
+            (await client.PostAsJsonAsync("/api/auth/login", new { email, password = "password-1234" })).StatusCode);
     }
 }

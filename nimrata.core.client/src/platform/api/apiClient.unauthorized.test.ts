@@ -9,8 +9,8 @@ function jsonResponse(body: unknown, status = 200): Response {
     });
 }
 
-describe('ApiClient: обновление при 401', () => {
-    it('при 401 один раз вызывает onUnauthorized и повторяет запрос', async () => {
+describe('ApiClient: refresh on 401', () => {
+    it('unauthorized_401_callsOnUnauthorizedOnceAndRetriesRequest', async () => {
         const fetchMock = vi
             .fn()
             .mockResolvedValueOnce(new Response(null, { status: 401 }))
@@ -25,7 +25,7 @@ describe('ApiClient: обновление при 401', () => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
-    it('повторный запрос берёт заголовки заново (уже с новым токеном)', async () => {
+    it('unauthorized_retry_takesHeadersAgainWithNewToken', async () => {
         let токен = 'old';
         const fetchMock = vi
             .fn()
@@ -47,7 +47,7 @@ describe('ApiClient: обновление при 401', () => {
         );
     });
 
-    it('если обновить не удалось, бросает ApiError 401 без повтора', async () => {
+    it('unauthorized_refreshFailed_throwsApiError401WithoutRetry', async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
         const api = createApiClient({ fetch: fetchMock, onUnauthorized: async () => false });
 
@@ -58,7 +58,7 @@ describe('ApiClient: обновление при 401', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    it('если и после обновления 401, не зацикливается', async () => {
+    it('unauthorized_401AfterRefresh_doesNotLoop', async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
         const onUnauthorized = vi.fn().mockResolvedValue(true);
         const api = createApiClient({ fetch: fetchMock, onUnauthorized });

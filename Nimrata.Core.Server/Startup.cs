@@ -6,23 +6,23 @@ namespace Nimrata.Core.Server;
 
 public static class Startup
 {
-    /// <summary>Применяет пронумерованные SQL-миграции, встроенные в сборку сервера.</summary>
+    /// <summary>Применяет пронумерованные SQL-миграции, встроенные в сборку сервера</summary>
     public static void ApplyMigrations(string connectionString)
     {
         EnsureDatabase.For.PostgresqlDatabase(connectionString);
 
-        var результат = DeployChanges.To
+        var result = DeployChanges.To
             .PostgresqlDatabase(connectionString)
             .WithScriptsEmbeddedInAssembly(
                 Assembly.GetExecutingAssembly(),
-                имя => имя.Contains(".Migrations.") && имя.EndsWith(".sql"))
+                name => name.Contains(".Migrations.") && name.EndsWith(".sql"))
             .LogToConsole()
             .Build()
             .PerformUpgrade();
 
-        if (!результат.Successful)
+        if (!result.Successful)
         {
-            throw new InvalidOperationException("Не удалось применить миграции БД.", результат.Error);
+            throw new InvalidOperationException("Не удалось применить миграции БД.", result.Error);
         }
     }
 }

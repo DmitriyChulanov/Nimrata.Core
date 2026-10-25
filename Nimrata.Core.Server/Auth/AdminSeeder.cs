@@ -2,13 +2,16 @@ using Microsoft.Extensions.Options;
 
 namespace Nimrata.Core.Server.Auth;
 
-/// <summary>Создаёт первого администратора из настроек развёртывания; повторный запуск дубль не создаёт.</summary>
-public sealed class AdminSeeder(AuthService авторизация, IOptions<AdminSeedOptions> настройки)
+/// <summary>Создаёт первого администратора из настроек развёртывания; повторный запуск дубль не создаёт</summary>
+public sealed class AdminSeeder(AuthService authService, IOptions<AdminSeedOptions> options)
 {
-    public async Task Выполнить()
+    public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
-        var o = настройки.Value;
-        if (string.IsNullOrWhiteSpace(o.Email) || string.IsNullOrEmpty(o.Password)) return;
-        await авторизация.СоздатьПользователя(o.Email.Trim(), o.Password, администратор: true);
+        var seed = options.Value;
+        if (string.IsNullOrWhiteSpace(seed.Email) || string.IsNullOrEmpty(seed.Password))
+        {
+            return;
+        }
+        await authService.CreateUserAsync(seed.Email.Trim(), seed.Password, isAdmin: true, cancellationToken);
     }
 }

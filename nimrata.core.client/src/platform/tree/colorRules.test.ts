@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ColorRule } from '../types/types';
 import { resolveRuleColor } from './colorRules';
+
+import type { ColorRule } from '@platform/types/types';
 
 const rules: ColorRule[] = [
     { property: 'priority', equals: 'medium', color: 'orange' },
@@ -10,16 +11,16 @@ const rules: ColorRule[] = [
 ];
 
 describe('resolveRuleColor', () => {
-    it('возвращает цвет правила, условие которого выполнено', () => {
+    it('colorRules_ruleWithSatisfiedCondition_returnsItsColor', () => {
         expect(resolveRuleColor(rules, { priority: 'high' })).toBe('red');
     });
 
-    it('без подходящего правила и без правил цвета нет', () => {
+    it('colorRules_noMatchingRuleAndNoRules_noColor', () => {
         expect(resolveRuleColor(rules, { priority: 'low' })).toBeUndefined();
         expect(resolveRuleColor(undefined, { priority: 'high' })).toBeUndefined();
     });
 
-    it('при нескольких подходящих правилах побеждает первое по порядку', () => {
+    it('colorRules_severalMatchingRules_firstByOrderWins', () => {
         const ordered: ColorRule[] = [
             { property: 'status', equals: 'completed', color: 'green' },
             { property: 'priority', equals: 'high', color: 'red' },
@@ -29,7 +30,7 @@ describe('resolveRuleColor', () => {
         expect(resolveRuleColor([...ordered].reverse(), values)).toBe('red');
     });
 
-    it('сравнивает значения строго: число не равно строке, отсутствующее свойство не подходит', () => {
+    it('colorRules_valuesComparedStrictly_numberNotEqualToStringMissingPropertyDoesNotMatch', () => {
         const r: ColorRule[] = [{ property: 'n', equals: 1, color: 'blue' }];
         expect(resolveRuleColor(r, { n: 1 })).toBe('blue');
         expect(resolveRuleColor(r, { n: '1' })).toBeUndefined();

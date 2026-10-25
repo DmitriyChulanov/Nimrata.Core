@@ -1,8 +1,9 @@
 import { useState } from 'react';
 
-import type { DataController, DataObject } from '../data/DataController';
-import { useSelection } from '../selection/SelectionProvider';
-import type { PropertyDefinition } from '../types/types';
+import { useSelection } from '@platform/selection/useSelection';
+
+import type { DataController, DataObject } from '@platform/data/DataController';
+import type { PropertyDefinition } from '@platform/types/types';
 
 const collator = new Intl.Collator('ru');
 
@@ -33,7 +34,7 @@ interface PickerProps {
     onCancel: () => void;
 }
 
-/** Диалог выбора цели ссылки: дерево объектов, недопустимые по `targetTypes` узлы отключены. */
+/** Диалог выбора цели ссылки: дерево объектов, недопустимые по `targetTypes` узлы отключены */
 function ReferencePicker({ data, property, current, onPick, onCancel }: PickerProps) {
     const [chosen, setChosen] = useState<string | null>(current);
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -116,7 +117,7 @@ interface EditorProps {
     onCommit: (value: unknown) => Promise<boolean>;
 }
 
-/** Редактор ссылки на объект: название цели, выбор в диалоге, очистка и переход к цели в дереве. */
+/** Редактор ссылки на объект: название цели, выбор в диалоге, очистка и переход к цели в дереве */
 export function ReferenceEditor({ data, property, value, disabled, onCommit }: EditorProps) {
     const { reveal } = useSelection();
     const [picking, setPicking] = useState(false);

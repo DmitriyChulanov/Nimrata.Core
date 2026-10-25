@@ -1,4 +1,5 @@
-﻿import './App.css';
+import { useEffect, useState } from 'react';
+
 import {
     AuthProvider,
     DataProvider,
@@ -33,8 +34,10 @@ import {
     ensureStartStructure,
     registerTracker,
 } from '@tracker/index';
+
+import './App.css';
+
 import type { DataController } from '@platform';
-import { useEffect, useState } from 'react';
 
 registerAutomation(tabRegistry, menuRegistry);
 registerJournal(tabRegistry, menuRegistry);
@@ -70,7 +73,7 @@ function Main() {
 
 const revealBridge = createRevealBridge();
 
-/** Загрузка данных, стартовая структура и достройка повторов; ошибка любого шага не теряется. */
+/** Загрузка данных, стартовая структура и достройка повторов; ошибка любого шага не теряется */
 async function prepareData(controller: DataController): Promise<string | null> {
     await controller.load();
     if (controller.getSnapshot().status !== 'ready') return null; // ошибку загрузки показывает Main
@@ -140,7 +143,7 @@ function Session() {
     );
 }
 
-/** Токен из ссылки письма (`/reset-password?token=…`); null, если открыт обычный адрес. */
+/** Токен из ссылки письма (`/reset-password?token=…`); null, если открыт обычный адрес */
 function readResetToken(): string | null {
     if (window.location.pathname !== '/reset-password') return null;
     return new URLSearchParams(window.location.search).get('token') ?? '';
@@ -167,7 +170,7 @@ function Shell() {
     return <Session />;
 }
 
-function App() {
+export function App() {
     return (
         <AuthProvider>
             <TypesProvider>
@@ -176,5 +179,3 @@ function App() {
         </AuthProvider>
     );
 }
-
-export default App;

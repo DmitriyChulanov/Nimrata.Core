@@ -1,13 +1,14 @@
 import { useId, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
 
-import { useData } from '../data/DataProvider';
-import type { DataController } from '../data/DataController';
-import type { ActionDefinition, PropertyDefinition } from '../types/types';
+import { useData } from '@platform/data/useData';
+
+import type { FormEvent, ReactNode } from 'react';
+import type { DataController } from '@platform/data/DataController';
+import type { ActionDefinition, PropertyDefinition } from '@platform/types/types';
 
 type Draft = Record<string, string | boolean>;
 
-/** Результат разбора поля: значение (`undefined` — не передавать) либо причина отказа. */
+/** Результат разбора поля: значение (`undefined` — не передавать) либо причина отказа */
 type Parsed = { ok: true; value: unknown } | { ok: false; error: string };
 
 function parseField(parameter: PropertyDefinition, raw: string | boolean | undefined): Parsed {
@@ -51,7 +52,7 @@ function titleOf(data: DataController, id: string): string {
     return typeof name === 'string' && name ? name : (data.getType(object.type)?.name ?? id);
 }
 
-/** Объекты, которые можно выбрать в ссылочном параметре: по `targetTypes` (без него — любые). */
+/** Объекты, которые можно выбрать в ссылочном параметре: по `targetTypes` (без него — любые) */
 function referenceOptions(data: DataController, parameter: PropertyDefinition) {
     const targets = parameter.targetTypes;
     const result: { id: string; title: string }[] = [];
@@ -166,12 +167,12 @@ function Field({
 
 export interface ActionDialogProps {
     action: ActionDefinition;
-    /** Запуск действия с собранными параметрами; возвращает причину отказа или `null` при успехе. */
+    /** Запуск действия с собранными параметрами; возвращает причину отказа или `null` при успехе */
     onSubmit(params: Record<string, unknown>): Promise<string | null>;
     onCancel(): void;
 }
 
-/** Диалог ввода параметров действия: поля строятся по описанию параметров, обязательные проверяются. */
+/** Диалог ввода параметров действия: поля строятся по описанию параметров, обязательные проверяются */
 export function ActionDialog({ action, onSubmit, onCancel }: ActionDialogProps) {
     const data = useData();
     const parameters = action.parameters ?? [];

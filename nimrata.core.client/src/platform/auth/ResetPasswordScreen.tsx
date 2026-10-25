@@ -1,18 +1,19 @@
 import { useState } from 'react';
+
+import { createApiClient } from '@platform/api/apiClient';
+
 import type { FormEvent } from 'react';
 
-import { createApiClient } from '../api/apiClient';
-
 interface ResetPasswordScreenProps {
-    /** Одноразовый токен из ссылки письма. */
+    /** Одноразовый токен из ссылки письма */
     token: string;
-    /** Переход ко входу после успешной смены пароля. */
+    /** Переход ко входу после успешной смены пароля */
     onDone: () => void;
 }
 
 const MIN_PASSWORD_LENGTH = 8;
 
-/** Установка нового пароля по ссылке из письма. */
+/** Установка нового пароля по ссылке из письма */
 export function ResetPasswordScreen({ token, onDone }: ResetPasswordScreenProps) {
     const [password, setPassword] = useState('');
     const [repeat, setRepeat] = useState('');

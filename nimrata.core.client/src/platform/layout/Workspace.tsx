@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import type { KeyboardEvent, ReactNode } from 'react';
 
 import './Workspace.css';
+
+import type { KeyboardEvent, ReactNode } from 'react';
 
 const MIN_WIDTH = 120;
 const KEY_STEP = 20;
@@ -12,20 +13,20 @@ export interface WorkspaceWidths {
 }
 
 export interface WorkspaceProps {
-    /** Дерево объектов. */
+    /** Дерево объектов */
     left: ReactNode;
-    /** Область вкладок. */
+    /** Область вкладок */
     center: ReactNode;
-    /** Таблица свойств. */
+    /** Таблица свойств */
     right: ReactNode;
     initialWidths?: WorkspaceWidths;
-    /** Вызывается после каждого изменения ширины панелей (для запоминания раскладки). */
+    /** Вызывается после каждого изменения ширины панелей (для запоминания раскладки) */
     onWidthsChange?: (widths: WorkspaceWidths) => void;
 }
 
 type Side = keyof WorkspaceWidths;
 
-/** Основной экран: три панели, ширина боковых меняется перетаскиванием границ. */
+/** Основной экран: три панели, ширина боковых меняется перетаскиванием границ */
 export function Workspace({
     left,
     center,

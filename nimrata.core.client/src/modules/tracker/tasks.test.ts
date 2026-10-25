@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDataController } from '@platform';
-import type { DataController, DataObject, TypeDefinition } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { ensureStartStructure, registerTracker, taskDate } from './tracker';
+
+import type { DataController, DataObject, TypeDefinition } from '@platform';
 
 const types = manifest.types.map((t) => ({
     ...t,
@@ -42,14 +43,14 @@ async function createTask(
     if (!result.ok) throw new Error(result.error);
 }
 
-describe('Трекер: создание задачи', () => {
+describe('Tracker: task creation', () => {
     beforeEach(() => {
         vi.useFakeTimers({ toFake: ['Date'] });
         vi.setSystemTime(new Date(2026, 2, 4, 10, 0)); // среда, 4 марта 2026
     });
     afterEach(() => vi.useRealTimers());
 
-    it('на заданную дату создаёт месяц и день внутри «Текущих задач» и кладёт задачу в день', async () => {
+    it('createTask_withDate_createsMonthAndDayInsideCurrentTasksAndPutsTaskInDay', async () => {
         const { data } = await start();
         const root = current(data);
 
@@ -66,7 +67,7 @@ describe('Трекер: создание задачи', () => {
         expect(tasks[0].properties.name).toBe('Позвонить');
     });
 
-    it('без даты использует сегодня', async () => {
+    it('createTask_withoutDate_usesToday', async () => {
         const { data } = await start();
         const root = current(data);
 
@@ -76,7 +77,7 @@ describe('Трекер: создание задачи', () => {
         expect(byName(data, month.id, '04.03.2026, среда')).toBeDefined();
     });
 
-    it('всё создаётся одним набором изменений', async () => {
+    it('createTask_everything_isOneChangeset', async () => {
         const { api, data } = await start();
         const before = api.changesets.length;
 
@@ -85,7 +86,7 @@ describe('Трекер: создание задачи', () => {
         expect(api.changesets.length - before).toBe(1);
     });
 
-    it('повторно использует существующие месяц и день', async () => {
+    it('createTask_existingMonthAndDay_areReused', async () => {
         const { data } = await start();
         const root = current(data);
 
@@ -99,7 +100,7 @@ describe('Трекер: создание задачи', () => {
         expect(data.getChildren(byName(data, month.id, '05.03.2026, четверг')!.id)).toHaveLength(2);
     });
 
-    it('название задачи не может быть пустым', async () => {
+    it('createTask_emptyName_isNotAllowed', async () => {
         const { data } = await start();
 
         const result = await data.runAction(current(data).id, 'createTask', { title: '  ' });
@@ -107,7 +108,7 @@ describe('Трекер: создание задачи', () => {
         expect(result.ok).toBe(false);
     });
 
-    it('имя задачи с временем — «HH:mm — Название» и пересчитывается при правке', async () => {
+    it('taskName_withTime_isTimeDashTitleAndRecomputedOnEdit', async () => {
         const { data } = await start();
         await createTask(data, current(data), { title: 'Позвонить', date: '2026-03-05' });
         const task = findTask(data, 'Позвонить');
@@ -122,7 +123,7 @@ describe('Трекер: создание задачи', () => {
         expect(data.getObject(task.id)!.properties.name).toBe('Написать');
     });
 
-    it('дата задачи выводится из дня-родителя и нигде не хранится', async () => {
+    it('taskDate_isDerivedFromParentDayAndStoredNowhere', async () => {
         const { data } = await start();
         await createTask(data, current(data), { title: 'Д', date: '2026-03-05' });
         const task = findTask(data, 'Д');
@@ -132,14 +133,14 @@ describe('Трекер: создание задачи', () => {
     });
 });
 
-describe('Трекер: категории', () => {
+describe('Tracker: categories', () => {
     beforeEach(() => {
         vi.useFakeTimers({ toFake: ['Date'] });
         vi.setSystemTime(new Date(2026, 2, 4, 10, 0));
     });
     afterEach(() => vi.useRealTimers());
 
-    it('категория создаётся внутри дня, повторное название находит существующую', async () => {
+    it('category_created_insideDayAndRepeatedNameFindsExisting', async () => {
         const { data } = await start();
         const root = current(data);
 
@@ -155,20 +156,20 @@ describe('Трекер: категории', () => {
         expect(data.getChildren(work.id)).toHaveLength(2);
     });
 
-    it('действие на категории создаёт вложенную категорию внутри неё', async () => {
+    it('category_actionOnCategory_createsNestedCategoryInsideIt', async () => {
         const { data } = await start();
         const root = current(data);
         await createTask(data, root, { title: 'А', date: '2026-03-05', category: 'Работа' });
         const work = findCategory(data, 'Работа');
 
         await createTask(data, work, { title: 'Б', category: 'Проект' });
-        // Без даты на категории задача создаётся в день категории, а не на сегодня.
+        // Без даты на категории задача создаётся в день категории, а не на сегодня
         const nested = data.getChildren(work.id).find((o) => o.type === 'Category')!;
         expect(nested.properties.name).toBe('Проект');
         expect(taskDate(data, data.getChildren(nested.id)[0])).toBe('2026-03-05');
     });
 
-    it('действие на категории без указания категории кладёт задачу в неё', async () => {
+    it('category_actionOnCategoryWithoutCategory_putsTaskInIt', async () => {
         const { data } = await start();
         await createTask(data, current(data), {
             title: 'А',
@@ -182,7 +183,7 @@ describe('Трекер: категории', () => {
         expect(data.getChildren(work.id)).toHaveLength(2);
     });
 
-    it('действие на дне с другой датой создаёт задачу в нужном дне', async () => {
+    it('category_actionOnDayWithOtherDate_createsTaskInThatDay', async () => {
         const { data } = await start();
         await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
         const month = data.getChildren(current(data).id)[0];
@@ -194,7 +195,7 @@ describe('Трекер: категории', () => {
         expect(data.getChildren(month.id)).toHaveLength(2);
     });
 
-    it('на категории в архиве без даты создаёт задачу на сегодня в «Текущих задачах», а не в архиве', async () => {
+    it('category_inArchiveWithoutDate_createsTaskForTodayInCurrentTasksNotArchive', async () => {
         const { data } = await start();
         await createTask(data, current(data), {
             title: 'Старая',
@@ -221,8 +222,8 @@ describe('Трекер: категории', () => {
     });
 });
 
-describe('Трекер: дни, порядок, выходные', () => {
-    it('суббота и воскресенье — «День-выходной», будни — «День»', async () => {
+describe('Tracker: days, order, weekends', () => {
+    it('days_saturdayAndSunday_areWeekendDayWeekdaysAreDay', async () => {
         const { data } = await start();
         const root = current(data);
 
@@ -242,7 +243,7 @@ describe('Трекер: дни, порядок, выходные', () => {
         });
     });
 
-    it('месяцы и дни получают порядок по дате независимо от порядка создания', async () => {
+    it('days_monthsAndDays_getOrderByDateRegardlessOfCreationOrder', async () => {
         const { data } = await start();
         const root = current(data);
 
@@ -256,7 +257,7 @@ describe('Трекер: дни, порядок, выходные', () => {
         expect(days.map((d) => d.properties.date)).toEqual(['2026-02-03', '2026-02-20']);
     });
 
-    it('год 2027 идёт после декабря 2026', async () => {
+    it('days_year2027_comesAfterDecember2026', async () => {
         const { data } = await start();
         const root = current(data);
 
@@ -267,7 +268,7 @@ describe('Трекер: дни, порядок, выходные', () => {
         expect(months.map((m) => m.properties.date)).toEqual(['2026-12-01', '2027-01-01']);
     });
 
-    it('некорректная дата отклоняется', async () => {
+    it('days_invalidDate_isRejected', async () => {
         const { data } = await start();
 
         const result = await data.runAction(current(data).id, 'createTask', {
@@ -279,8 +280,8 @@ describe('Трекер: дни, порядок, выходные', () => {
     });
 });
 
-describe('Трекер: порядок задач дня', () => {
-    it('задачи дня идут по времени независимо от порядка создания; без времени — первыми', async () => {
+describe('Tracker: task order in a day', () => {
+    it('taskOrder_tasksOfDay_sortedByTimeRegardlessOfCreationOrderWithoutTimeFirst', async () => {
         const { data } = await start();
         const root = current(data);
         for (const title of ['Поздняя', 'Ранняя', 'Без времени']) {
@@ -299,8 +300,8 @@ describe('Трекер: порядок задач дня', () => {
     });
 });
 
-describe('Трекер: ссылки задачи', () => {
-    it('«Перейти по внешней ссылке» открывает http(s) в новой вкладке', async () => {
+describe('Tracker: task links', () => {
+    it('taskLinks_openExternalLink_opensHttpInNewTab', async () => {
         const { data } = await start();
         await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
         const task = findTask(data, 'А');
@@ -314,7 +315,7 @@ describe('Трекер: ссылки задачи', () => {
         open.mockRestore();
     });
 
-    it('внешняя ссылка не http(s) отклоняется', async () => {
+    it('taskLinks_externalLinkNotHttp_isRejected', async () => {
         const { data } = await start();
         await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
         const task = findTask(data, 'А');
@@ -328,7 +329,7 @@ describe('Трекер: ссылки задачи', () => {
         open.mockRestore();
     });
 
-    it('«Перейти по внутренней ссылке» показывает целевой объект в дереве', async () => {
+    it('taskLinks_openInternalLink_showsTargetObjectInTree', async () => {
         const reveal = vi.fn();
         const { data } = await start({ reveal });
         await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
@@ -343,7 +344,7 @@ describe('Трекер: ссылки задачи', () => {
         expect(reveal).toHaveBeenCalledWith(b.id);
     });
 
-    it('внутренняя ссылка на удалённый объект даёт понятную ошибку', async () => {
+    it('taskLinks_internalLinkToDeletedObject_givesClearError', async () => {
         const reveal = vi.fn();
         const { data } = await start({ reveal });
         await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
@@ -356,7 +357,7 @@ describe('Трекер: ссылки задачи', () => {
         expect(reveal).not.toHaveBeenCalled();
     });
 
-    it('действия-ссылки недоступны, пока ссылка не задана', async () => {
+    it('taskLinks_linkActions_unavailableUntilLinkIsSet', async () => {
         const { data } = await start();
         await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
         const task = findTask(data, 'А');
@@ -368,8 +369,8 @@ describe('Трекер: ссылки задачи', () => {
     });
 });
 
-describe('Манифест Трекера: задача', () => {
-    it('свойства задачи и цветовые правила приоритета описаны', () => {
+describe('Tracker manifest: task', () => {
+    it('manifest_taskProperties_andPriorityColorRulesAreDescribed', () => {
         const task = manifest.types.find((t) => t.id === 'Task')!;
 
         expect(task.properties!.map((p) => p.id)).toEqual(

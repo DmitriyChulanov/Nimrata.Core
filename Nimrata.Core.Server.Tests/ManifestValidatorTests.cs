@@ -3,64 +3,64 @@ using Nimrata.Core.Server.Modules;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Проверка манифестов валидатором; БД и сервер не нужны.</summary>
+/// <summary>Проверка манифестов валидатором; БД и сервер не нужны</summary>
 public sealed class ManifestValidatorTests
 {
-    private static string ПутьКМанифестуТрекера()
+    private static string TrackerManifestPath()
     {
-        for (var каталог = new DirectoryInfo(AppContext.BaseDirectory); каталог is not null; каталог = каталог.Parent)
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            var путь = Path.Combine(каталог.FullName, "nimrata.core.client", "src", "modules", "tracker", "manifest.json");
-            if (File.Exists(путь)) return путь;
+            var path = Path.Combine(directory.FullName, "nimrata.core.client", "src", "modules", "tracker", "manifest.json");
+            if (File.Exists(path)) return path;
         }
         throw new FileNotFoundException("Манифест Трекера не найден выше каталога тестов.");
     }
 
-    private static List<string> Проверить(string json)
+    private static List<string> Validate(string json)
     {
-        using var документ = JsonDocument.Parse(json);
-        return ManifestValidator.Validate(документ.RootElement);
+        using var document = JsonDocument.Parse(json);
+        return ManifestValidator.Validate(document.RootElement);
     }
 
     [Fact]
-    public void МанифестТрекера_Валиден()
+    public void TrackerManifest_IsValid()
     {
-        var ошибки = Проверить(File.ReadAllText(ПутьКМанифестуТрекера()));
+        var errors = Validate(File.ReadAllText(TrackerManifestPath()));
 
-        Assert.Empty(ошибки);
+        Assert.Empty(errors);
     }
 
     [Fact]
-    public void МанифестТрекера_КорниЗадачРазрешаютТекущиеИЗавершённые()
+    public void TrackerManifest_TaskRootsAllowCurrentAndCompleted()
     {
-        using var документ = JsonDocument.Parse(File.ReadAllText(ПутьКМанифестуТрекера()));
-        var корень = документ.RootElement.GetProperty("types").EnumerateArray()
-            .Single(т => т.GetProperty("id").GetString() == "TasksRoot");
+        using var document = JsonDocument.Parse(File.ReadAllText(TrackerManifestPath()));
+        var root = document.RootElement.GetProperty("types").EnumerateArray()
+            .Single(type => type.GetProperty("id").GetString() == "TasksRoot");
 
-        var дети = корень.GetProperty("allowedChildren").EnumerateArray().Select(д => д.GetString()).ToList();
+        var children = root.GetProperty("allowedChildren").EnumerateArray().Select(child => child.GetString()).ToList();
 
-        Assert.Contains("CurrentTasksRoot", дети);
-        Assert.Contains("CompletedTasksRoot", дети);
+        Assert.Contains("CurrentTasksRoot", children);
+        Assert.Contains("CompletedTasksRoot", children);
     }
 
-    private static string СТипом(string свойство) =>
-        $$"""{ "module": "demo", "version": 1, "types": [ { "id": "A", "name": "A", "properties": [ {{свойство}} ] } ] }""";
+    private static string WithType(string property) =>
+        $$"""{ "module": "demo", "version": 1, "types": [ { "id": "A", "name": "A", "properties": [ {{property}} ] } ] }""";
 
     [Fact]
-    public void RevealTarget_ДляСсылки_Допустим()
+    public void RevealTarget_ForReference_IsAllowed()
     {
-        var ошибки = Проверить(СТипом("""{ "id": "t", "name": "T", "kind": "reference", "revealTarget": true }"""));
+        var errors = Validate(WithType("""{ "id": "t", "name": "T", "kind": "reference", "revealTarget": true }"""));
 
-        Assert.Empty(ошибки);
+        Assert.Empty(errors);
     }
 
     [Theory]
     [InlineData("""{ "id": "t", "name": "T", "kind": "string", "revealTarget": true }""", "reference")]
     [InlineData("""{ "id": "t", "name": "T", "kind": "reference", "revealTarget": "да" }""", "логическое")]
-    public void RevealTarget_Некорректный_Отклоняется(string свойство, string подстрока)
+    public void RevealTarget_Invalid_IsRejected(string property, string substring)
     {
-        var ошибки = Проверить(СТипом(свойство));
+        var errors = Validate(WithType(property));
 
-        Assert.Contains(ошибки, о => о.Contains("revealTarget") && о.Contains(подстрока));
+        Assert.Contains(errors, error => error.Contains("revealTarget") && error.Contains(substring));
     }
 }

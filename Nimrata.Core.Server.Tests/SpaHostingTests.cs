@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Стенд с собранным «клиентом»: временная папка wwwroot с index.html и статическим файлом.</summary>
+/// <summary>Стенд с собранным «клиентом»: временная папка wwwroot с index.html и статическим файлом</summary>
 public sealed class SpaFactory : ServerFactory
 {
     public string WebRoot { get; } = Path.Combine(Path.GetTempPath(), "nimrata-wwwroot-" + Guid.NewGuid().ToString("N"));
@@ -21,61 +21,61 @@ public sealed class SpaFactory : ServerFactory
     }
 }
 
-public class SpaHostingTests(SpaFactory фабрика) : IClassFixture<SpaFactory>
+public class SpaHostingTests(SpaFactory factory) : IClassFixture<SpaFactory>
 {
     [Fact]
-    public async Task КорневойМаршрут_ОтдаётКлиентскоеПриложение()
+    public async Task RootRoute_ServesClientApp()
     {
-        using var клиент = фабрика.CreateClient();
+        using var client = factory.CreateClient();
 
-        var ответ = await клиент.GetAsync("/");
+        var response = await client.GetAsync("/");
 
-        Assert.True(ответ.IsSuccessStatusCode);
-        Assert.Contains("nimrata-spa", await ответ.Content.ReadAsStringAsync());
+        Assert.True(response.IsSuccessStatusCode);
+        Assert.Contains("nimrata-spa", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
-    public async Task НеизвестныйМаршрутКлиента_ПереключаетсяНаКлиентскоеПриложение()
+    public async Task UnknownClientRoute_FallsBackToClientApp()
     {
-        using var клиент = фабрика.CreateClient();
+        using var client = factory.CreateClient();
 
-        var ответ = await клиент.GetAsync("/tracker/tasks/42");
+        var response = await client.GetAsync("/tracker/tasks/42");
 
-        Assert.True(ответ.IsSuccessStatusCode);
-        Assert.Contains("nimrata-spa", await ответ.Content.ReadAsStringAsync());
+        Assert.True(response.IsSuccessStatusCode);
+        Assert.Contains("nimrata-spa", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
-    public async Task СтатическийФайл_ОтдаётсяКакЕсть()
+    public async Task StaticFile_IsServedAsIs()
     {
-        using var клиент = фабрика.CreateClient();
+        using var client = factory.CreateClient();
 
-        var ответ = await клиент.GetAsync("/assets/app.js");
+        var response = await client.GetAsync("/assets/app.js");
 
-        Assert.True(ответ.IsSuccessStatusCode);
-        Assert.Contains("console.log", await ответ.Content.ReadAsStringAsync());
+        Assert.True(response.IsSuccessStatusCode);
+        Assert.Contains("console.log", await response.Content.ReadAsStringAsync());
     }
 
     [Theory]
     [InlineData("/api/нет-такого")]
     [InlineData("/api/auth/нет-такого")]
-    public async Task НеизвестныйМаршрутApi_НеПодменяетсяКлиентомИДаётНеУспех(string путь)
+    public async Task UnknownApiRoute_IsNotReplacedByClientAndFails(string path)
     {
-        using var клиент = фабрика.CreateClient();
+        using var client = factory.CreateClient();
 
-        var ответ = await клиент.GetAsync(путь);
+        var response = await client.GetAsync(path);
 
-        Assert.False(ответ.IsSuccessStatusCode);
-        Assert.DoesNotContain("nimrata-spa", await ответ.Content.ReadAsStringAsync());
+        Assert.False(response.IsSuccessStatusCode);
+        Assert.DoesNotContain("nimrata-spa", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
-    public async Task МаршрутыApi_РаботаютКакПрежде()
+    public async Task ApiRoutes_WorkAsBefore()
     {
-        using var клиент = фабрика.CreateClient();
+        using var client = factory.CreateClient();
 
-        var ответ = await клиент.GetAsync("/api/auth/me");
+        var response = await client.GetAsync("/api/auth/me");
 
-        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, ответ.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }

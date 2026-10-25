@@ -2,11 +2,13 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import { createDataController } from '../data/DataController';
-import { DataProvider } from '../data/DataProvider';
-import { createFakeApi } from '../data/fakeApi';
-import { SelectionProvider, useSelection } from '../selection/SelectionProvider';
-import { Tree } from '../tree/Tree';
+import { createDataController } from '@platform/data/DataController';
+import { DataProvider } from '@platform/data/DataProvider';
+import { createFakeApi } from '@platform/data/fakeApi';
+import { SelectionProvider } from '@platform/selection/SelectionProvider';
+import { useSelection } from '@platform/selection/useSelection';
+import { Tree } from '@platform/tree/Tree';
+
 import { PropertyGrid } from './PropertyGrid';
 
 const types = [
@@ -87,20 +89,20 @@ async function setup(selected = 't') {
 
 const row = (label: string) => screen.getByText(label).closest('.property-grid-row') as HTMLElement;
 
-/** Раскрывает в диалоге папку «Люди» и вложенную папку. */
+/** Раскрывает в диалоге папку «Люди» и вложенную папку */
 async function expandDialog(dialog: HTMLElement) {
     await userEvent.click(within(dialog).getAllByRole('button', { name: 'Развернуть' })[0]);
     await userEvent.click(within(dialog).getAllByRole('button', { name: 'Развернуть' })[0]);
 }
 
-describe('Ссылочное свойство: значение', () => {
-    it('показывает название объекта', async () => {
+describe('Reference property: value', () => {
+    it('referenceEditor_value_showsObjectName', async () => {
         await setup();
 
         expect(within(row('Владелец')).getByText('Иван')).toBeInTheDocument();
     });
 
-    it('ссылка на удалённый объект показывается как недоступная и без перехода', async () => {
+    it('referenceEditor_referenceToDeletedObject_shownAsUnavailableWithoutNavigation', async () => {
         await setup('lost');
 
         const owner = row('Владелец');
@@ -109,8 +111,8 @@ describe('Ссылочное свойство: значение', () => {
     });
 });
 
-describe('Ссылочное свойство: выбор в диалоге', () => {
-    it('выбор объекта применяется набором изменений', async () => {
+describe('Reference property: selection in dialog', () => {
+    it('referenceEditor_choice_isAppliedByChangeset', async () => {
         const { api } = await setup();
 
         await userEvent.click(screen.getByRole('button', { name: 'Выбрать: Владелец' }));
@@ -129,7 +131,7 @@ describe('Ссылочное свойство: выбор в диалоге', ()
         expect(within(row('Владелец')).getByText('Пётр')).toBeInTheDocument();
     });
 
-    it('в диалоге раскрываются папки, скрытые типы не показываются', async () => {
+    it('referenceEditor_dialog_expandsFoldersAndHidesHiddenTypes', async () => {
         const { api } = await setup();
 
         await userEvent.click(screen.getByRole('button', { name: 'Выбрать: Связь' }));
@@ -143,7 +145,7 @@ describe('Ссылочное свойство: выбор в диалоге', ()
         expect(api.changesets[0].operations[0]).toMatchObject({ changes: { any: { new: 'p3' } } });
     });
 
-    it('ограничение по targetTypes: объекты других типов нельзя выбрать', async () => {
+    it('referenceEditor_targetTypes_otherTypesCannotBeChosen', async () => {
         const { api } = await setup();
 
         await userEvent.click(screen.getByRole('button', { name: 'Выбрать: Владелец' }));
@@ -158,7 +160,7 @@ describe('Ссылочное свойство: выбор в диалоге', ()
         expect(api.changesets).toHaveLength(0);
     });
 
-    it('без targetTypes доступен любой объект', async () => {
+    it('referenceEditor_withoutTargetTypes_anyObjectIsAvailable', async () => {
         const { api } = await setup();
 
         await userEvent.click(screen.getByRole('button', { name: 'Выбрать: Связь' }));
@@ -169,7 +171,7 @@ describe('Ссылочное свойство: выбор в диалоге', ()
         expect(api.changesets[0].operations[0]).toMatchObject({ changes: { any: { new: 'f' } } });
     });
 
-    it('отмена закрывает диалог без изменений', async () => {
+    it('referenceEditor_cancel_closesDialogWithoutChanges', async () => {
         const { api } = await setup();
 
         await userEvent.click(screen.getByRole('button', { name: 'Выбрать: Владелец' }));
@@ -179,7 +181,7 @@ describe('Ссылочное свойство: выбор в диалоге', ()
         expect(api.changesets).toHaveLength(0);
     });
 
-    it('очистка ссылки отправляет null', async () => {
+    it('referenceEditor_clear_sendsNull', async () => {
         const { api } = await setup();
 
         await userEvent.click(screen.getByRole('button', { name: 'Очистить: Владелец' }));
@@ -190,15 +192,15 @@ describe('Ссылочное свойство: выбор в диалоге', ()
     });
 });
 
-describe('Ссылочное свойство: переход', () => {
-    it('выделяет объект в дереве и раскрывает родителей', async () => {
+describe('Reference property: navigation', () => {
+    it('referenceEditor_navigate_selectsObjectInTreeAndExpandsParents', async () => {
         await setup();
         await userEvent.click(screen.getByRole('button', { name: 'Выбрать: Связь' }));
         const dialog = screen.getByRole('dialog');
         await expandDialog(dialog);
         await userEvent.click(within(dialog).getByRole('treeitem', { name: 'Глубокий' }));
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выбрать' }));
-        // Основное дерево свёрнуто: цели в нём не видно.
+        // Основное дерево свёрнуто: цели в нём не видно
         expect(screen.queryByRole('treeitem', { name: 'Глубокий' })).toBeNull();
 
         await userEvent.click(screen.getByRole('button', { name: 'Перейти: Связь' }));

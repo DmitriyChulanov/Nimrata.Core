@@ -42,3 +42,10 @@
 - Правки по код-ревью интеграционной ветки: манифест Трекера v9 (у корня «Задачи» разрешены потомки «Текущие задачи» и «Завершённые задачи» — раньше пустой `allowedChildren` отклонял стартовую структуру с 422; значки типов; признак `revealTarget` у ссылки «Цель»). `ManifestValidator` проверяет `revealTarget` (логическое значение, только для вида `reference`). Тесты без БД `ManifestValidatorTests`: манифест Трекера проходит валидатор, корни задач допускают оба потомка.
 - Манифесты модулей подключаются в сборку маской `src/modules/*/manifest.json` клиентской части (путь в выходной папке прежний — `Modules/<модуль>/manifest.json`); `Dockerfile` копирует каталог модулей целиком.
 - Из файлов ветки убран UTF-8 BOM (`appsettings.Development.json`, `docker-compose.yml` и другие): `.editorconfig` требует `utf-8` без BOM.
+
+### Изменено
+- Рефакторинг по соглашениям `csharp-dotnet`: идентификаторы переведены на латиницу, один публичный тип — один файл (`Auth/`, `Controllers/Requests`, `Controllers/Responses`, `Objects/`), `CancellationToken` пробрасывается от контроллеров до запросов, время берётся из `TimeProvider`, XML-комментарии без точки в конце.
+- SQL из контроллеров журнала, объектов и типов вынесен в сервисы `JournalService`, `ObjectsService`, `TypesService`; общие `Passwords`, `OpaqueTokens`, `Roles` и `GetUserId()` заменили дубли в сервисах и контроллерах.
+- Ошибки API отдаются как `ProblemDetails` (`application/problem+json`): сообщение для пользователя лежит в поле `detail` вместо прежнего `error`; параметры `skip`/`take` журнала проверяются атрибутами `[Range]`.
+- Первый администратор создаётся через `await` в `Program.cs` вместо блокирующего ожидания.
+- Тесты: английские имена `Method_Scenario_Expected`, `ServerFactory` и `FakeEmailSender` вынесены в отдельные файлы.

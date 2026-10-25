@@ -1,27 +1,27 @@
 import { useEffect, useState } from 'react';
 
-import type { ApiClient } from '../api/apiClient';
 import { describeEntry, formatTime, groupByChangeset, journalPath } from './journal';
-import type { JournalEntry, JournalPage, JournalResolver } from './journal';
-
 import './Journal.css';
+
+import type { ApiClient } from '@platform/api/apiClient';
+import type { JournalEntry, JournalPage, JournalResolver } from './journal';
 
 export interface JournalViewProps {
     api: ApiClient;
-    /** Выделенный в дереве объект. */
+    /** Выделенный в дереве объект */
     selectedId: string | null;
     resolver: JournalResolver;
 }
 
 interface Loaded {
-    /** Запрос, которому принадлежат записи (`null` — «все мои изменения»). */
+    /** Запрос, которому принадлежат записи (`null` — «все мои изменения») */
     key: string;
     entries: JournalEntry[];
     total: number;
     error: string | null;
 }
 
-/** Просмотр журнала: записи выбранного объекта или все изменения пользователя. Только чтение. */
+/** Просмотр журнала: записи выбранного объекта или все изменения пользователя. Только чтение */
 export function JournalView({ api, selectedId, resolver }: JournalViewProps) {
     const [all, setAll] = useState(false);
     const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -113,17 +113,19 @@ export function JournalView({ api, selectedId, resolver }: JournalViewProps) {
                             </tr>
                         </thead>
                         {groupByChangeset(current.entries).map((group) => (
-                            <tbody key={group[0].changesetId} className="journal-group">
-                                {group.map((entry, index) => {
+                            <tbody key={group.changesetId} className="journal-group">
+                                {group.entries.map((entry, index) => {
                                     const d = describeEntry(entry, resolver);
                                     return (
                                         <tr key={entry.id}>
                                             {index === 0 && (
                                                 <>
-                                                    <td rowSpan={group.length}>
+                                                    <td rowSpan={group.entries.length}>
                                                         {formatTime(entry.at)}
                                                     </td>
-                                                    <td rowSpan={group.length}>{entry.user}</td>
+                                                    <td rowSpan={group.entries.length}>
+                                                        {entry.user}
+                                                    </td>
                                                 </>
                                             )}
                                             {all && (

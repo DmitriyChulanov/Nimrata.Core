@@ -2,9 +2,10 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
 
-import { MainMenu } from '../tabs/MainMenu';
-import { TabsProvider } from '../tabs/TabsProvider';
-import { createMenuRegistry, createTabRegistry } from '../tabs/registries';
+import { MainMenu } from '@platform/tabs/MainMenu';
+import { TabsProvider } from '@platform/tabs/TabsProvider';
+import { createMenuRegistry, createTabRegistry } from '@platform/tabs/registries';
+
 import { createDataController } from './DataController';
 import { DataProvider } from './DataProvider';
 import { UndoControls } from './UndoControls';
@@ -34,7 +35,7 @@ async function openEdit(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByRole('menuitem', { name: 'Правка' }));
 }
 
-it('пункты «Правка» отключены, пока нечего отменять и повторять', async () => {
+it('undoControls_editItems_disabledWhileNothingToUndoOrRedo', async () => {
     const user = userEvent.setup();
     await setup();
     await openEdit(user);
@@ -42,7 +43,7 @@ it('пункты «Правка» отключены, пока нечего от
     expect(screen.getByRole('menuitem', { name: /Повторить/ })).toBeDisabled();
 });
 
-it('«Отменить» и «Повторить» из меню работают и включаются по состоянию стека', async () => {
+it('undoControls_undoAndRedoFromMenu_workAndEnableByStackState', async () => {
     const user = userEvent.setup();
     const { data } = await setup();
     await act(() => data.setProperty('a', 'title', 'X'));
@@ -59,7 +60,7 @@ it('«Отменить» и «Повторить» из меню работаю�
     expect(data.getObject('a')?.properties.title).toBe('X');
 });
 
-it('Ctrl+Z отменяет, Ctrl+Y и Ctrl+Shift+Z повторяют', async () => {
+it('undoControls_ctrlZUndoes_ctrlYAndCtrlShiftZRedo', async () => {
     const user = userEvent.setup();
     const { data } = await setup();
     await act(() => data.setProperty('a', 'title', 'X'));
@@ -75,7 +76,7 @@ it('Ctrl+Z отменяет, Ctrl+Y и Ctrl+Shift+Z повторяют', async (
     expect(data.getObject('a')?.properties.title).toBe('X');
 });
 
-it('в поле ввода Ctrl+Z остаётся за браузером', async () => {
+it('undoControls_inInputField_ctrlZStaysWithBrowser', async () => {
     const user = userEvent.setup();
     const { data } = await setup();
     await act(() => data.setProperty('a', 'title', 'X'));
@@ -86,7 +87,7 @@ it('в поле ввода Ctrl+Z остаётся за браузером', asy
     expect(data.getObject('a')?.properties.title).toBe('X');
 });
 
-it('при конфликте показывается сообщение, а данные не меняются', async () => {
+it('undoControls_conflict_showsMessageAndDataUnchanged', async () => {
     const user = userEvent.setup();
     const { data, api } = await setup();
     await act(() => data.setProperty('a', 'title', 'X'));

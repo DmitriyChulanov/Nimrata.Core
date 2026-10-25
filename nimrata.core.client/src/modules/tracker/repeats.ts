@@ -1,34 +1,35 @@
 import { uuid7 } from '@platform';
-import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
 import { categoryChain, taskRootId } from './completion';
 import { COMPLETED, CURRENT_TASKS_ROOT, TASK } from './constants';
 import { addDays, addMonths, fromUtc, isWeekend, parseIso, toIso, todayIso } from './dates';
-import type { Ymd } from './dates';
 import { createNode, ensureCategory, ensureDay } from './nodes';
 import { cancelIfFailed } from './results';
 import { allTasks, taskDate, taskName, taskOrder } from './tasks';
+
+import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
+import type { Ymd } from './dates';
 
 const NONE = 'none';
 const WEEKDAYS = 'weekdays';
 const WEEKLY = 'weekly';
 const MONTHLY = 'monthly';
 
-/** Свойства, правки которых распространяются на весь набор повторов (порядок — отдельно, через `move`). */
+/** Свойства, правки которых распространяются на весь набор повторов (порядок — отдельно, через `move`) */
 const SYNCED = ['title', 'comment', 'link', 'priority', 'time'];
-/** Свойства, которые копируются в новый повтор (статус и вычисляемое имя — нет). */
+/** Свойства, которые копируются в новый повтор (статус и вычисляемое имя — нет) */
 const COPIED = [...SYNCED, 'internalLink', 'notifyBefore', 'repeat', 'repeatId'];
 
 const WEEKEND_MESSAGE = 'Для задачи выходного дня нельзя включить повтор «Каждый будний день».';
 
-/** Горизонт повторов: последний день следующего месяца (`ГГГГ-ММ-ДД`). */
+/** Горизонт повторов: последний день следующего месяца (`ГГГГ-ММ-ДД`) */
 export function repeatHorizon(today: string): string {
     const ymd = parseIso(today);
     if (!ymd) throw new Error('Дата должна быть в формате ГГГГ-ММ-ДД.');
     return toIso(fromUtc(new Date(Date.UTC(ymd.year, ymd.month + 1, 0))));
 }
 
-/** Подходящие даты вида `kind`, идущие после `anchor`, пока не пройден `horizon` (включительно). */
+/** Подходящие даты вида `kind`, идущие после `anchor`, пока не пройден `horizon` (включительно) */
 function* seriesDates(kind: string, anchor: Ymd, horizon: string): Generator<string> {
     for (let step = 1; ; step++) {
         let next: Ymd;
@@ -62,7 +63,7 @@ function datedMembers(data: DataController, members: DataObject[]) {
 /**
  * Создаёт недостающие повторы набора: даты ряда от самой ранней задачи набора, позже самой
  * поздней из имеющихся, не раньше сегодня, до горизонта; уже занятые даты пропускаются.
- * Хуки не нужны: имя и порядок вычисляются здесь же.
+ * Хуки не нужны: имя и порядок вычисляются здесь же
  */
 function fillSet(
     data: DataController,
@@ -73,8 +74,10 @@ function fillSet(
 ): void {
     const dated = datedMembers(data, members);
     if (dated.length === 0) return;
-    const anchor = parseIso(dated[0].date);
-    const template = dated[dated.length - 1];
+    const first = dated[0];
+    const template = dated.at(-1);
+    if (!first || !template) return;
+    const anchor = parseIso(first.date);
     const last = template.date;
     const taken = new Set(dated.map((m) => m.date));
     if (!anchor) return;
@@ -104,7 +107,7 @@ function fillSet(
 
 /**
  * Достраивает повторы всех наборов до горизонта (вызывается при каждом входе). Одним набором
- * изменений, без хуков; если достраивать нечего, на сервер ничего не уходит.
+ * изменений, без хуков; если достраивать нечего, на сервер ничего не уходит
  */
 export async function ensureRepeats(data: DataController): Promise<ChangeResult> {
     const sets = new Map<string, DataObject[]>();
@@ -127,10 +130,10 @@ export async function ensureRepeats(data: DataController): Promise<ChangeResult>
     );
 }
 
-/** Включение, смена и выключение повтора, синхронизация набора. Возвращает функцию отписки. */
+/** Включение, смена и выключение повтора, синхронизация набора. Возвращает функцию отписки */
 export function registerRepeats(data: DataController): () => void {
     // Правки повторов внутри набора идут «тихо»: собственные хуки при этом не срабатывают,
-    // иначе синхронизация зацикливалась бы.
+    // иначе синхронизация зацикливалась бы
     let silent = false;
     const quietly = <T>(run: () => T): T => {
         silent = true;
@@ -153,7 +156,7 @@ export function registerRepeats(data: DataController): () => void {
             if (!current) return;
             for (const sibling of siblings) {
                 const done = sibling.properties.status === COMPLETED;
-                // Завершённые повторы — история: остаются, но отвязываются от набора.
+                // Завершённые повторы — история: остаются, но отвязываются от набора
                 const result = done
                     ? tx.setProperty(sibling.id, 'repeatId', null)
                     : tx.remove(sibling.id);
@@ -171,7 +174,7 @@ export function registerRepeats(data: DataController): () => void {
             const result = tx.setProperty(task.id, 'repeatId', repeatId);
             if (!result.ok) return cancelIfFailed(result);
         }
-        // Смена вида: более поздние несделанные повторы пересоздаются по новому правилу.
+        // Смена вида: более поздние несделанные повторы пересоздаются по новому правилу
         for (const sibling of siblings) {
             const result =
                 sibling.properties.status !== COMPLETED && date && taskDate(data, sibling)! > date

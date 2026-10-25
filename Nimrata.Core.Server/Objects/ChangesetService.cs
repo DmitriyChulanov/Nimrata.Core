@@ -5,417 +5,520 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Objects;
 
-/// <summary>Набор изменений отклонён; <see cref="Message"/> пригоден для показа пользователю.</summary>
-public sealed class ChangesetRejectedException(string message, bool conflict = false) : Exception(message)
+/// <summary>Применение набора изменений: одна транзакция, проверки по типам, запись в журнал</summary>
+public sealed class ChangesetService(NpgsqlDataSource dataSource)
 {
-    /// <summary>Отказ из-за расхождения с текущими данными (клиенту стоит перезагрузить объекты).</summary>
-    public bool Conflict { get; } = conflict;
-}
+    private sealed record TypeRow(string Id, JsonElement Definition);
 
-/// <summary>Применение набора изменений: одна транзакция, проверки по типам, запись в журнал.</summary>
-public sealed class ChangesetService(NpgsqlDataSource данные)
-{
-    private sealed record СтрокаТипа(string Id, JsonElement Definition);
-
-    /// <summary>Применяет набор целиком или отклоняет его; возвращает идентификатор записи журнала.</summary>
-    public async Task<Guid> Применить(Guid пользователь, JsonElement тело)
+    /// <summary>Применяет набор целиком или отклоняет его</summary>
+    /// <param name="userId">Владелец объектов и автор записей журнала</param>
+    /// <param name="body">Набор в формате клиента: объект с непустым массивом <c>operations</c></param>
+    /// <param name="cancellationToken">Отмена применения</param>
+    /// <returns>Идентификатор набора в журнале</returns>
+    /// <exception cref="ChangesetRejectedException">Набор невалиден или расходится с текущими данными</exception>
+    public async Task<Guid> ApplyAsync(Guid userId, JsonElement body, CancellationToken cancellationToken = default)
     {
-        if (тело.ValueKind != JsonValueKind.Object
-            || !тело.TryGetProperty("operations", out var операции)
-            || операции.ValueKind != JsonValueKind.Array
-            || операции.GetArrayLength() == 0)
+        if (body.ValueKind != JsonValueKind.Object
+            || !body.TryGetProperty("operations", out var operations)
+            || operations.ValueKind != JsonValueKind.Array
+            || operations.GetArrayLength() == 0)
         {
             throw new ChangesetRejectedException("Набор изменений должен содержать непустой список операций (operations).");
         }
 
-        await using var соединение = await данные.OpenConnectionAsync();
-        await using var транзакция = await соединение.BeginTransactionAsync();
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-        var типы = (await соединение.QueryAsync<СтрокаТипа>(
-                "select id as Id, definition as Definition from types", transaction: транзакция))
-            .ToDictionary(т => т.Id, т => new ОписаниеТипа(т.Id, т.Definition));
+        var typeRows = await connection.QueryAsync<TypeRow>(new CommandDefinition(
+            "select id as Id, definition as Definition from types",
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+        var types = typeRows.ToDictionary(row => row.Id, row => new TypeDescriptor(row.Id, row.Definition));
 
-        var набор = await соединение.ExecuteScalarAsync<Guid>(
-            "insert into changesets (user_id) values (@пользователь) returning id", new { пользователь }, транзакция);
+        var changesetId = await connection.ExecuteScalarAsync<Guid>(new CommandDefinition(
+            "insert into changesets (user_id) values (@userId) returning id",
+            new { userId },
+            transaction,
+            cancellationToken: cancellationToken));
 
-        var контекст = new Контекст(соединение, транзакция, пользователь, набор, типы);
-        var номер = 0;
-        foreach (var операция in операции.EnumerateArray())
+        var context = new ChangesetContext(connection, transaction, userId, changesetId, types, cancellationToken);
+        var number = 0;
+        foreach (var operation in operations.EnumerateArray())
         {
-            контекст.Номер = ++номер;
+            number++;
             try
             {
-                await Выполнить(контекст, операция);
+                await ExecuteAsync(context, operation);
             }
-            catch (ChangesetRejectedException отказ)
+            catch (ChangesetRejectedException rejection)
             {
-                throw new ChangesetRejectedException($"Операция {номер}: {отказ.Message}", отказ.Conflict);
+                throw new ChangesetRejectedException($"Операция {number}: {rejection.Message}", rejection.Conflict);
             }
-            catch (Exception ошибка) when (ошибка is InvalidOperationException or FormatException or KeyNotFoundException)
+            catch (Exception exception) when (exception is InvalidOperationException or FormatException or KeyNotFoundException)
             {
-                throw new ChangesetRejectedException($"Операция {номер}: неверный формат ({ошибка.Message}).");
+                throw new ChangesetRejectedException($"Операция {number}: неверный формат ({exception.Message}).");
             }
         }
 
-        await транзакция.CommitAsync();
-        return набор;
+        await transaction.CommitAsync(cancellationToken);
+        return changesetId;
     }
 
-    private static async Task Выполнить(Контекст к, JsonElement операция)
+    private static async Task ExecuteAsync(ChangesetContext context, JsonElement operation)
     {
-        var вид = операция.ValueKind == JsonValueKind.Object && операция.TryGetProperty("op", out var о)
-            && о.ValueKind == JsonValueKind.String ? о.GetString() : null;
-        switch (вид)
+        var kind = operation.ValueKind == JsonValueKind.Object
+            && operation.TryGetProperty("op", out var op)
+            && op.ValueKind == JsonValueKind.String
+                ? op.GetString()
+                : null;
+        switch (kind)
         {
             case "create":
-                await Создать(к, операция);
+                await CreateAsync(context, operation);
                 break;
             case "update":
-                await Изменить(к, операция);
+                await UpdateAsync(context, operation);
                 break;
             case "move":
-                await Переместить(к, операция);
+                await MoveAsync(context, operation);
                 break;
             case "delete":
-                await Удалить(к, операция);
+                await DeleteAsync(context, operation);
                 break;
             default:
-                throw new ChangesetRejectedException($"неизвестный вид операции \"{вид}\".");
+                throw new ChangesetRejectedException($"неизвестный вид операции \"{kind}\".");
         }
     }
 
-    private static async Task Создать(Контекст к, JsonElement операция)
+    private static async Task CreateAsync(ChangesetContext context, JsonElement operation)
     {
-        var id = Идентификатор(операция, "id") ?? throw new ChangesetRejectedException("не указан идентификатор объекта (id).");
-        var имяТипа = операция.TryGetProperty("type", out var т) && т.ValueKind == JsonValueKind.String ? т.GetString()! : "";
-        if (!к.Типы.TryGetValue(имяТипа, out var тип))
+        var id = ReadGuid(operation, "id") ?? throw new ChangesetRejectedException("не указан идентификатор объекта (id).");
+        var typeName = operation.TryGetProperty("type", out var typeElement) && typeElement.ValueKind == JsonValueKind.String
+            ? typeElement.GetString() ?? ""
+            : "";
+        if (!context.Types.TryGetValue(typeName, out var type))
         {
-            throw new ChangesetRejectedException($"тип \"{имяТипа}\" неизвестен.");
+            throw new ChangesetRejectedException($"тип \"{typeName}\" неизвестен.");
         }
-        if (тип.Абстрактный)
+        if (type.IsAbstract)
         {
-            throw new ChangesetRejectedException($"тип \"{имяТипа}\" абстрактный, создавать объекты такого типа нельзя.");
+            throw new ChangesetRejectedException($"тип \"{typeName}\" абстрактный, создавать объекты такого типа нельзя.");
         }
 
-        if (await к.Соединение.ExecuteScalarAsync<bool>(
-                "select exists (select 1 from objects where id = @id)", new { id }, к.Транзакция))
+        if (await context.ScalarAsync<bool>("select exists (select 1 from objects where id = @id)", new { id }))
         {
             throw new ChangesetRejectedException($"идентификатор {id} уже занят.", conflict: true);
         }
 
-        var родитель = Идентификатор(операция, "parent");
-        if (родитель is not null)
+        var parent = ReadGuid(operation, "parent");
+        if (parent is not null)
         {
-            var строка = await ПрочитатьОбъект(к, родитель.Value)
-                ?? throw new ChangesetRejectedException($"родитель {родитель} не найден.");
-            ПроверитьДопустимостьРодителя(к, имяТипа, строка.Type);
+            var parentRow = await ReadOwnObjectAsync(context, parent.Value)
+                ?? throw new ChangesetRejectedException($"родитель {parent} не найден.");
+            EnsureParentAllowsChild(context, typeName, parentRow.Type);
         }
 
-        var порядок = операция.TryGetProperty("order", out var п) && п.ValueKind == JsonValueKind.Number ? п.GetDouble() : 0;
-        var свойства = new JsonObject();
-        if (операция.TryGetProperty("properties", out var св))
+        var order = operation.TryGetProperty("order", out var orderElement) && orderElement.ValueKind == JsonValueKind.Number
+            ? orderElement.GetDouble()
+            : 0;
+        var properties = new JsonObject();
+        if (operation.TryGetProperty("properties", out var propertiesElement))
         {
-            if (св.ValueKind != JsonValueKind.Object)
+            if (propertiesElement.ValueKind != JsonValueKind.Object)
             {
                 throw new ChangesetRejectedException("properties должны быть объектом.");
             }
-            foreach (var свойство in св.EnumerateObject())
+            foreach (var property in propertiesElement.EnumerateObject())
             {
-                await ПроверитьЗначение(к, тип, свойство.Name, свойство.Value);
-                if (свойство.Value.ValueKind != JsonValueKind.Null)
+                await ValidateValueAsync(context, type, property.Name, property.Value);
+                if (property.Value.ValueKind != JsonValueKind.Null)
                 {
-                    свойства[свойство.Name] = JsonNode.Parse(свойство.Value.GetRawText());
+                    properties[property.Name] = JsonNode.Parse(property.Value.GetRawText());
                 }
             }
         }
 
-        await к.Соединение.ExecuteAsync(
+        await context.ExecuteAsync(
             """
             insert into objects (id, type_id, parent_id, owner_id, sort_order, properties)
-            values (@id, @имяТипа, @родитель, @пользователь, @порядок, @свойства)
+            values (@id, @typeName, @parent, @userId, @order, @properties)
             """,
-            new { id, имяТипа, родитель, к.Пользователь, порядок, свойства = ВJson(свойства) }, к.Транзакция);
+            new { id, typeName, parent, context.UserId, order, properties = ToJsonElement(properties) });
 
-        var новое = new JsonObject
+        var created = new JsonObject
         {
-            ["type"] = имяТипа, ["parent"] = родитель, ["order"] = порядок, ["properties"] = свойства.DeepClone(),
+            ["type"] = typeName,
+            ["parent"] = parent,
+            ["order"] = order,
+            ["properties"] = properties.DeepClone(),
         };
-        await ЗаписатьВЖурнал(к, id, "create", null, null, новое, null);
+        await WriteJournalAsync(context, id, "create", property: null, old: null, @new: created, snapshot: null);
     }
 
-    private static async Task<СтрокаОбъекта> ПрочитатьСвой(Контекст к, JsonElement операция)
+    private static async Task UpdateAsync(ChangesetContext context, JsonElement operation)
     {
-        var id = Идентификатор(операция, "id") ?? throw new ChangesetRejectedException("не указан идентификатор объекта (id).");
-        return await ПрочитатьОбъект(к, id) ?? throw new ChangesetRejectedException($"объект {id} не найден.");
-    }
-
-    private static async Task Изменить(Контекст к, JsonElement операция)
-    {
-        var объект = await ПрочитатьСвой(к, операция);
-        if (!операция.TryGetProperty("changes", out var изменения) || изменения.ValueKind != JsonValueKind.Object
-            || !изменения.EnumerateObject().Any())
+        var target = await ReadTargetAsync(context, operation);
+        if (!operation.TryGetProperty("changes", out var changes)
+            || changes.ValueKind != JsonValueKind.Object
+            || !changes.EnumerateObject().Any())
         {
             throw new ChangesetRejectedException("не указаны изменения свойств (changes).");
         }
 
-        var тип = к.Типы[объект.Type];
-        var свойства = JsonNode.Parse(объект.Properties.GetRawText())!.AsObject();
-        foreach (var изменение in изменения.EnumerateObject())
+        var type = context.Types[target.Type];
+        var properties = JsonNode.Parse(target.Properties.GetRawText())?.AsObject() ?? new JsonObject();
+        foreach (var change in changes.EnumerateObject())
         {
-            var имя = изменение.Name;
-            if (изменение.Value.ValueKind != JsonValueKind.Object
-                || !изменение.Value.TryGetProperty("old", out var было)
-                || !изменение.Value.TryGetProperty("new", out var стало))
+            var name = change.Name;
+            if (change.Value.ValueKind != JsonValueKind.Object
+                || !change.Value.TryGetProperty("old", out var expectedOld)
+                || !change.Value.TryGetProperty("new", out var newValue))
             {
-                throw new ChangesetRejectedException($"для свойства \"{имя}\" нужны значения old (было) и new (стало).");
+                throw new ChangesetRejectedException($"для свойства \"{name}\" нужны значения old (было) и new (стало).");
             }
-            await ПроверитьЗначение(к, тип, имя, стало);
+            await ValidateValueAsync(context, type, name, newValue);
 
-            var текущее = свойства.TryGetPropertyValue(имя, out var т) && т is not null
-                ? JsonSerializer.Deserialize<JsonElement>(т.ToJsonString()) : default;
-            if (!Равны(текущее, было))
+            var current = properties.TryGetPropertyValue(name, out var currentNode) && currentNode is not null
+                ? JsonSerializer.Deserialize<JsonElement>(currentNode.ToJsonString())
+                : default;
+            if (!ValuesEqual(current, expectedOld))
             {
                 throw new ChangesetRejectedException(
-                    $"свойство \"{имя}\" изменилось с момента загрузки (значение «было» не совпало с текущим). Обновите данные.",
+                    $"свойство \"{name}\" изменилось с момента загрузки (значение «было» не совпало с текущим). Обновите данные.",
                     conflict: true);
             }
 
-            if (стало.ValueKind == JsonValueKind.Null) свойства.Remove(имя);
-            else свойства[имя] = JsonNode.Parse(стало.GetRawText());
-            await ЗаписатьВЖурнал(к, объект.Id, "update", имя,
-                текущее.ValueKind == JsonValueKind.Undefined ? null : JsonNode.Parse(текущее.GetRawText()),
-                стало.ValueKind == JsonValueKind.Null ? null : JsonNode.Parse(стало.GetRawText()), null);
+            if (newValue.ValueKind == JsonValueKind.Null)
+            {
+                properties.Remove(name);
+            }
+            else
+            {
+                properties[name] = JsonNode.Parse(newValue.GetRawText());
+            }
+            await WriteJournalAsync(
+                context, target.Id, "update", name,
+                old: current.ValueKind == JsonValueKind.Undefined ? null : JsonNode.Parse(current.GetRawText()),
+                @new: newValue.ValueKind == JsonValueKind.Null ? null : JsonNode.Parse(newValue.GetRawText()),
+                snapshot: null);
         }
 
-        await к.Соединение.ExecuteAsync("update objects set properties = @свойства where id = @id",
-            new { id = объект.Id, свойства = ВJson(свойства) }, к.Транзакция);
+        await context.ExecuteAsync(
+            "update objects set properties = @properties where id = @id",
+            new { id = target.Id, properties = ToJsonElement(properties) });
     }
 
-    private static async Task Переместить(Контекст к, JsonElement операция)
+    private static async Task MoveAsync(ChangesetContext context, JsonElement operation)
     {
-        var объект = await ПрочитатьСвой(к, операция);
-        var меняетРодителя = операция.TryGetProperty("parent", out var родительЭл) && родительЭл.ValueKind == JsonValueKind.Object;
-        var меняетПорядок = операция.TryGetProperty("order", out var порядокЭл) && порядокЭл.ValueKind == JsonValueKind.Object;
-        if (!меняетРодителя && !меняетПорядок)
+        var target = await ReadTargetAsync(context, operation);
+        var changesParent = operation.TryGetProperty("parent", out var parentChange)
+            && parentChange.ValueKind == JsonValueKind.Object;
+        var changesOrder = operation.TryGetProperty("order", out var orderChange)
+            && orderChange.ValueKind == JsonValueKind.Object;
+        if (!changesParent && !changesOrder)
         {
             throw new ChangesetRejectedException("перемещение должно менять parent или order.");
         }
 
-        var родитель = объект.Parent;
-        var порядок = объект.Order;
-        if (меняетРодителя)
+        var parent = target.Parent;
+        var order = target.Order;
+        if (changesParent)
         {
-            if (!родительЭл.TryGetProperty("old", out var было) || !родительЭл.TryGetProperty("new", out var стало))
-                throw new ChangesetRejectedException("для parent нужны значения old (было) и new (стало).");
-            if (!Равны(объект.Parent is null ? default : Строка(объект.Parent.Value), было))
-                throw new ChangesetRejectedException(
-                    "родитель (parent) изменился с момента загрузки (значение «было» не совпало с текущим). Обновите данные.",
-                    conflict: true);
-            if (стало.ValueKind == JsonValueKind.Null) родитель = null;
-            else родитель = Идентификатор(родительЭл, "new")
-                ?? throw new ChangesetRejectedException("parent.new должен быть идентификатором или null.");
-            if (родитель is not null)
-            {
-                if (родитель == объект.Id || await ЕстьВПредках(к, родитель.Value, объект.Id))
-                    throw new ChangesetRejectedException("нельзя переместить объект в самого себя или в своего потомка (получится цикл).");
-                var строка = await ПрочитатьОбъект(к, родитель.Value)
-                    ?? throw new ChangesetRejectedException($"родитель {родитель} не найден.");
-                ПроверитьДопустимостьРодителя(к, объект.Type, строка.Type);
-            }
+            parent = await ReadNewParentAsync(context, target, parentChange);
         }
-        if (меняетПорядок)
+        if (changesOrder)
         {
-            if (!порядокЭл.TryGetProperty("old", out var было) || !порядокЭл.TryGetProperty("new", out var стало)
-                || стало.ValueKind != JsonValueKind.Number)
-                throw new ChangesetRejectedException("для order нужны значения old (было) и new (стало, число).");
-            if (было.ValueKind != JsonValueKind.Number || было.GetDouble() != объект.Order)
-                throw new ChangesetRejectedException(
-                    "порядок (order) изменился с момента загрузки (значение «было» не совпало с текущим). Обновите данные.",
-                    conflict: true);
-            порядок = стало.GetDouble();
+            order = ReadNewOrder(target, orderChange);
         }
 
-        await к.Соединение.ExecuteAsync("update objects set parent_id = @родитель, sort_order = @порядок where id = @id",
-            new { id = объект.Id, родитель, порядок }, к.Транзакция);
-        await ЗаписатьВЖурнал(к, объект.Id, "move", null,
-            new JsonObject { ["parent"] = объект.Parent, ["order"] = объект.Order },
-            new JsonObject { ["parent"] = родитель, ["order"] = порядок }, null);
+        await context.ExecuteAsync(
+            "update objects set parent_id = @parent, sort_order = @order where id = @id",
+            new { id = target.Id, parent, order });
+        await WriteJournalAsync(
+            context, target.Id, "move", property: null,
+            old: new JsonObject { ["parent"] = target.Parent, ["order"] = target.Order },
+            @new: new JsonObject { ["parent"] = parent, ["order"] = order },
+            snapshot: null);
     }
 
-    private static async Task Удалить(Контекст к, JsonElement операция)
+    /// <summary>Проверяет «было» для parent и возвращает нового родителя (<c>null</c> — корень)</summary>
+    private static async Task<Guid?> ReadNewParentAsync(ChangesetContext context, ObjectRecord target, JsonElement change)
     {
-        var объект = await ПрочитатьСвой(к, операция);
-        var потомков = await к.Соединение.ExecuteScalarAsync<long>(
-            "select count(*) from objects where parent_id = @id", new { id = объект.Id }, к.Транзакция);
-        if (потомков > 0)
+        if (!change.TryGetProperty("old", out var expectedOld) || !change.TryGetProperty("new", out var newValue))
+        {
+            throw new ChangesetRejectedException("для parent нужны значения old (было) и new (стало).");
+        }
+        var currentParent = target.Parent is { } current ? GuidToJson(current) : default;
+        if (!ValuesEqual(currentParent, expectedOld))
         {
             throw new ChangesetRejectedException(
-                $"у объекта {объект.Id} остались потомки ({потомков}): перечислите в наборе все удаляемые объекты, потомков раньше родителей.");
+                "родитель (parent) изменился с момента загрузки (значение «было» не совпало с текущим). Обновите данные.",
+                conflict: true);
+        }
+        if (newValue.ValueKind == JsonValueKind.Null)
+        {
+            return null;
         }
 
-        var снимок = new JsonObject
+        var parent = ReadGuid(change, "new")
+            ?? throw new ChangesetRejectedException("parent.new должен быть идентификатором или null.");
+        if (parent == target.Id || await IsAncestorAsync(context, parent, target.Id))
         {
-            ["type"] = объект.Type, ["parent"] = объект.Parent, ["order"] = объект.Order,
-            ["properties"] = JsonNode.Parse(объект.Properties.GetRawText()),
-        };
-        await к.Соединение.ExecuteAsync("delete from objects where id = @id", new { id = объект.Id }, к.Транзакция);
-        await ЗаписатьВЖурнал(к, объект.Id, "delete", null, null, null, снимок);
+            throw new ChangesetRejectedException("нельзя переместить объект в самого себя или в своего потомка (получится цикл).");
+        }
+        var parentRow = await ReadOwnObjectAsync(context, parent)
+            ?? throw new ChangesetRejectedException($"родитель {parent} не найден.");
+        EnsureParentAllowsChild(context, target.Type, parentRow.Type);
+        return parent;
     }
 
-    private static Task<bool> ЕстьВПредках(Контекст к, Guid начало, Guid искомый) =>
-        к.Соединение.ExecuteScalarAsync<bool>(
+    /// <summary>Проверяет «было» для order и возвращает новый порядок</summary>
+    private static double ReadNewOrder(ObjectRecord target, JsonElement change)
+    {
+        if (!change.TryGetProperty("old", out var expectedOld)
+            || !change.TryGetProperty("new", out var newValue)
+            || newValue.ValueKind != JsonValueKind.Number)
+        {
+            throw new ChangesetRejectedException("для order нужны значения old (было) и new (стало, число).");
+        }
+        if (expectedOld.ValueKind != JsonValueKind.Number || expectedOld.GetDouble() != target.Order)
+        {
+            throw new ChangesetRejectedException(
+                "порядок (order) изменился с момента загрузки (значение «было» не совпало с текущим). Обновите данные.",
+                conflict: true);
+        }
+        return newValue.GetDouble();
+    }
+
+    private static async Task DeleteAsync(ChangesetContext context, JsonElement operation)
+    {
+        var target = await ReadTargetAsync(context, operation);
+        var childCount = await context.ScalarAsync<long>(
+            "select count(*) from objects where parent_id = @id", new { id = target.Id });
+        if (childCount > 0)
+        {
+            throw new ChangesetRejectedException(
+                $"у объекта {target.Id} остались потомки ({childCount}): перечислите в наборе все удаляемые объекты, потомков раньше родителей.");
+        }
+
+        var snapshot = new JsonObject
+        {
+            ["type"] = target.Type,
+            ["parent"] = target.Parent,
+            ["order"] = target.Order,
+            ["properties"] = JsonNode.Parse(target.Properties.GetRawText()),
+        };
+        await context.ExecuteAsync("delete from objects where id = @id", new { id = target.Id });
+        await WriteJournalAsync(context, target.Id, "delete", property: null, old: null, @new: null, snapshot);
+    }
+
+    /// <summary>Объект, на который указывает операция; чужой и несуществующий неразличимы</summary>
+    private static async Task<ObjectRecord> ReadTargetAsync(ChangesetContext context, JsonElement operation)
+    {
+        var id = ReadGuid(operation, "id") ?? throw new ChangesetRejectedException("не указан идентификатор объекта (id).");
+        return await ReadOwnObjectAsync(context, id) ?? throw new ChangesetRejectedException($"объект {id} не найден.");
+    }
+
+    /// <summary>Читает объект текущего пользователя с блокировкой; чужой и несуществующий неразличимы</summary>
+    private static Task<ObjectRecord?> ReadOwnObjectAsync(ChangesetContext context, Guid id) =>
+        context.QueryOneAsync<ObjectRecord>(
+            """
+            select id as Id, type_id as Type, parent_id as Parent, sort_order as "Order", properties as Properties
+            from objects where id = @id and owner_id = @userId for update
+            """,
+            new { id, context.UserId });
+
+    private static Task<bool> IsAncestorAsync(ChangesetContext context, Guid start, Guid candidate) =>
+        context.ScalarAsync<bool>(
             """
             with recursive up as (
-                select id, parent_id from objects where id = @начало
+                select id, parent_id from objects where id = @start
                 union all
                 select o.id, o.parent_id from objects o join up on o.id = up.parent_id
             )
-            select exists (select 1 from up where id = @искомый)
-            """, new { начало, искомый }, к.Транзакция);
+            select exists (select 1 from up where id = @candidate)
+            """,
+            new { start, candidate });
 
-    private static JsonElement Строка(Guid id) => JsonSerializer.Deserialize<JsonElement>($"\"{id}\"");
-
-    /// <summary>Сравнение значений свойств; <c>default</c> (Undefined) и JSON null считаются «пусто».</summary>
-    private static bool Равны(JsonElement а, JsonElement б)
+    private static void EnsureParentAllowsChild(ChangesetContext context, string childType, string parentType)
     {
-        static bool Пусто(JsonElement э) => э.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null;
-        if (Пусто(а) || Пусто(б)) return Пусто(а) && Пусто(б);
-        if (а.ValueKind != б.ValueKind) return false;
-        return а.ValueKind switch
-        {
-            JsonValueKind.String => а.GetString() == б.GetString(),
-            JsonValueKind.Number => а.GetDecimal() == б.GetDecimal(),
-            _ => true,
-        };
-    }
-
-    private sealed record СтрокаОбъекта(Guid Id, string Type, Guid? Parent, double Order, JsonElement Properties);
-
-    /// <summary>Читает объект текущего пользователя с блокировкой; чужой и несуществующий неразличимы.</summary>
-    private static Task<СтрокаОбъекта?> ПрочитатьОбъект(Контекст к, Guid id) =>
-        к.Соединение.QuerySingleOrDefaultAsync<СтрокаОбъекта>(
-            """
-            select id as Id, type_id as Type, parent_id as Parent, sort_order as "Order", properties as Properties
-            from objects where id = @id and owner_id = @пользователь for update
-            """, new { id, пользователь = к.Пользователь }, к.Транзакция);
-
-    private static void ПроверитьДопустимостьРодителя(Контекст к, string типРебёнка, string типРодителя)
-    {
-        var родитель = к.Типы[типРодителя];
-        if (родитель.ДопустимыеДети is { } дети && !дети.Contains(типРебёнка))
+        if (context.Types[parentType].AllowedChildren is { } allowed && !allowed.Contains(childType))
         {
             throw new ChangesetRejectedException(
-                $"тип \"{типРебёнка}\" нельзя разместить внутри типа \"{типРодителя}\".");
+                $"тип \"{childType}\" нельзя разместить внутри типа \"{parentType}\".");
         }
     }
 
-    private static async Task ПроверитьЗначение(Контекст к, ОписаниеТипа тип, string свойство, JsonElement значение)
+    private static async Task ValidateValueAsync(
+        ChangesetContext context, TypeDescriptor type, string propertyName, JsonElement value)
     {
-        if (!тип.Свойства.TryGetValue(свойство, out var описание))
+        if (!type.Properties.TryGetValue(propertyName, out var descriptor))
         {
-            throw new ChangesetRejectedException($"у типа \"{тип.Id}\" нет свойства \"{свойство}\".");
+            throw new ChangesetRejectedException($"у типа \"{type.Id}\" нет свойства \"{propertyName}\".");
         }
-        if (значение.ValueKind == JsonValueKind.Null)
+        if (value.ValueKind == JsonValueKind.Null)
         {
             return;
         }
 
-        var верно = описание.Вид switch
+        var isValid = descriptor.Kind switch
         {
-            "string" or "text" => значение.ValueKind == JsonValueKind.String,
-            "integer" => значение.ValueKind == JsonValueKind.Number && значение.TryGetInt64(out _),
-            "boolean" => значение.ValueKind is JsonValueKind.True or JsonValueKind.False,
-            "date" => значение.ValueKind == JsonValueKind.String
-                && DateOnly.TryParseExact(значение.GetString(), "yyyy-MM-dd", out _),
-            "time" => значение.ValueKind == JsonValueKind.String
-                && TimeOnly.TryParseExact(значение.GetString(), "HH:mm", out _),
-            "enum" => значение.ValueKind == JsonValueKind.String && описание.Значения!.Contains(значение.GetString()!),
-            "reference" => значение.ValueKind == JsonValueKind.String && значение.TryGetGuid(out _),
+            "string" or "text" => value.ValueKind == JsonValueKind.String,
+            "integer" => value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out _),
+            "boolean" => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
+            "date" => value.ValueKind == JsonValueKind.String
+                && DateOnly.TryParseExact(value.GetString(), "yyyy-MM-dd", out _),
+            "time" => value.ValueKind == JsonValueKind.String
+                && TimeOnly.TryParseExact(value.GetString(), "HH:mm", out _),
+            "enum" => value.ValueKind == JsonValueKind.String
+                && descriptor.Values is { } values
+                && values.Contains(value.GetString() ?? ""),
+            "reference" => value.ValueKind == JsonValueKind.String && value.TryGetGuid(out _),
             _ => false,
         };
-        if (!верно)
+        if (!isValid)
         {
+            var allowedValues = descriptor is { Kind: "enum", Values: { } enumValues }
+                ? $" (допустимо: {string.Join(", ", enumValues)})."
+                : ".";
             throw new ChangesetRejectedException(
-                $"значение свойства \"{свойство}\" не подходит под вид \"{описание.Вид}\"" +
-                (описание.Вид == "enum" ? $" (допустимо: {string.Join(", ", описание.Значения!)})." : "."));
+                $"значение свойства \"{propertyName}\" не подходит под вид \"{descriptor.Kind}\"{allowedValues}");
         }
 
-        if (описание.Вид == "reference")
+        if (descriptor.Kind == "reference")
         {
-            var цель = await ПрочитатьОбъект(к, значение.GetGuid());
-            if (цель is null)
+            var referenced = await ReadOwnObjectAsync(context, value.GetGuid());
+            if (referenced is null)
             {
-                throw new ChangesetRejectedException($"свойство \"{свойство}\" ссылается на несуществующий объект.");
+                throw new ChangesetRejectedException($"свойство \"{propertyName}\" ссылается на несуществующий объект.");
             }
-            if (описание.ЦелевыеТипы is { } цели && !цели.Contains(цель.Type))
+            if (descriptor.TargetTypes is { } targetTypes && !targetTypes.Contains(referenced.Type))
             {
                 throw new ChangesetRejectedException(
-                    $"свойство \"{свойство}\" не может ссылаться на объект типа \"{цель.Type}\".");
+                    $"свойство \"{propertyName}\" не может ссылаться на объект типа \"{referenced.Type}\".");
             }
         }
     }
 
-    private static Guid? Идентификатор(JsonElement операция, string имя) =>
-        операция.TryGetProperty(имя, out var з) && з.ValueKind == JsonValueKind.String && з.TryGetGuid(out var id) ? id : null;
+    private static Guid? ReadGuid(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.TryGetGuid(out var id)
+            ? id
+            : null;
 
-    private static Task ЗаписатьВЖурнал(Контекст к, Guid объект, string операция, string? свойство,
-        JsonNode? было, JsonNode? стало, JsonNode? снимок) =>
-        к.Соединение.ExecuteAsync(
+    private static JsonElement GuidToJson(Guid id) => JsonSerializer.Deserialize<JsonElement>($"\"{id}\"");
+
+    /// <summary>Сравнение значений свойств; <c>default</c> (Undefined) и JSON null считаются «пусто»</summary>
+    private static bool ValuesEqual(JsonElement left, JsonElement right)
+    {
+        static bool IsEmpty(JsonElement element) => element.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null;
+
+        if (IsEmpty(left) || IsEmpty(right))
+        {
+            return IsEmpty(left) && IsEmpty(right);
+        }
+        if (left.ValueKind != right.ValueKind)
+        {
+            return false;
+        }
+        return left.ValueKind switch
+        {
+            JsonValueKind.String => left.GetString() == right.GetString(),
+            JsonValueKind.Number => left.GetDecimal() == right.GetDecimal(),
+            _ => true,
+        };
+    }
+
+    private static Task WriteJournalAsync(
+        ChangesetContext context, Guid objectId, string operation, string? property,
+        JsonNode? old, JsonNode? @new, JsonNode? snapshot) =>
+        context.ExecuteAsync(
             """
             insert into changeset_entries (changeset_id, seq, object_id, operation, property, old_value, new_value, snapshot)
-            values (@набор, @номер, @объект, @операция, @свойство, @было, @стало, @снимок)
+            values (@changesetId, @seq, @objectId, @operation, @property, @old, @new, @snapshot)
             """,
             new
             {
-                набор = к.Набор, номер = ++к.Записей, объект, операция, свойство,
-                было = ВJson(было), стало = ВJson(стало), снимок = ВJson(снимок),
-            }, к.Транзакция);
+                changesetId = context.ChangesetId,
+                seq = context.NextEntrySequence(),
+                objectId,
+                operation,
+                property,
+                old = ToJsonElement(old),
+                @new = ToJsonElement(@new),
+                snapshot = ToJsonElement(snapshot),
+            });
 
-    private static JsonElement? ВJson(JsonNode? узел) =>
-        узел is null ? null : JsonSerializer.Deserialize<JsonElement>(узел.ToJsonString());
+    private static JsonElement? ToJsonElement(JsonNode? node) =>
+        node is null ? null : JsonSerializer.Deserialize<JsonElement>(node.ToJsonString());
 
-    private sealed class Контекст(NpgsqlConnection соединение, NpgsqlTransaction транзакция, Guid пользователь,
-        Guid набор, Dictionary<string, ОписаниеТипа> типы)
+    /// <summary>Соединение, транзакция и общие данные применяемого набора</summary>
+    private sealed class ChangesetContext(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid userId,
+        Guid changesetId,
+        IReadOnlyDictionary<string, TypeDescriptor> types,
+        CancellationToken cancellationToken)
     {
-        public NpgsqlConnection Соединение { get; } = соединение;
-        public NpgsqlTransaction Транзакция { get; } = транзакция;
-        public Guid Пользователь { get; } = пользователь;
-        public Guid Набор { get; } = набор;
-        public Dictionary<string, ОписаниеТипа> Типы { get; } = типы;
-        public int Номер { get; set; }
-        /// <summary>Сквозной номер записи журнала внутри набора (одна операция может дать несколько записей).</summary>
-        public int Записей;
+        private int entrySequence;
+
+        public Guid UserId { get; } = userId;
+        public Guid ChangesetId { get; } = changesetId;
+        public IReadOnlyDictionary<string, TypeDescriptor> Types { get; } = types;
+
+        /// <summary>Сквозной номер записи журнала внутри набора (одна операция может дать несколько записей)</summary>
+        public int NextEntrySequence() => ++entrySequence;
+
+        public Task<int> ExecuteAsync(string sql, object parameters) =>
+            connection.ExecuteAsync(Command(sql, parameters));
+
+        public Task<T> ScalarAsync<T>(string sql, object parameters) =>
+            connection.ExecuteScalarAsync<T>(Command(sql, parameters))!;
+
+        public Task<T?> QueryOneAsync<T>(string sql, object parameters) =>
+            connection.QuerySingleOrDefaultAsync<T>(Command(sql, parameters));
+
+        private CommandDefinition Command(string sql, object parameters) =>
+            new(sql, parameters, transaction, cancellationToken: cancellationToken);
     }
 
-    private sealed record ОписаниеСвойства(string Вид, HashSet<string>? Значения, HashSet<string>? ЦелевыеТипы);
+    private sealed record PropertyDescriptor(string Kind, HashSet<string>? Values, HashSet<string>? TargetTypes);
 
-    private sealed class ОписаниеТипа
+    /// <summary>Описание типа из манифеста, нужное для проверок набора</summary>
+    private sealed class TypeDescriptor
     {
-        public string Id { get; }
-        public bool Абстрактный { get; }
-        /// <summary>null: ограничений нет (список allowedChildren в манифесте не задан).</summary>
-        public HashSet<string>? ДопустимыеДети { get; }
-        public Dictionary<string, ОписаниеСвойства> Свойства { get; } = [];
-
-        public ОписаниеТипа(string id, JsonElement определение)
+        public TypeDescriptor(string id, JsonElement definition)
         {
             Id = id;
-            Абстрактный = определение.TryGetProperty("abstract", out var а) && а.ValueKind == JsonValueKind.True;
-            if (определение.TryGetProperty("allowedChildren", out var дети) && дети.ValueKind == JsonValueKind.Array)
+            IsAbstract = definition.TryGetProperty("abstract", out var abstractElement)
+                && abstractElement.ValueKind == JsonValueKind.True;
+            if (definition.TryGetProperty("allowedChildren", out var children) && children.ValueKind == JsonValueKind.Array)
             {
-                ДопустимыеДети = дети.EnumerateArray().Select(д => д.GetString()!).ToHashSet();
+                AllowedChildren = children.EnumerateArray().Select(child => child.GetString() ?? "").ToHashSet();
             }
-            if (определение.TryGetProperty("properties", out var свойства) && свойства.ValueKind == JsonValueKind.Array)
+            if (definition.TryGetProperty("properties", out var properties) && properties.ValueKind == JsonValueKind.Array)
             {
-                foreach (var с in свойства.EnumerateArray())
+                foreach (var property in properties.EnumerateArray())
                 {
-                    HashSet<string>? значения = с.TryGetProperty("values", out var з)
-                        ? з.EnumerateArray().Select(x => x.GetProperty("value").GetString()!).ToHashSet() : null;
-                    HashSet<string>? цели = с.TryGetProperty("targetTypes", out var ц)
-                        ? ц.EnumerateArray().Select(x => x.GetString()!).ToHashSet() : null;
-                    Свойства[с.GetProperty("id").GetString()!] = new(с.GetProperty("kind").GetString()!, значения, цели);
+                    HashSet<string>? values = property.TryGetProperty("values", out var valuesElement)
+                        ? valuesElement.EnumerateArray().Select(v => v.GetProperty("value").GetString() ?? "").ToHashSet()
+                        : null;
+                    HashSet<string>? targetTypes = property.TryGetProperty("targetTypes", out var targetsElement)
+                        ? targetsElement.EnumerateArray().Select(t => t.GetString() ?? "").ToHashSet()
+                        : null;
+                    var propertyId = property.GetProperty("id").GetString() ?? "";
+                    Properties[propertyId] = new PropertyDescriptor(
+                        property.GetProperty("kind").GetString() ?? "", values, targetTypes);
                 }
             }
         }
+
+        public string Id { get; }
+        public bool IsAbstract { get; }
+
+        /// <summary><c>null</c>: ограничений нет (список allowedChildren в манифесте не задан)</summary>
+        public HashSet<string>? AllowedChildren { get; }
+
+        public Dictionary<string, PropertyDescriptor> Properties { get; } = [];
     }
 }

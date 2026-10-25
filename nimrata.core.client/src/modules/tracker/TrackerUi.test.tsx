@@ -10,11 +10,12 @@ import {
     createDataController,
     useSelection,
 } from '@platform';
-import type { TypeDefinition } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { ensureStartStructure, registerTracker } from './tracker';
+
+import type { TypeDefinition } from '@platform';
 
 const types = manifest.types.map((t) => ({
     ...t,
@@ -61,8 +62,8 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-describe('Трекер: интерфейс заметок', () => {
-    it('стартовая структура видна в дереве', async () => {
+describe('Tracker: notes interface', () => {
+    it('notesUi_startStructure_isVisibleInTree', async () => {
         const { data } = await setup();
         mount(data);
 
@@ -70,7 +71,7 @@ describe('Трекер: интерфейс заметок', () => {
         expect(screen.getByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     });
 
-    it('«Создать заметку» из контекстного меню спрашивает название и добавляет заметку в дерево', async () => {
+    it('notesUi_createNoteFromContextMenu_asksTitleAndAddsNoteToTree', async () => {
         const { data } = await setup();
         mount(data);
 
@@ -92,7 +93,7 @@ describe('Трекер: интерфейс заметок', () => {
         expect(await screen.findByRole('treeitem', { name: /Идея/ })).toBeInTheDocument();
     });
 
-    it('кнопка «Перейти по внешней ссылке» есть только у заметки со ссылкой и открывает её', async () => {
+    it('notesUi_externalLinkButton_onlyOnNoteWithLinkAndOpensIt', async () => {
         const open = vi.spyOn(window, 'open').mockReturnValue(null);
         const { data } = await setup();
         const notes = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
@@ -128,7 +129,7 @@ describe('Трекер: интерфейс заметок', () => {
         expect(open).toHaveBeenCalledWith('https://example.test/', '_blank', 'noopener,noreferrer');
     });
 
-    it('в дереве заметка показывается вычисленным именем со статусом', async () => {
+    it('notesUi_tree_showsNoteByComputedNameWithStatus', async () => {
         const { data } = await setup();
         const notes = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
         await data.create({
@@ -154,8 +155,8 @@ function currentRoot(data: Awaited<ReturnType<typeof setup>>['data']) {
     return data.getChildren(tasks.id).find((o) => o.type === 'CurrentTasksRoot')!;
 }
 
-describe('Трекер: интерфейс задач', () => {
-    it('«Создать задачу» из меню «Текущих задач» создаёт месяц, день и задачу', async () => {
+describe('Tracker: tasks interface', () => {
+    it('tasksUi_createTaskFromCurrentTasksMenu_createsMonthDayAndTask', async () => {
         const { data } = await setup();
         mount(data);
         await expandRow(/^.*Задачи$/);
@@ -182,7 +183,7 @@ describe('Трекер: интерфейс задач', () => {
         expect(await screen.findByRole('treeitem', { name: /Позвонить/ })).toBeInTheDocument();
     });
 
-    it('дни идут по датам, задачи дня — по времени', async () => {
+    it('tasksUi_days_orderedByDateAndTasksByTime', async () => {
         const { data } = await setup();
         const root = currentRoot(data);
         for (const date of ['2026-03-10', '2026-03-02']) {
@@ -209,7 +210,7 @@ describe('Трекер: интерфейс задач', () => {
         expect(index('09:00 — Утренняя')).toBeLessThan(index('18:00 — 2026-03-02'));
     });
 
-    it('таблица свойств показывает свойства задачи, но скрывает идентификатор повтора', async () => {
+    it('tasksUi_propertyGrid_showsTaskPropertiesButHidesRepeatId', async () => {
         const { data } = await setup();
         await data.runAction(currentRoot(data).id, 'createTask', {
             title: 'Дело',
@@ -226,7 +227,7 @@ describe('Трекер: интерфейс задач', () => {
         expect(screen.queryByText('Идентификатор повтора')).not.toBeInTheDocument();
     });
 
-    it('задача с высоким приоритетом подкрашивается красным', async () => {
+    it('tasksUi_highPriorityTask_isTintedRed', async () => {
         const { data } = await setup();
         await data.runAction(currentRoot(data).id, 'createTask', {
             title: 'Срочно',

@@ -21,7 +21,7 @@ const leftHandle = () => screen.getByRole('separator', { name: 'Ширина д�
 const rightHandle = () => screen.getByRole('separator', { name: 'Ширина свойств' });
 
 describe('Workspace', () => {
-    it('сообщает о новых ширинах панелей после изменения', async () => {
+    it('workspace_widthChange_reportsNewPanelWidths', async () => {
         const onWidthsChange = vi.fn();
         render(
             <Workspace
@@ -39,7 +39,7 @@ describe('Workspace', () => {
         expect(onWidthsChange).toHaveBeenLastCalledWith({ left: 320, right: 320 });
     });
 
-    it('показывает три панели: дерево, вкладки и свойства', () => {
+    it('workspace_renders_threePanelsTreeTabsAndProperties', () => {
         renderWorkspace();
 
         expect(leftPanel()).toHaveTextContent('дерево');
@@ -49,7 +49,7 @@ describe('Workspace', () => {
         expect(rightPanel()).toHaveStyle({ width: '320px' });
     });
 
-    it('перетаскивание левой границы меняет ширину дерева', () => {
+    it('workspace_dragLeftBorder_changesTreeWidth', () => {
         renderWorkspace();
 
         fireEvent.mouseDown(leftHandle(), { clientX: 300 });
@@ -60,7 +60,7 @@ describe('Workspace', () => {
         expect(leftHandle()).toHaveAttribute('aria-valuenow', '380');
     });
 
-    it('перетаскивание правой границы влево расширяет таблицу свойств', () => {
+    it('workspace_dragRightBorderLeft_widensPropertyGrid', () => {
         renderWorkspace();
 
         fireEvent.mouseDown(rightHandle(), { clientX: 1000 });
@@ -70,7 +70,7 @@ describe('Workspace', () => {
         expect(rightPanel()).toHaveStyle({ width: '380px' });
     });
 
-    it('после отпускания кнопки движение мыши ширину не меняет', () => {
+    it('workspace_afterButtonRelease_mouseMoveDoesNotChangeWidth', () => {
         renderWorkspace();
 
         fireEvent.mouseDown(leftHandle(), { clientX: 300 });
@@ -80,7 +80,7 @@ describe('Workspace', () => {
         expect(leftPanel()).toHaveStyle({ width: '300px' });
     });
 
-    it('ширина не опускается ниже минимума', () => {
+    it('workspace_width_doesNotGoBelowMinimum', () => {
         renderWorkspace();
 
         fireEvent.mouseDown(leftHandle(), { clientX: 300 });
@@ -90,7 +90,7 @@ describe('Workspace', () => {
         expect(leftPanel()).toHaveStyle({ width: '120px' });
     });
 
-    it('границу можно двигать с клавиатуры стрелками', async () => {
+    it('workspace_borders_canBeMovedWithArrowKeys', async () => {
         const user = userEvent.setup();
         renderWorkspace();
 

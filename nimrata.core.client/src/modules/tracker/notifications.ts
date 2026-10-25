@@ -1,26 +1,26 @@
-import type { DataController, DataObject } from '@platform';
-
 import { COMPLETED } from './constants';
 import { pad, todayIso } from './dates';
 import { allTasks, taskDate } from './tasks';
 
-/** Период проверки задач. */
+import type { DataController, DataObject } from '@platform';
+
+/** Период проверки задач */
 export const CHECK_INTERVAL_MS = 60_000;
-/** Сколько минут после назначенного времени уведомление ещё уместно (при входе позже — пропускается). */
+/** Сколько минут после назначенного времени уведомление ещё уместно (при входе позже — пропускается) */
 export const GRACE_MINUTES = 60;
 
 const TIME = /^(\d{2}):(\d{2})$/;
 
-/** Уведомление, которое пора показать. */
+/** Уведомление, которое пора показать */
 export interface DueNotification {
     taskId: string;
-    /** Время задачи «HH:mm». */
+    /** Время задачи «HH:mm» */
     title: string;
-    /** Название задачи. */
+    /** Название задачи */
     body: string;
 }
 
-/** Состояние службы: сутки (`ГГГГ-ММ-ДД`) и задачи, по которым уведомление уже показано. */
+/** Состояние службы: сутки (`ГГГГ-ММ-ДД`) и задачи, по которым уведомление уже показано */
 export interface NotificationState {
     date: string;
     shown: ReadonlySet<string>;
@@ -30,7 +30,7 @@ export function createNotificationState(): NotificationState {
     return { date: '', shown: new Set() };
 }
 
-/** Время задачи в минутах от полуночи; `undefined`, если времени нет. */
+/** Время задачи в минутах от полуночи; `undefined`, если времени нет */
 function minutesOfDay(task: DataObject): number | undefined {
     const time = task.properties.time;
     const match = typeof time === 'string' ? TIME.exec(time) : null;
@@ -45,7 +45,7 @@ function notifyBefore(task: DataObject): number {
 /**
  * Чистый расчёт: какие уведомления пора показать в момент `now`. Берёт задачи сегодняшнего дня
  * с временем, не завершённые; момент уведомления — «время минус N минут». Уже показанные
- * (в пределах суток) пропускаются; при смене суток список показанных начинается заново.
+ * (в пределах суток) пропускаются; при смене суток список показанных начинается заново
  */
 export function checkNotifications(
     data: DataController,
@@ -75,17 +75,17 @@ export function checkNotifications(
 
 export interface NotificationServiceOptions {
     data: DataController;
-    /** Показывает уведомление; по умолчанию — `Notification` браузера, если разрешение выдано. */
+    /** Показывает уведомление; по умолчанию — `Notification` браузера, если разрешение выдано */
     notify?: (title: string, body: string) => void;
-    /** Часы; подменяются в тестах. */
+    /** Часы; подменяются в тестах */
     now?: () => Date;
-    /** Хранилище показанных на день; без него память живёт только до перезагрузки страницы. */
+    /** Хранилище показанных на день; без него память живёт только до перезагрузки страницы */
     store?: ShownStore;
 }
 
-/** Где запоминаются задачи, по которым уведомление за день уже показано. */
+/** Где запоминаются задачи, по которым уведомление за день уже показано */
 export interface ShownStore {
-    /** Показанные в сутки `date` (`ГГГГ-ММ-ДД`); записи прошлых дней могут быть удалены. */
+    /** Показанные в сутки `date` (`ГГГГ-ММ-ДД`); записи прошлых дней могут быть удалены */
     load(date: string): ReadonlySet<string>;
     save(date: string, shown: ReadonlySet<string>): void;
 }
@@ -94,7 +94,7 @@ const STORE_PREFIX = 'nimrata.tracker.notifications.';
 
 /**
  * Хранилище в `localStorage`: ключ — пользователь и дата. Любая ошибка хранилища (недоступно,
- * переполнено, мусор в значении) молча даёт пустой набор: уведомления просто могут повториться.
+ * переполнено, мусор в значении) молча даёт пустой набор: уведомления просто могут повториться
  */
 export function createLocalShownStore(userId: string): ShownStore {
     const prefix = `${STORE_PREFIX}${userId}.`;
@@ -114,7 +114,7 @@ export function createLocalShownStore(userId: string): ShownStore {
         save(date, shown) {
             try {
                 localStorage.setItem(prefix + date, JSON.stringify([...shown]));
-                // Записи прошлых дней этого пользователя больше не нужны.
+                // Записи прошлых дней этого пользователя больше не нужны
                 for (let i = localStorage.length - 1; i >= 0; i--) {
                     const key = localStorage.key(i);
                     if (key?.startsWith(prefix) && key !== prefix + date)
@@ -127,14 +127,14 @@ export function createLocalShownStore(userId: string): ShownStore {
     };
 }
 
-/** Узкий слой над Notification API браузера (подменяется в тестах). */
+/** Узкий слой над Notification API браузера (подменяется в тестах) */
 export interface BrowserNotifications {
     permission(): NotificationPermission;
     requestPermission(): Promise<NotificationPermission>;
     show(title: string, body: string): void;
 }
 
-/** Notification API текущего браузера; `null`, если он не поддерживается. */
+/** Notification API текущего браузера; `null`, если он не поддерживается */
 export function browserNotifications(): BrowserNotifications | null {
     if (typeof Notification === 'undefined') return null;
     return {
@@ -146,7 +146,7 @@ export function browserNotifications(): BrowserNotifications | null {
     };
 }
 
-/** Показывает уведомление, только если разрешение выдано. */
+/** Показывает уведомление, только если разрешение выдано */
 export function showBrowserNotification(title: string, body: string): void {
     const browser = browserNotifications();
     if (browser?.permission() === 'granted') browser.show(title, body);
@@ -154,7 +154,7 @@ export function showBrowserNotification(title: string, body: string): void {
 
 /**
  * Проверяет задачи сразу и затем раз в минуту, пока вкладка открыта.
- * Возвращает функцию остановки.
+ * Возвращает функцию остановки
  */
 export function startNotificationService({
     data,
@@ -166,7 +166,7 @@ export function startNotificationService({
     const tick = () => {
         const moment = now();
         const today = todayIso(moment);
-        // Новые сутки (или первый запуск): показанное восстанавливается из хранилища.
+        // Новые сутки (или первый запуск): показанное восстанавливается из хранилища
         if (store && state.date !== today) state = { date: today, shown: store.load(today) };
         const result = checkNotifications(data, moment, state);
         state = result.state;

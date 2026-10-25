@@ -2,221 +2,226 @@ using System.Text.Json;
 
 namespace Nimrata.Core.Server.Modules;
 
-/// <summary>Проверка формата манифеста модуля. Возвращает список понятных ошибок с путями.</summary>
+/// <summary>Проверка формата манифеста модуля. Возвращает список понятных ошибок с путями</summary>
 public static class ManifestValidator
 {
+    /// <summary>Допустимые виды свойств</summary>
     public static readonly string[] Kinds = ["string", "text", "integer", "boolean", "date", "time", "enum", "reference"];
+    /// <summary>Допустимые места действий в интерфейсе</summary>
     public static readonly string[] Placements = ["automation", "propertyGrid", "contextMenu"];
 
-    public static List<string> Validate(JsonElement корень)
+    /// <summary>Проверяет корень манифеста</summary>
+    /// <param name="root">Разобранный JSON манифеста</param>
+    /// <returns>Ошибки с путями вида <c>$.types[0].id</c>; пустой список, если манифест валиден</returns>
+    public static List<string> Validate(JsonElement root)
     {
-        var ошибки = new List<string>();
-        if (корень.ValueKind != JsonValueKind.Object)
+        var errors = new List<string>();
+        if (root.ValueKind != JsonValueKind.Object)
         {
-            ошибки.Add("корень манифеста должен быть объектом");
-            return ошибки;
+            errors.Add("корень манифеста должен быть объектом");
+            return errors;
         }
 
-        НужнаяСтрока(корень, "module", "$", ошибки);
-        if (!корень.TryGetProperty("version", out var версия) || версия.ValueKind != JsonValueKind.Number
-            || !версия.TryGetInt32(out var в) || в < 1)
+        RequireString(root, "module", "$", errors);
+        if (!root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number
+            || !version.TryGetInt32(out var intVersion) || intVersion < 1)
         {
-            ошибки.Add("$.version: нужно целое число не меньше 1");
+            errors.Add("$.version: нужно целое число не меньше 1");
         }
 
-        if (!корень.TryGetProperty("types", out var типы) || типы.ValueKind != JsonValueKind.Array)
+        if (!root.TryGetProperty("types", out var types) || types.ValueKind != JsonValueKind.Array)
         {
-            ошибки.Add("$.types: нужен массив типов");
-            return ошибки;
+            errors.Add("$.types: нужен массив типов");
+            return errors;
         }
 
-        var ид = new HashSet<string>();
-        foreach (var тип in типы.EnumerateArray())
+        var typeIds = new HashSet<string>();
+        foreach (var type in types.EnumerateArray())
         {
-            if (тип.ValueKind == JsonValueKind.Object && тип.TryGetProperty("id", out var i)
+            if (type.ValueKind == JsonValueKind.Object && type.TryGetProperty("id", out var i)
                 && i.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(i.GetString()))
             {
-                if (!ид.Add(i.GetString()!)) ошибки.Add($"$.types: идентификатор типа \"{i.GetString()}\" повторяется");
+                if (!typeIds.Add(i.GetString()!)) errors.Add($"$.types: идентификатор типа \"{i.GetString()}\" повторяется");
             }
         }
 
         var n = 0;
-        foreach (var тип in типы.EnumerateArray())
+        foreach (var type in types.EnumerateArray())
         {
-            ПроверитьТип(тип, $"$.types[{n++}]", ид, ошибки);
+            ValidateType(type, $"$.types[{n++}]", typeIds, errors);
         }
-        return ошибки;
+        return errors;
     }
 
-    private static void ПроверитьТип(JsonElement тип, string путь, HashSet<string> ид, List<string> ошибки)
+    private static void ValidateType(JsonElement type, string path, HashSet<string> typeIds, List<string> errors)
     {
-        if (тип.ValueKind != JsonValueKind.Object)
+        if (type.ValueKind != JsonValueKind.Object)
         {
-            ошибки.Add($"{путь}: тип должен быть объектом");
+            errors.Add($"{path}: тип должен быть объектом");
             return;
         }
-        НужнаяСтрока(тип, "id", путь, ошибки);
-        НужнаяСтрока(тип, "name", путь, ошибки);
-        foreach (var флаг in new[] { "abstract", "sealed", "hiddenInTree", "automation" })
+        RequireString(type, "id", path, errors);
+        RequireString(type, "name", path, errors);
+        foreach (var flag in new[] { "abstract", "sealed", "hiddenInTree", "automation" })
         {
-            if (тип.TryGetProperty(флаг, out var ф) && ф.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-                ошибки.Add($"{путь}.{флаг}: нужно логическое значение");
+            if (type.TryGetProperty(flag, out var flagValue) && flagValue.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                errors.Add($"{path}.{flag}: нужно логическое значение");
         }
-        if (Флаг(тип, "abstract") && Флаг(тип, "sealed"))
-            ошибки.Add($"{путь}: тип не может быть одновременно abstract и sealed");
+        if (IsTrue(type, "abstract") && IsTrue(type, "sealed"))
+            errors.Add($"{path}: тип не может быть одновременно abstract и sealed");
 
-        if (тип.TryGetProperty("allowedChildren", out var дети))
+        if (type.TryGetProperty("allowedChildren", out var children))
         {
-            if (дети.ValueKind != JsonValueKind.Array) ошибки.Add($"{путь}.allowedChildren: нужен массив");
+            if (children.ValueKind != JsonValueKind.Array) errors.Add($"{path}.allowedChildren: нужен массив");
             else
-                foreach (var ребёнок in дети.EnumerateArray())
+                foreach (var child in children.EnumerateArray())
                 {
-                    if (ребёнок.ValueKind != JsonValueKind.String || !ид.Contains(ребёнок.GetString()!))
-                        ошибки.Add($"{путь}.allowedChildren: неизвестный тип \"{ребёнок}\"");
+                    if (child.ValueKind != JsonValueKind.String || !typeIds.Contains(child.GetString()!))
+                        errors.Add($"{path}.allowedChildren: неизвестный тип \"{child}\"");
                 }
         }
 
-        var свойства = new HashSet<string>();
-        if (тип.TryGetProperty("properties", out var список))
+        var propertyIds = new HashSet<string>();
+        if (type.TryGetProperty("properties", out var list))
         {
-            if (список.ValueKind != JsonValueKind.Array) ошибки.Add($"{путь}.properties: нужен массив");
+            if (list.ValueKind != JsonValueKind.Array) errors.Add($"{path}.properties: нужен массив");
             else
             {
                 var n = 0;
-                foreach (var свойство in список.EnumerateArray())
-                    ПроверитьСвойство(свойство, $"{путь}.properties[{n++}]", свойства, ид, ошибки);
+                foreach (var property in list.EnumerateArray())
+                    ValidateProperty(property, $"{path}.properties[{n++}]", propertyIds, typeIds, errors);
             }
         }
 
-        if (тип.TryGetProperty("actions", out var действия))
+        if (type.TryGetProperty("actions", out var actions))
         {
-            if (действия.ValueKind != JsonValueKind.Array) ошибки.Add($"{путь}.actions: нужен массив");
+            if (actions.ValueKind != JsonValueKind.Array) errors.Add($"{path}.actions: нужен массив");
             else
             {
                 var n = 0;
-                var идДействий = new HashSet<string>();
-                foreach (var действие in действия.EnumerateArray())
-                    ПроверитьДействие(действие, $"{путь}.actions[{n++}]", идДействий, ид, ошибки);
+                var actionIds = new HashSet<string>();
+                foreach (var action in actions.EnumerateArray())
+                    ValidateAction(action, $"{path}.actions[{n++}]", actionIds, typeIds, errors);
             }
         }
 
-        if (тип.TryGetProperty("colorRules", out var правила))
+        if (type.TryGetProperty("colorRules", out var rules))
         {
-            if (правила.ValueKind != JsonValueKind.Array) ошибки.Add($"{путь}.colorRules: нужен массив");
+            if (rules.ValueKind != JsonValueKind.Array) errors.Add($"{path}.colorRules: нужен массив");
             else
             {
                 var n = 0;
-                foreach (var правило in правила.EnumerateArray())
+                foreach (var rule in rules.EnumerateArray())
                 {
-                    var п = $"{путь}.colorRules[{n++}]";
-                    if (правило.ValueKind != JsonValueKind.Object) { ошибки.Add($"{п}: правило должно быть объектом"); continue; }
-                    НужнаяСтрока(правило, "color", п, ошибки);
-                    if (!правило.TryGetProperty("equals", out _)) ошибки.Add($"{п}.equals: значение обязательно");
-                    if (!правило.TryGetProperty("property", out var имя) || имя.ValueKind != JsonValueKind.String
-                        || !свойства.Contains(имя.GetString()!))
-                        ошибки.Add($"{п}.property: свойство \"{имя}\" не объявлено в типе");
+                    var itemPath = $"{path}.colorRules[{n++}]";
+                    if (rule.ValueKind != JsonValueKind.Object) { errors.Add($"{itemPath}: правило должно быть объектом"); continue; }
+                    RequireString(rule, "color", itemPath, errors);
+                    if (!rule.TryGetProperty("equals", out _)) errors.Add($"{itemPath}.equals: значение обязательно");
+                    if (!rule.TryGetProperty("property", out var name) || name.ValueKind != JsonValueKind.String
+                        || !propertyIds.Contains(name.GetString()!))
+                        errors.Add($"{itemPath}.property: свойство \"{name}\" не объявлено в типе");
                 }
             }
         }
     }
 
-    private static void ПроверитьСвойство(JsonElement свойство, string путь, HashSet<string> занятые,
-        HashSet<string> ид, List<string> ошибки)
+    private static void ValidateProperty(JsonElement property, string path, HashSet<string> taken,
+        HashSet<string> typeIds, List<string> errors)
     {
-        if (свойство.ValueKind != JsonValueKind.Object) { ошибки.Add($"{путь}: свойство должно быть объектом"); return; }
-        НужнаяСтрока(свойство, "name", путь, ошибки);
-        if (НужнаяСтрока(свойство, "id", путь, ошибки) is { } имя && !занятые.Add(имя))
-            ошибки.Add($"{путь}.id: свойство \"{имя}\" повторяется");
+        if (property.ValueKind != JsonValueKind.Object) { errors.Add($"{path}: свойство должно быть объектом"); return; }
+        RequireString(property, "name", path, errors);
+        if (RequireString(property, "id", path, errors) is { } name && !taken.Add(name))
+            errors.Add($"{path}.id: свойство \"{name}\" повторяется");
 
-        var вид = НужнаяСтрока(свойство, "kind", путь, ошибки);
-        if (вид is not null && !Kinds.Contains(вид))
-            ошибки.Add($"{путь}.kind: неизвестный вид \"{вид}\" (допустимо: {string.Join(", ", Kinds)})");
+        var kind = RequireString(property, "kind", path, errors);
+        if (kind is not null && !Kinds.Contains(kind))
+            errors.Add($"{path}.kind: неизвестный вид \"{kind}\" (допустимо: {string.Join(", ", Kinds)})");
 
-        if (вид == "enum")
+        if (kind == "enum")
         {
-            if (!свойство.TryGetProperty("values", out var значения) || значения.ValueKind != JsonValueKind.Array
-                || значения.GetArrayLength() == 0)
+            if (!property.TryGetProperty("values", out var values) || values.ValueKind != JsonValueKind.Array
+                || values.GetArrayLength() == 0)
             {
-                ошибки.Add($"{путь}.values: для вида enum нужен непустой список значений");
+                errors.Add($"{path}.values: для вида enum нужен непустой список значений");
             }
             else
             {
-                var занятыеЗначения = new HashSet<string>();
+                var takenValues = new HashSet<string>();
                 var n = 0;
-                foreach (var значение in значения.EnumerateArray())
+                foreach (var value in values.EnumerateArray())
                 {
-                    var п = $"{путь}.values[{n++}]";
-                    if (значение.ValueKind != JsonValueKind.Object) { ошибки.Add($"{п}: нужен объект {{value, name}}"); continue; }
-                    НужнаяСтрока(значение, "name", п, ошибки);
-                    if (НужнаяСтрока(значение, "value", п, ошибки) is { } в && !занятыеЗначения.Add(в))
-                        ошибки.Add($"{п}.value: значение \"{в}\" повторяется");
+                    var itemPath = $"{path}.values[{n++}]";
+                    if (value.ValueKind != JsonValueKind.Object) { errors.Add($"{itemPath}: нужен объект {{value, name}}"); continue; }
+                    RequireString(value, "name", itemPath, errors);
+                    if (RequireString(value, "value", itemPath, errors) is { } intVersion && !takenValues.Add(intVersion))
+                        errors.Add($"{itemPath}.value: значение \"{intVersion}\" повторяется");
                 }
             }
         }
-        else if (свойство.TryGetProperty("values", out _))
+        else if (property.TryGetProperty("values", out _))
         {
-            ошибки.Add($"{путь}.values: список значений допустим только для вида enum");
+            errors.Add($"{path}.values: список значений допустим только для вида enum");
         }
 
-        if (свойство.TryGetProperty("revealTarget", out var показать))
+        if (property.TryGetProperty("revealTarget", out var reveal))
         {
-            if (показать.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-                ошибки.Add($"{путь}.revealTarget: нужно логическое значение");
-            else if (вид != "reference")
-                ошибки.Add($"{путь}.revealTarget: допустим только для вида reference");
+            if (reveal.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                errors.Add($"{path}.revealTarget: нужно логическое значение");
+            else if (kind != "reference")
+                errors.Add($"{path}.revealTarget: допустим только для вида reference");
         }
 
-        if (вид == "reference" && свойство.TryGetProperty("targetTypes", out var цели))
+        if (kind == "reference" && property.TryGetProperty("targetTypes", out var targets))
         {
-            if (цели.ValueKind != JsonValueKind.Array) ошибки.Add($"{путь}.targetTypes: нужен массив");
+            if (targets.ValueKind != JsonValueKind.Array) errors.Add($"{path}.targetTypes: нужен массив");
             else
-                foreach (var цель in цели.EnumerateArray())
-                    if (цель.ValueKind != JsonValueKind.String || !ид.Contains(цель.GetString()!))
-                        ошибки.Add($"{путь}.targetTypes: неизвестный тип \"{цель}\"");
+                foreach (var target in targets.EnumerateArray())
+                    if (target.ValueKind != JsonValueKind.String || !typeIds.Contains(target.GetString()!))
+                        errors.Add($"{path}.targetTypes: неизвестный тип \"{target}\"");
         }
     }
 
-    private static void ПроверитьДействие(JsonElement действие, string путь, HashSet<string> занятые,
-        HashSet<string> ид, List<string> ошибки)
+    private static void ValidateAction(JsonElement action, string path, HashSet<string> taken,
+        HashSet<string> typeIds, List<string> errors)
     {
-        if (действие.ValueKind != JsonValueKind.Object) { ошибки.Add($"{путь}: действие должно быть объектом"); return; }
-        НужнаяСтрока(действие, "name", путь, ошибки);
-        if (НужнаяСтрока(действие, "id", путь, ошибки) is { } имя && !занятые.Add(имя))
-            ошибки.Add($"{путь}.id: действие \"{имя}\" повторяется");
+        if (action.ValueKind != JsonValueKind.Object) { errors.Add($"{path}: действие должно быть объектом"); return; }
+        RequireString(action, "name", path, errors);
+        if (RequireString(action, "id", path, errors) is { } name && !taken.Add(name))
+            errors.Add($"{path}.id: действие \"{name}\" повторяется");
 
-        if (действие.TryGetProperty("placements", out var места))
+        if (action.TryGetProperty("placements", out var placements))
         {
-            if (места.ValueKind != JsonValueKind.Array) ошибки.Add($"{путь}.placements: нужен массив");
+            if (placements.ValueKind != JsonValueKind.Array) errors.Add($"{path}.placements: нужен массив");
             else
-                foreach (var место in места.EnumerateArray())
-                    if (место.ValueKind != JsonValueKind.String || !Placements.Contains(место.GetString()))
-                        ошибки.Add($"{путь}.placements: неизвестное место \"{место}\" (допустимо: {string.Join(", ", Placements)})");
+                foreach (var placement in placements.EnumerateArray())
+                    if (placement.ValueKind != JsonValueKind.String || !Placements.Contains(placement.GetString()))
+                        errors.Add($"{path}.placements: неизвестное место \"{placement}\" (допустимо: {string.Join(", ", Placements)})");
         }
 
-        if (действие.TryGetProperty("parameters", out var параметры))
+        if (action.TryGetProperty("parameters", out var parameters))
         {
-            if (параметры.ValueKind != JsonValueKind.Array) ошибки.Add($"{путь}.parameters: нужен массив");
+            if (parameters.ValueKind != JsonValueKind.Array) errors.Add($"{path}.parameters: нужен массив");
             else
             {
-                var занятыеПараметры = new HashSet<string>();
+                var takenParameters = new HashSet<string>();
                 var n = 0;
-                foreach (var параметр in параметры.EnumerateArray())
-                    ПроверитьСвойство(параметр, $"{путь}.parameters[{n++}]", занятыеПараметры, ид, ошибки);
+                foreach (var parameter in parameters.EnumerateArray())
+                    ValidateProperty(parameter, $"{path}.parameters[{n++}]", takenParameters, typeIds, errors);
             }
         }
     }
 
-    private static bool Флаг(JsonElement объект, string имя) =>
-        объект.TryGetProperty(имя, out var з) && з.ValueKind == JsonValueKind.True;
+    private static bool IsTrue(JsonElement source, string name) =>
+        source.TryGetProperty(name, out var element) && element.ValueKind == JsonValueKind.True;
 
-    private static string? НужнаяСтрока(JsonElement объект, string имя, string путь, List<string> ошибки)
+    private static string? RequireString(JsonElement source, string name, string path, List<string> errors)
     {
-        if (объект.TryGetProperty(имя, out var з) && з.ValueKind == JsonValueKind.String
-            && !string.IsNullOrWhiteSpace(з.GetString()))
+        if (source.TryGetProperty(name, out var element) && element.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(element.GetString()))
         {
-            return з.GetString();
+            return element.GetString();
         }
-        ошибки.Add($"{путь}.{имя}: нужна непустая строка");
+        errors.Add($"{path}.{name}: нужна непустая строка");
         return null;
     }
 }

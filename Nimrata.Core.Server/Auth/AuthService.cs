@@ -1,8 +1,5 @@
 using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using Dapper;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -10,144 +7,135 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Auth;
 
-public sealed record AuthResult(string AccessToken, string RefreshToken, DateTimeOffset RefreshExpiresAt);
-
-/// <summary>Вход, обновление и отзыв токенов, создание пользователей.</summary>
-public sealed class AuthService(NpgsqlDataSource данные, IOptions<JwtOptions> настройки)
+/// <summary>Вход, обновление и отзыв токенов, создание пользователей</summary>
+public sealed class AuthService(NpgsqlDataSource dataSource, IOptions<JwtOptions> options, TimeProvider timeProvider)
 {
-    public const int MinPasswordLength = 8;
-
-    private static readonly PasswordHasher<object> Хешер = new();
-
     private sealed record UserRow(Guid Id, string Email, string PasswordHash, bool IsAdmin, bool IsActive);
 
-    public static SymmetricSecurityKey КлючПодписи(JwtOptions o)
+    /// <summary>Создаёт пользователя</summary>
+    /// <returns><c>true</c>, если пользователь создан; <c>false</c>, если такой e-mail уже есть</returns>
+    /// <exception cref="ArgumentException">Пароль короче <see cref="Passwords.MinLength"/> символов</exception>
+    public async Task<bool> CreateUserAsync(
+        string email, string password, bool isAdmin, CancellationToken cancellationToken = default)
     {
-        var байты = Encoding.UTF8.GetBytes(o.Key ?? "");
-        if (байты.Length < 32)
+        if (!Passwords.IsAcceptable(password))
         {
-            throw new InvalidOperationException(
-                "Не задан ключ подписи JWT (Jwt:Key, не короче 32 байт): user-secrets или переменная Jwt__Key.");
-        }
-        return new SymmetricSecurityKey(байты);
-    }
-
-    /// <returns>true, если пользователь создан; false, если такой e-mail уже есть.</returns>
-    public async Task<bool> СоздатьПользователя(string email, string пароль, bool администратор)
-    {
-        if (пароль.Length < MinPasswordLength)
-        {
-            throw new ArgumentException($"Пароль короче {MinPasswordLength} символов.");
+            throw new ArgumentException($"Пароль короче {Passwords.MinLength} символов.", nameof(password));
         }
 
-        var хеш = Хешер.HashPassword(new object(), пароль);
-        await using var соединение = await данные.OpenConnectionAsync();
-        var добавлено = await соединение.ExecuteAsync(
+        var passwordHash = Passwords.Hash(password);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        var inserted = await connection.ExecuteAsync(new CommandDefinition(
             """
-            insert into users (email, password_hash, is_admin) values (@email, @хеш, @администратор)
+            insert into users (email, password_hash, is_admin) values (@email, @passwordHash, @isAdmin)
             on conflict (lower(email)) do nothing
             """,
-            new { email, хеш, администратор });
-        return добавлено > 0;
+            new { email, passwordHash, isAdmin },
+            cancellationToken: cancellationToken));
+        return inserted > 0;
     }
 
-    public static string ХешПароля(string пароль) => Хешер.HashPassword(new object(), пароль);
-
-    public async Task<AuthResult?> Войти(string email, string пароль)
+    /// <summary>Проверяет учётные данные и выдаёт токены; <c>null</c>, если вход не удался</summary>
+    public async Task<AuthResult?> LoginAsync(string email, string password, CancellationToken cancellationToken = default)
     {
-        await using var соединение = await данные.OpenConnectionAsync();
-        var пользователь = await соединение.QuerySingleOrDefaultAsync<UserRow>(
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        var user = await connection.QuerySingleOrDefaultAsync<UserRow>(new CommandDefinition(
             """
             select id, email, password_hash as PasswordHash, is_admin as IsAdmin, is_active as IsActive
             from users where lower(email) = lower(@email)
             """,
-            new { email });
+            new { email },
+            cancellationToken: cancellationToken));
 
-        if (пользователь is null)
+        if (user is null)
         {
             // выравниваем время ответа, чтобы не раскрывать существование e-mail
-            Хешер.VerifyHashedPassword(new object(), Хешер.HashPassword(new object(), "x"), пароль);
+            Passwords.Verify(Passwords.Hash("x"), password);
             return null;
         }
 
-        var проверка = Хешер.VerifyHashedPassword(new object(), пользователь.PasswordHash, пароль);
-        if (проверка == PasswordVerificationResult.Failed || !пользователь.IsActive)
+        if (!Passwords.Verify(user.PasswordHash, password) || !user.IsActive)
         {
             return null;
         }
 
-        return await Выдать(соединение, пользователь, null);
+        return await IssueAsync(connection, user, null, cancellationToken);
     }
 
-    /// <summary>Обменивает действующий refresh-токен на новую пару (старый отзывается).</summary>
-    public async Task<AuthResult?> Обновить(string refreshToken)
+    /// <summary>Обменивает действующий refresh-токен на новую пару (старый отзывается)</summary>
+    /// <returns>Новая пара токенов или <c>null</c>, если токен недействителен</returns>
+    public async Task<AuthResult?> RefreshAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
-        var хеш = ХешТокена(refreshToken);
-        await using var соединение = await данные.OpenConnectionAsync();
-        await using var транзакция = await соединение.BeginTransactionAsync();
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         // условный отзыв атомарно закрывает гонку повторного использования
-        var пользователь = await соединение.QuerySingleOrDefaultAsync<UserRow>(
+        var user = await connection.QuerySingleOrDefaultAsync<UserRow>(new CommandDefinition(
             """
-            with отозван as (
+            with revoked as (
                 update refresh_tokens set revoked_at = now()
-                where token_hash = @хеш and revoked_at is null and expires_at > now()
+                where token_hash = @tokenHash and revoked_at is null and expires_at > now()
                 returning user_id
             )
             select u.id, u.email, u.password_hash as PasswordHash, u.is_admin as IsAdmin, u.is_active as IsActive
-            from users u join отозван on отозван.user_id = u.id
+            from users u join revoked on revoked.user_id = u.id
             """,
-            new { хеш }, транзакция);
+            new { tokenHash = OpaqueTokens.Hash(refreshToken) },
+            transaction,
+            cancellationToken: cancellationToken));
 
-        if (пользователь is null || !пользователь.IsActive)
+        if (user is not { IsActive: true })
         {
-            await транзакция.CommitAsync();
+            await transaction.CommitAsync(cancellationToken);
             return null;
         }
 
-        var результат = await Выдать(соединение, пользователь, транзакция);
-        await транзакция.CommitAsync();
-        return результат;
+        var result = await IssueAsync(connection, user, transaction, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
     }
 
-    public async Task Выйти(string refreshToken)
+    /// <summary>Отзывает refresh-токен</summary>
+    public async Task LogoutAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
-        await using var соединение = await данные.OpenConnectionAsync();
-        await соединение.ExecuteAsync(
-            "update refresh_tokens set revoked_at = now() where token_hash = @хеш and revoked_at is null",
-            new { хеш = ХешТокена(refreshToken) });
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await connection.ExecuteAsync(new CommandDefinition(
+            "update refresh_tokens set revoked_at = now() where token_hash = @tokenHash and revoked_at is null",
+            new { tokenHash = OpaqueTokens.Hash(refreshToken) },
+            cancellationToken: cancellationToken));
     }
 
-    private async Task<AuthResult> Выдать(NpgsqlConnection соединение, UserRow пользователь, NpgsqlTransaction? транзакция)
+    private async Task<AuthResult> IssueAsync(
+        NpgsqlConnection connection, UserRow user, NpgsqlTransaction? transaction, CancellationToken cancellationToken)
     {
-        var o = настройки.Value;
-        var refresh = Base64Url(RandomNumberGenerator.GetBytes(32));
-        var истекает = DateTimeOffset.UtcNow.AddDays(o.RefreshDays);
-        await соединение.ExecuteAsync(
-            "insert into refresh_tokens (user_id, token_hash, expires_at) values (@userId, @хеш, @истекает)",
-            new { userId = пользователь.Id, хеш = ХешТокена(refresh), истекает }, транзакция);
+        var jwt = options.Value;
+        var now = timeProvider.GetUtcNow();
+        var refresh = OpaqueTokens.Create();
+        var refreshExpiresAt = now.AddDays(jwt.RefreshDays);
+        await connection.ExecuteAsync(new CommandDefinition(
+            "insert into refresh_tokens (user_id, token_hash, expires_at) values (@userId, @tokenHash, @expiresAt)",
+            new { userId = user.Id, tokenHash = refresh.Hash, expiresAt = refreshExpiresAt },
+            transaction,
+            cancellationToken: cancellationToken));
 
-        var утверждения = new List<Claim>
+        var claims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, пользователь.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, пользователь.Email),
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Email, user.Email),
         };
-        if (пользователь.IsAdmin) утверждения.Add(new Claim(ClaimTypes.Role, "admin"));
-
-        var токен = new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
+        if (user.IsAdmin)
         {
-            Subject = new ClaimsIdentity(утверждения),
-            Issuer = o.Issuer,
-            Audience = o.Audience,
-            Expires = DateTime.UtcNow.AddMinutes(o.AccessMinutes),
-            SigningCredentials = new SigningCredentials(КлючПодписи(o), SecurityAlgorithms.HmacSha256),
+            claims.Add(new Claim(ClaimTypes.Role, Roles.Admin));
+        }
+
+        var accessToken = new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Issuer = jwt.Issuer,
+            Audience = jwt.Audience,
+            Expires = now.AddMinutes(jwt.AccessMinutes).UtcDateTime,
+            SigningCredentials = new SigningCredentials(jwt.CreateSigningKey(), SecurityAlgorithms.HmacSha256),
         });
-        return new AuthResult(токен, refresh, истекает);
+        return new AuthResult(accessToken, refresh.Value, refreshExpiresAt);
     }
-
-    private static string ХешТокена(string токен) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(токен)));
-
-    private static string Base64Url(byte[] байты) =>
-        Convert.ToBase64String(байты).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }

@@ -6,7 +6,7 @@ using NpgsqlTypes;
 
 namespace Nimrata.Core.Server.Data;
 
-/// <summary>Обработчик Dapper: колонки jsonb отображаются в <see cref="JsonElement"/>.</summary>
+/// <summary>Обработчик Dapper: колонки jsonb отображаются в <see cref="JsonElement"/></summary>
 public sealed class JsonbTypeHandler : SqlMapper.TypeHandler<JsonElement>
 {
     public override void SetValue(IDbDataParameter parameter, JsonElement value)

@@ -1,20 +1,11 @@
-/* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+
+import { SelectionContext } from '@platform/selection/SelectionContext';
+
 import type { ReactNode } from 'react';
+import type { SelectionValue } from '@platform/selection/SelectionContext';
 
-export interface SelectionValue {
-    /** Выделенный в дереве объект; `null` — ничего не выделено. */
-    selectedId: string | null;
-    select(id: string | null): void;
-    /** Выделяет объект и просит дерево раскрыть его родителей и показать узел. */
-    reveal(id: string): void;
-    /** Последний запрос на показ узла в дереве; `seq` растёт с каждым вызовом `reveal`. */
-    revealRequest: { id: string; seq: number } | null;
-}
-
-const SelectionContext = createContext<SelectionValue | null>(null);
-
-/** Хранит выделенный в дереве объект, чтобы остальные панели могли его читать. */
+/** Хранит выделенный в дереве объект, чтобы остальные панели могли его читать */
 export function SelectionProvider({ children }: { children: ReactNode }) {
     const [selectedId, select] = useState<string | null>(null);
     const [revealRequest, setRevealRequest] = useState<SelectionValue['revealRequest']>(null);
@@ -27,15 +18,4 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
         [selectedId, reveal, revealRequest],
     );
     return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
-}
-
-/** Выделение, если `SelectionProvider` есть выше по дереву; иначе `null` (для необязательных переходов). */
-export function useOptionalSelection(): SelectionValue | null {
-    return useContext(SelectionContext);
-}
-
-export function useSelection(): SelectionValue {
-    const value = useContext(SelectionContext);
-    if (!value) throw new Error('SelectionProvider не найден в дереве компонентов.');
-    return value;
 }

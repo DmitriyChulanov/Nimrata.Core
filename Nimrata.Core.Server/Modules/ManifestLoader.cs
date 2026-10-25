@@ -4,77 +4,81 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Modules;
 
-/// <summary>Читает манифесты модулей (<c>{каталог}/{модуль}/manifest.json</c>) и синхронизирует таблицу типов.</summary>
+/// <summary>Читает манифесты модулей (<c>{каталог}/{модуль}/manifest.json</c>) и синхронизирует таблицу типов</summary>
 public static class ManifestLoader
 {
-    /// <summary>Каталог манифестов по умолчанию: контент сборки сервера.</summary>
-    public static string КаталогПоУмолчанию => Path.Combine(AppContext.BaseDirectory, "Modules");
+    /// <summary>Каталог манифестов по умолчанию: контент сборки сервера</summary>
+    public static string DefaultDirectory => Path.Combine(AppContext.BaseDirectory, "Modules");
 
-    public static void Загрузить(string connectionString, string каталог)
+    /// <summary>Проверяет все манифесты каталога и в одной транзакции записывает типы с более новой версией модуля</summary>
+    /// <param name="connectionString">Строка подключения к БД</param>
+    /// <param name="directory">Каталог с манифестами модулей</param>
+    /// <exception cref="InvalidOperationException">Каталога нет, манифест невалиден или тип объявлен другим модулем</exception>
+    public static void Load(string connectionString, string directory)
     {
-        if (!Directory.Exists(каталог))
+        if (!Directory.Exists(directory))
         {
-            throw new InvalidOperationException($"Каталог манифестов модулей не найден: {каталог}.");
+            throw new InvalidOperationException($"Каталог манифестов модулей не найден: {directory}.");
         }
 
-        var манифесты = new List<(string Файл, JsonElement Корень)>();
-        foreach (var файл in Directory.EnumerateFiles(каталог, "manifest.json", SearchOption.AllDirectories).Order())
+        var manifests = new List<(string File, JsonElement Root)>();
+        foreach (var file in Directory.EnumerateFiles(directory, "manifest.json", SearchOption.AllDirectories).Order())
         {
-            JsonElement корень;
+            JsonElement root;
             try
             {
-                using var документ = JsonDocument.Parse(File.ReadAllText(файл));
-                корень = документ.RootElement.Clone();
+                using var document = JsonDocument.Parse(File.ReadAllText(file));
+                root = document.RootElement.Clone();
             }
             catch (JsonException e)
             {
-                throw new InvalidOperationException($"Манифест {файл}: некорректный JSON ({e.Message}).", e);
+                throw new InvalidOperationException($"Манифест {file}: некорректный JSON ({e.Message}).", e);
             }
 
-            var ошибки = ManifestValidator.Validate(корень);
-            if (ошибки.Count > 0)
+            var errors = ManifestValidator.Validate(root);
+            if (errors.Count > 0)
             {
                 throw new InvalidOperationException(
-                    $"Манифест {файл} невалиден:{Environment.NewLine}  " + string.Join(Environment.NewLine + "  ", ошибки));
+                    $"Манифест {file} невалиден:{Environment.NewLine}  " + string.Join(Environment.NewLine + "  ", errors));
             }
-            манифесты.Add((файл, корень));
+            manifests.Add((file, root));
         }
 
-        using var соединение = new NpgsqlConnection(connectionString);
-        соединение.Open();
-        using var транзакция = соединение.BeginTransaction();
-        foreach (var (файл, корень) in манифесты)
+        using var connection = new NpgsqlConnection(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+        foreach (var (file, root) in manifests)
         {
-            Синхронизировать(соединение, транзакция, файл, корень);
+            Sync(connection, transaction, file, root);
         }
-        транзакция.Commit();
+        transaction.Commit();
     }
 
-    private static void Синхронизировать(NpgsqlConnection соединение, NpgsqlTransaction транзакция, string файл, JsonElement корень)
+    private static void Sync(NpgsqlConnection connection, NpgsqlTransaction transaction, string file, JsonElement root)
     {
-        var модуль = корень.GetProperty("module").GetString()!;
-        var версия = корень.GetProperty("version").GetInt32();
+        var moduleId = root.GetProperty("module").GetString()!;
+        var version = root.GetProperty("version").GetInt32();
 
-        var текущая = соединение.ExecuteScalar<int?>(
-            "select max(module_version) from types where module_id = @модуль", new { модуль }, транзакция);
-        if (текущая >= версия) return;
+        var currentVersion = connection.ExecuteScalar<int?>(
+            "select max(module_version) from types where module_id = @moduleId", new { moduleId }, transaction);
+        if (currentVersion >= version) return;
 
-        foreach (var тип in корень.GetProperty("types").EnumerateArray())
+        foreach (var type in root.GetProperty("types").EnumerateArray())
         {
-            var id = тип.GetProperty("id").GetString()!;
-            var строк = соединение.Execute("""
+            var id = type.GetProperty("id").GetString()!;
+            var affectedRows = connection.Execute("""
                 insert into types (id, module_id, module_version, definition)
-                values (@id, @модуль, @версия, @определение)
+                values (@id, @moduleId, @version, @definition)
                 on conflict (id) do update
                     set module_version = excluded.module_version,
                         definition = excluded.definition,
                         updated_at = now()
                     where types.module_id = excluded.module_id
-                """, new { id, модуль, версия, определение = тип }, транзакция);
-            if (строк == 0)
+                """, new { id, moduleId, version, definition = type }, transaction);
+            if (affectedRows == 0)
             {
                 throw new InvalidOperationException(
-                    $"Манифест {файл}: тип \"{id}\" уже объявлен другим модулем.");
+                    $"Манифест {file}: тип \"{id}\" уже объявлен другим модулем.");
             }
         }
     }

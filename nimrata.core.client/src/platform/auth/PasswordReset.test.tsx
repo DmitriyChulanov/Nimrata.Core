@@ -16,7 +16,7 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-it('на экране входа есть ссылка «Забыли пароль?», открывающая форму запроса', async () => {
+it('loginScreen_hasForgotPasswordLink_thatOpensRequestForm', async () => {
     const user = userEvent.setup();
     render(<LoginScreen onLogin={vi.fn()} />);
 
@@ -26,7 +26,7 @@ it('на экране входа есть ссылка «Забыли парол
     expect(screen.queryByLabelText('Пароль')).not.toBeInTheDocument();
 });
 
-it('запрос сброса отправляет e-mail и показывает одинаковое подтверждение', async () => {
+it('forgotPassword_request_sendsEmailAndShowsSameConfirmation', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
     vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
@@ -44,7 +44,7 @@ it('запрос сброса отправляет e-mail и показывае�
     expect(JSON.parse(String(init.body))).toEqual({ email: 'a@b.test' });
 });
 
-it('из формы запроса можно вернуться ко входу', async () => {
+it('forgotPassword_form_canReturnToLogin', async () => {
     const user = userEvent.setup();
     render(<LoginScreen onLogin={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Забыли пароль?' }));
@@ -54,7 +54,7 @@ it('из формы запроса можно вернуться ко входу
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
 });
 
-it('установка нового пароля отправляет токен и пароль и сообщает об успехе', async () => {
+it('resetPassword_newPassword_sendsTokenAndPasswordAndReportsSuccess', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
     const onDone = vi.fn();
@@ -73,7 +73,7 @@ it('установка нового пароля отправляет токен
     expect(onDone).toHaveBeenCalled();
 });
 
-it('несовпадающие пароли не отправляются на сервер', async () => {
+it('resetPassword_mismatchedPasswords_areNotSentToServer', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
@@ -87,13 +87,16 @@ it('несовпадающие пароли не отправляются на �
     expect(fetchMock).not.toHaveBeenCalled();
 });
 
-it('недействительная ссылка показывает причину сервера', async () => {
+it('resetPassword_invalidLink_showsServerReason', async () => {
     vi.stubGlobal(
         'fetch',
         vi
             .fn()
             .mockResolvedValue(
-                jsonResponse({ error: 'Ссылка недействительна или устарела.' }, 400),
+                jsonResponse(
+                    { title: 'Bad Request', detail: 'Ссылка недействительна или устарела.' },
+                    400,
+                ),
             ),
     );
     const user = userEvent.setup();

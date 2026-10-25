@@ -2,12 +2,14 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiError } from '../api/apiClient';
-import type { ApiClient } from '../api/apiClient';
-import { createMenuRegistry, createTabRegistry } from '../tabs/registries';
+import { ApiError } from '@platform/api/apiClient';
+import { createMenuRegistry, createTabRegistry } from '@platform/tabs/registries';
+
 import { JournalView } from './JournalView';
-import type { JournalEntry, JournalPage, JournalResolver } from './journal';
 import { registerJournal } from './registerJournal';
+
+import type { ApiClient } from '@platform/api/apiClient';
+import type { JournalEntry, JournalPage, JournalResolver } from './journal';
 
 const resolver: JournalResolver = {
     typeName: (id) => ({ Task: 'Задача', Folder: 'Папка' })[id] ?? id,
@@ -47,7 +49,7 @@ function fakeJournalApi(pages: Record<string, JournalPage>) {
 }
 
 describe('JournalView', () => {
-    it('показывает записи выбранного объекта: когда, кто, свойство, было и стало', async () => {
+    it('journal_selectedObject_showsEntriesWhenWhoPropertyOldAndNew', async () => {
         const { api, get } = fakeJournalApi({
             'journal?objectId=t1&skip=0&take=50': {
                 total: 1,
@@ -67,7 +69,7 @@ describe('JournalView', () => {
         expect(get).toHaveBeenCalledWith('journal?objectId=t1&skip=0&take=50');
     });
 
-    it('создание, перенос и удаление описываются понятными строками', async () => {
+    it('journal_createMoveDelete_areDescribedByClearLines', async () => {
         const { api } = fakeJournalApi({
             'journal?objectId=t1&skip=0&take=50': {
                 total: 3,
@@ -109,7 +111,7 @@ describe('JournalView', () => {
         expect(rows[2]).toHaveTextContent('Создан');
     });
 
-    it('записи одного набора изменений показываются группой: одно действие — одна группа', async () => {
+    it('journal_entriesOfOneChangeset_areShownAsGroupOneActionOneGroup', async () => {
         const { api } = fakeJournalApi({
             'journal?skip=0&take=50': {
                 total: 3,
@@ -130,11 +132,11 @@ describe('JournalView', () => {
         expect(groups).toHaveLength(2);
         expect(within(groups[0]).getAllByRole('row')).toHaveLength(1);
         expect(within(groups[1]).getAllByRole('row')).toHaveLength(2);
-        // Время и автор показываются один раз на группу.
+        // Время и автор показываются один раз на группу
         expect(within(groups[1]).getAllByText('me@example.test')).toHaveLength(1);
     });
 
-    it('группа не разрывается при подгрузке следующей страницы', async () => {
+    it('journal_group_isNotSplitWhenNextPageLoads', async () => {
         const first = Array.from({ length: 50 }, (_, i) =>
             entry({ id: 100 - i, changesetId: i < 49 ? `a${i}` : 'edge' }),
         );
@@ -155,7 +157,7 @@ describe('JournalView', () => {
         expect(within(groups[49]).getAllByRole('row')).toHaveLength(2);
     });
 
-    it('без выделения предлагает выбрать объект и не ходит на сервер', () => {
+    it('journal_noSelection_suggestsSelectingObjectAndDoesNotCallServer', () => {
         const { api, get } = fakeJournalApi({});
 
         render(<JournalView api={api} selectedId={null} resolver={resolver} />);
@@ -164,7 +166,7 @@ describe('JournalView', () => {
         expect(get).not.toHaveBeenCalled();
     });
 
-    it('следит за выделением: при смене объекта запрашивает его журнал', async () => {
+    it('journal_selectionChange_requestsJournalOfNewObject', async () => {
         const { api, get } = fakeJournalApi({
             'journal?objectId=t1&skip=0&take=50': { total: 0, items: [] },
             'journal?objectId=f1&skip=0&take=50': { total: 0, items: [] },
@@ -177,7 +179,7 @@ describe('JournalView', () => {
         await waitFor(() => expect(get).toHaveBeenCalledWith('journal?objectId=f1&skip=0&take=50'));
     });
 
-    it('переключатель «все мои изменения» показывает общий список', async () => {
+    it('journal_allMyChangesToggle_showsCommonList', async () => {
         const { api, get } = fakeJournalApi({
             'journal?objectId=t1&skip=0&take=50': { total: 0, items: [] },
             'journal?skip=0&take=50': {
@@ -195,7 +197,7 @@ describe('JournalView', () => {
         expect(screen.getByText('Купить молоко')).toBeInTheDocument();
     });
 
-    it('«Показать ещё» подгружает следующую страницу', async () => {
+    it('journal_showMore_loadsNextPage', async () => {
         const first = Array.from({ length: 50 }, (_, i) =>
             entry({
                 id: 100 - i,
@@ -229,7 +231,7 @@ describe('JournalView', () => {
         expect(screen.queryByRole('button', { name: 'Показать ещё' })).not.toBeInTheDocument();
     });
 
-    it('ошибка загрузки показывается сообщением', async () => {
+    it('journal_loadFailure_isShownAsMessage', async () => {
         const { api } = fakeJournalApi({});
 
         render(<JournalView api={api} selectedId="t1" resolver={resolver} />);
@@ -237,7 +239,7 @@ describe('JournalView', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('journal?objectId=t1');
     });
 
-    it('только просмотр: кнопок отката и правки нет', async () => {
+    it('journal_readOnly_hasNoRollbackOrEditButtons', async () => {
         const { api } = fakeJournalApi({
             'journal?objectId=t1&skip=0&take=50': {
                 total: 1,
@@ -254,7 +256,7 @@ describe('JournalView', () => {
 });
 
 describe('registerJournal', () => {
-    it('регистрирует вкладку «Журнал» и пункт «Вид → Журнал», открывающий её', () => {
+    it('journal_registration_registersJournalTabAndMenuItemViewJournalThatOpensIt', () => {
         const tabs = createTabRegistry();
         const menu = createMenuRegistry();
         registerJournal(tabs, menu);

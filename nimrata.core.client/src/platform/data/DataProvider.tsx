@@ -1,12 +1,9 @@
-/* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useSyncExternalStore } from 'react';
+import { DataContext } from '@platform/data/DataContext';
+
 import type { ReactNode } from 'react';
+import type { DataController } from '@platform/data/DataController';
 
-import type { DataController } from './DataController';
-
-const DataContext = createContext<DataController | null>(null);
-
-/** Отдаёт `DataController` остальным компонентам платформы. */
+/** Отдаёт `DataController` остальным компонентам платформы */
 export function DataProvider({
     controller,
     children,
@@ -15,12 +12,4 @@ export function DataProvider({
     children: ReactNode;
 }) {
     return <DataContext.Provider value={controller}>{children}</DataContext.Provider>;
-}
-
-/** Контроллер данных; компонент перерисовывается при каждом изменении модели. */
-export function useData(): DataController {
-    const controller = useContext(DataContext);
-    if (!controller) throw new Error('DataProvider не найден в дереве компонентов.');
-    useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-    return controller;
 }

@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDataController } from '@platform';
-import type { DataController, TypeDefinition } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
-import type { FakeApi } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { ensureStartStructure, registerTracker } from './tracker';
+
+import type { DataController, TypeDefinition } from '@platform';
+import type { FakeApi } from '@platform/data/fakeApi';
 
 const types = manifest.types.map((t) => ({
     ...t,
@@ -26,8 +27,8 @@ function byType(data: DataController, type: string) {
     return data.getChildren(null).find((o) => o.type === type)!;
 }
 
-describe('Трекер: стартовая структура', () => {
-    it('при отсутствии корней создаёт «Задачи» с двумя подгруппами и «Заметки» одним набором', async () => {
+describe('Tracker: start structure', () => {
+    it('startStructure_noRoots_createsTasksWithTwoSubgroupsAndNotesInOneChangeset', async () => {
         const { api, data } = await start();
 
         const result = await ensureStartStructure(data);
@@ -48,10 +49,10 @@ describe('Трекер: стартовая структура', () => {
         expect(data.getChildren(byType(data, 'NotesRoot').id)).toEqual([]);
     });
 
-    it('при повторном входе дублей не создаёт и ничего не отправляет', async () => {
+    it('startStructure_repeatedLogin_createsNoDuplicatesAndSendsNothing', async () => {
         const { api, data } = await start();
         await ensureStartStructure(data);
-        // Повторный вход: модель загружается заново из того, что принял сервер.
+        // Повторный вход: модель загружается заново из того, что принял сервер
         api.objects = [
             ...data.getChildren(null),
             ...data.getChildren(byType(data, 'TasksRoot').id),
@@ -65,7 +66,7 @@ describe('Трекер: стартовая структура', () => {
         expect(data.getChildren(null)).toHaveLength(3);
     });
 
-    it('при отказе сервера возвращает причину и не оставляет частичной структуры', async () => {
+    it('startStructure_serverRejects_returnsReasonAndLeavesNoPartialStructure', async () => {
         const { api, data } = await start();
         api.rejectNext(400, 'нельзя');
 
@@ -75,7 +76,7 @@ describe('Трекер: стартовая структура', () => {
         expect(data.getChildren(null)).toEqual([]);
     });
 
-    it('если данные не загрузились, структуру не создаёт (иначе при сбое сети появились бы дубли)', async () => {
+    it('startStructure_dataNotLoaded_createsNothingToAvoidDuplicatesOnNetworkFailure', async () => {
         const api = createFakeApi(types, []);
         api.get = () => Promise.reject(new Error('сеть недоступна'));
         const data = createDataController({ api });
@@ -88,7 +89,7 @@ describe('Трекер: стартовая структура', () => {
     });
 });
 
-describe('Трекер: заметки', () => {
+describe('Tracker: notes', () => {
     let api: FakeApi;
     let data: DataController;
     let notesId: string;
@@ -103,7 +104,7 @@ describe('Трекер: заметки', () => {
         return data.getChildren(parent).find((o) => o.properties.name === name);
     }
 
-    it('«Создать заметку» создаёт заметку с введённым названием под корнем', async () => {
+    it('createNote_action_createsNoteWithEnteredTitleUnderRoot', async () => {
         const result = await data.runAction(notesId, 'createNote', { title: 'Идея' });
 
         expect(result.ok).toBe(true);
@@ -112,7 +113,7 @@ describe('Трекер: заметки', () => {
         expect(note.properties.title).toBe('Идея');
     });
 
-    it('«Создать группу заметок» создаёт группу, а внутри неё — вложенные группы и заметки', async () => {
+    it('createNoteGroup_action_createsGroupWithNestedGroupsAndNotes', async () => {
         await data.runAction(notesId, 'createNoteGroup', { name: 'Работа' });
         const group = childByName(notesId, 'Работа')!;
         expect(group.type).toBe('NoteGroup');
@@ -125,20 +126,20 @@ describe('Трекер: заметки', () => {
         expect(childByName(inner.id, 'Заметка')?.type).toBe('Note');
     });
 
-    it('создание требует название', async () => {
+    it('createNote_withoutTitle_isRejected', async () => {
         const result = await data.runAction(notesId, 'createNote', { title: '' });
 
         expect(result.ok).toBe(false);
         expect(data.getChildren(notesId)).toEqual([]);
     });
 
-    it('имя заметки без статуса равно названию', async () => {
+    it('noteName_withoutStatus_equalsTitle', async () => {
         await data.runAction(notesId, 'createNote', { title: 'Идея' });
 
         expect(data.getChildren(notesId)[0].properties.name).toBe('Идея');
     });
 
-    it('имя заметки со статусом — «[Статус] Название», обновляется при смене статуса и названия', async () => {
+    it('noteName_withStatus_isStatusInBracketsTitleAndUpdatesOnStatusAndTitleChange', async () => {
         await data.runAction(notesId, 'createNote', { title: 'Идея' });
         const id = data.getChildren(notesId)[0].id;
 
@@ -152,7 +153,7 @@ describe('Трекер: заметки', () => {
         expect(data.getObject(id)?.properties.name).toBe('Мысль');
     });
 
-    it('смена статуса и пересчёт имени — один набор изменений, Undo откатывает оба', async () => {
+    it('noteStatus_changeAndNameRecompute_areOneChangesetAndUndoRevertsBoth', async () => {
         await data.runAction(notesId, 'createNote', { title: 'Идея' });
         const id = data.getChildren(notesId)[0].id;
         const before = api.changesets.length;
@@ -165,7 +166,7 @@ describe('Трекер: заметки', () => {
         expect(data.getObject(id)?.properties.name).toBe('Идея');
     });
 
-    it('заметка, созданная из дерева с названием, тоже получает имя', async () => {
+    it('noteName_createdFromTreeWithTitle_getsNameToo', async () => {
         const created = await data.create({
             type: 'Note',
             parent: notesId,
@@ -177,7 +178,7 @@ describe('Трекер: заметки', () => {
         expect(data.getObject(id)?.properties.name).toBe('[Завершена] Из дерева');
     });
 
-    it('цветовые правила заметки: средний приоритет — оранжевый, высокий — красный, «Завершена» — зелёный', () => {
+    it('noteColorRules_mediumPriorityOrangeHighRedCompletedGreen', () => {
         expect(data.getType('Note')?.colorRules).toEqual([
             { property: 'priority', equals: 'medium', color: 'orange' },
             { property: 'priority', equals: 'high', color: 'red' },
@@ -185,8 +186,8 @@ describe('Трекер: заметки', () => {
         ]);
     });
 
-    describe('«Перейти по внешней ссылке»', () => {
-        it('доступно только при заданной ссылке', async () => {
+    describe('"Open external link"', () => {
+        it('openExternalLink_available_onlyWhenLinkIsSet', async () => {
             await data.runAction(notesId, 'createNote', { title: 'Без ссылки' });
             await data.runAction(notesId, 'createNote', { title: 'Со ссылкой' });
             const without = childByName(notesId, 'Без ссылки')!;
@@ -198,7 +199,7 @@ describe('Трекер: заметки', () => {
             expect(ids(withLink.id)).toContain('openExternalLink');
         });
 
-        it('открывает ссылку в новой вкладке без передачи opener', async () => {
+        it('openExternalLink_opensLinkInNewTabWithoutOpener', async () => {
             const open = vi.spyOn(window, 'open').mockReturnValue(null);
             await data.runAction(notesId, 'createNote', { title: 'Со ссылкой' });
             const id = data.getChildren(notesId)[0].id;
@@ -215,7 +216,7 @@ describe('Трекер: заметки', () => {
             open.mockRestore();
         });
 
-        it('не открывает небезопасные схемы (javascript:)', async () => {
+        it('openExternalLink_unsafeSchemes_javascriptAreNotOpened', async () => {
             const open = vi.spyOn(window, 'open').mockReturnValue(null);
             await data.runAction(notesId, 'createNote', { title: 'Плохая' });
             const id = data.getChildren(notesId)[0].id;
@@ -230,10 +231,10 @@ describe('Трекер: заметки', () => {
     });
 });
 
-describe('Трекер: изоляция пользователей', () => {
-    it('структура достраивается по объектам, которые сервер отдал именно этому пользователю', async () => {
+describe('Tracker: user isolation', () => {
+    it('isolation_structure_isCompletedFromObjectsServerGaveThisUser', async () => {
         // Сервер отдаёт пользователю только его объекты; у второго пользователя корней нет —
-        // они создаются у него, а чужие объекты не появляются.
+        // они создаются у него, а чужие объекты не появляются
         const own = [{ id: 'r1', type: 'NotesRoot', parent: null, order: 0, properties: {} }];
         const first = await start(own);
         const second = await start([]);
@@ -241,7 +242,7 @@ describe('Трекер: изоляция пользователей', () => {
         await ensureStartStructure(first.data);
         await ensureStartStructure(second.data);
 
-        // Первому недостаёт только «Задач»; «Заметки» у него уже есть и не дублируются.
+        // Первому недостаёт только «Задач»; «Заметки» у него уже есть и не дублируются
         expect(first.data.getChildren(null).filter((o) => o.type === 'NotesRoot')).toHaveLength(1);
         expect(first.data.getObject('r1')).toBeDefined();
         expect(second.data.getObject('r1')).toBeUndefined();
@@ -249,13 +250,13 @@ describe('Трекер: изоляция пользователей', () => {
     });
 });
 
-describe('Манифест Трекера: соответствие операциям логики', () => {
-    it('у каждого типа узла задан значок', () => {
+describe('Tracker manifest: consistency with logic', () => {
+    it('manifest_everyNodeType_hasIcon', () => {
         const withoutIcon = manifest.types.filter((t) => !('icon' in t) || !t.icon);
         expect(withoutIcon.map((t) => t.id)).toEqual([]);
     });
 
-    it('стартовая структура принимается так же, как её принял бы сервер (allowedChildren)', async () => {
+    it('manifest_startStructure_isAcceptedAsServerWouldAcceptIt', async () => {
         const { api, data } = await start([]);
 
         const result = await ensureStartStructure(data);

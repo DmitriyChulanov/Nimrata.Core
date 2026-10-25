@@ -1,16 +1,16 @@
-// Узлы дерева Трекера: поиск и создание по требованию (годы, месяцы, дни, категории), корни.
-
-import type { ChangeScope, DataController, DataObject } from '@platform';
+// Узлы дерева Трекера: поиск и создание по требованию (годы, месяцы, дни, категории), корни
 
 import { CATEGORY, DAY, DAY_OFF, DAY_TYPES, MONTH, TASKS_ROOT, YEAR } from './constants';
 import { dayName, isWeekend, monthName, pad } from './dates';
-import type { Ymd } from './dates';
 import { orThrow } from './results';
 
-/** Категории дня идут перед задачами (у задач порядок не меньше 0). */
+import type { ChangeScope, DataController, DataObject } from '@platform';
+import type { Ymd } from './dates';
+
+/** Категории дня идут перед задачами (у задач порядок не меньше 0) */
 const CATEGORY_ORDER = -1;
 
-/** Создаёт объект; отказ превращается в исключение. Возвращает идентификатор. */
+/** Создаёт объект; отказ превращается в исключение. Возвращает идентификатор */
 export function createNode(
     tx: ChangeScope,
     parent: string | null,
@@ -23,7 +23,7 @@ export function createNode(
     return result.ok ? result.id : '';
 }
 
-/** Потомок `parent` одного из типов `types`, подходящий под условие. */
+/** Потомок `parent` одного из типов `types`, подходящий под условие */
 export function findChild(
     data: DataController,
     parent: string,
@@ -34,7 +34,7 @@ export function findChild(
     return data.getChildren(parent).find((o) => list.includes(o.type) && match(o));
 }
 
-/** Находит потомка или создаёт его; возвращает идентификатор. */
+/** Находит потомка или создаёт его; возвращает идентификатор */
 function ensureNode(
     data: DataController,
     tx: ChangeScope,
@@ -49,7 +49,7 @@ function ensureNode(
     );
 }
 
-/** Находит или создаёт год внутри «Завершённых задач». */
+/** Находит или создаёт год внутри «Завершённых задач» */
 export function ensureYear(
     data: DataController,
     tx: ChangeScope,
@@ -68,7 +68,7 @@ export function ensureYear(
     );
 }
 
-/** Находит или создаёт месяц и день внутри `parentId` (корень или год); возвращает идентификатор дня. */
+/** Находит или создаёт месяц и день внутри `parentId` (корень или год); возвращает идентификатор дня */
 export function ensureDay(
     data: DataController,
     tx: ChangeScope,
@@ -97,7 +97,7 @@ export function ensureDay(
     );
 }
 
-/** Находит категорию с таким названием внутри родителя или создаёт её. */
+/** Находит категорию с таким названием внутри родителя или создаёт её */
 export function ensureCategory(
     data: DataController,
     tx: ChangeScope,
@@ -128,7 +128,7 @@ export function ancestors(data: DataController, object: DataObject): DataObject[
 
 /**
  * Корень «Текущие задачи» или «Завершённые задачи» (`type`): рядом с объектом `near`
- * (в той же ветке «Задачи»), а без него или если ветки нет — среди всех корней «Задачи».
+ * (в той же ветке «Задачи»), а без него или если ветки нет — среди всех корней «Задачи»
  */
 export function findRoot(
     data: DataController,

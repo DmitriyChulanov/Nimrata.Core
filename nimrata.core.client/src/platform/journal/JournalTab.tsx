@@ -1,18 +1,20 @@
-import { useApi } from '../auth/AuthProvider';
-import { useData } from '../data/DataProvider';
-import { useSelection } from '../selection/SelectionProvider';
-import { useTypes } from '../types/TypesProvider';
+import { useApi } from '@platform/auth/useApi';
+import { useData } from '@platform/data/useData';
+import { useSelection } from '@platform/selection/useSelection';
+import { useTypes } from '@platform/types/useTypes';
+
 import { JournalView } from './JournalView';
+
 import type { JournalResolver } from './journal';
 
-/** Вкладка «Журнал»: следит за выделением в дереве. */
+/** Вкладка «Журнал»: следит за выделением в дереве */
 export function JournalTab() {
     const api = useApi();
     const data = useData();
     const { getType } = useTypes();
     const { selectedId } = useSelection();
 
-    // Resolver читает актуальную модель; useData перерисовывает вкладку при её изменении.
+    // Resolver читает актуальную модель; useData перерисовывает вкладку при её изменении
     const resolver: JournalResolver = {
         typeName: (id) => getType(id)?.name ?? id,
         propertyName: (typeId, id) =>

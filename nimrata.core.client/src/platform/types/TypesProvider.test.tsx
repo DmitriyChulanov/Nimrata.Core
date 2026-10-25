@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { AuthProvider } from '../auth/AuthProvider';
-import { TypesProvider, useTypes } from './TypesProvider';
+import { AuthProvider } from '@platform/auth/AuthProvider';
+
+import { TypesProvider } from './TypesProvider';
+import { useTypes } from './useTypes';
+
 import type { TypeDefinition } from './types';
 
 const noteType: TypeDefinition = {
@@ -45,7 +48,7 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-it('после входа загружает типы с токеном и отдаёт их по идентификатору', async () => {
+it('typesProvider_afterLogin_loadsTypesWithTokenAndServesThemById', async () => {
     const fetchMock = vi
         .fn()
         .mockImplementation((url: string) =>
@@ -66,7 +69,7 @@ it('после входа загружает типы с токеном и от�
     expect(new Headers(typesCall![1].headers).get('Authorization')).toBe('Bearer tok');
 });
 
-it('без входа типы не запрашиваются', async () => {
+it('typesProvider_withoutLogin_doesNotRequestTypes', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -77,7 +80,7 @@ it('без входа типы не запрашиваются', async () => {
     expect(screen.getByTestId('count')).toHaveTextContent('0');
 });
 
-it('ошибка загрузки типов переводит хранилище в состояние error', async () => {
+it('typesProvider_loadError_movesStoreToErrorState', async () => {
     const fetchMock = vi
         .fn()
         .mockImplementation((url: string) =>

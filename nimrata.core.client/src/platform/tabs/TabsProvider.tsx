@@ -1,30 +1,16 @@
-/* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { loadLayout, saveLayout } from '@platform/tabs/layoutStorage';
+import { DEFAULT_WIDTHS, TabsContext } from '@platform/tabs/TabsContext';
+
 import type { ReactNode } from 'react';
-
-import { loadLayout, saveLayout } from './layoutStorage';
-import type { OpenTab, StoredLayout } from './layoutStorage';
-import type { TabRegistry } from './registries';
-
-export const DEFAULT_WIDTHS = { left: 280, right: 320 };
-
-export interface TabsValue {
-    registry: TabRegistry;
-    tabs: OpenTab[];
-    activeId: string | null;
-    widths: StoredLayout['widths'];
-    /** Открывает вкладку вида; для вида с одной копией переключает на уже открытую. */
-    openTab(kindId: string): void;
-    closeTab(id: string): void;
-    activate(id: string): void;
-    setWidths(widths: StoredLayout['widths']): void;
-}
-
-const TabsContext = createContext<TabsValue | null>(null);
+import type { StoredLayout } from '@platform/tabs/layoutStorage';
+import type { TabRegistry } from '@platform/tabs/registries';
+import type { TabsValue } from '@platform/tabs/TabsContext';
 
 export interface TabsProviderProps {
     registry: TabRegistry;
-    /** Пользователь, чья раскладка хранится в `localStorage`. */
+    /** Пользователь, чья раскладка хранится в `localStorage` */
     userId: string;
     children: ReactNode;
 }
@@ -39,7 +25,7 @@ function initialLayout(registry: TabRegistry, userId: string): StoredLayout {
     return { tabs, activeId, widths: stored.widths };
 }
 
-/** Состояние раскладки: открытые вкладки, активная вкладка и ширины панелей (запоминаются для пользователя). */
+/** Состояние раскладки: открытые вкладки, активная вкладка и ширины панелей (запоминаются для пользователя) */
 export function TabsProvider({ registry, userId, children }: TabsProviderProps) {
     const [layout, setLayout] = useState(() => initialLayout(registry, userId));
 
@@ -103,10 +89,4 @@ export function TabsProvider({ registry, userId, children }: TabsProviderProps) 
     );
 
     return <TabsContext.Provider value={value}>{children}</TabsContext.Provider>;
-}
-
-export function useTabs(): TabsValue {
-    const value = useContext(TabsContext);
-    if (!value) throw new Error('TabsProvider не найден в дереве компонентов.');
-    return value;
 }

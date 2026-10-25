@@ -1,3 +1,4 @@
+using Nimrata.Core.Server.Controllers.Responses;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -10,187 +11,187 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Манифест модуля: загрузка в таблицу типов при старте и выдача типов по API.</summary>
-public sealed class ManifestTests(ServerFactory фабрика) : IClassFixture<ServerFactory>, IDisposable
+/// <summary>Манифест модуля: загрузка в таблицу типов при старте и выдача типов по API</summary>
+public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerFactory>, IDisposable
 {
-    private readonly List<string> _каталоги = [];
+    private readonly List<string> _directories = [];
 
     public void Dispose()
     {
-        foreach (var каталог in _каталоги) Directory.Delete(каталог, recursive: true);
+        foreach (var directory in _directories) Directory.Delete(directory, recursive: true);
     }
 
-    private static string ТипJson(string id, string имя = "Тип") =>
-        $$"""{ "id": "{{id}}", "name": "{{имя}}" }""";
+    private static string TypeJson(string id, string name = "Тип") =>
+        $$"""{ "id": "{{id}}", "name": "{{name}}" }""";
 
-    private static string Манифест(int версия, params string[] типы) =>
-        $$"""{ "module": "demo", "version": {{версия}}, "types": [ {{string.Join(",", типы)}} ] }""";
+    private static string Manifest(int version, params string[] types) =>
+        $$"""{ "module": "demo", "version": {{version}}, "types": [ {{string.Join(",", types)}} ] }""";
 
-    /// <summary>Каталог модулей с одним манифестом.</summary>
-    private string Каталог(string манифест)
+    /// <summary>Каталог модулей с одним манифестом</summary>
+    private string ModulesDirectory(string manifest)
     {
-        var каталог = Path.Combine(Path.GetTempPath(), "nimrata-modules-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(каталог, "demo"));
-        File.WriteAllText(Path.Combine(каталог, "demo", "manifest.json"), манифест);
-        _каталоги.Add(каталог);
-        return каталог;
+        var directory = Path.Combine(Path.GetTempPath(), "nimrata-modules-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(directory, "demo"));
+        File.WriteAllText(Path.Combine(directory, "demo", "manifest.json"), manifest);
+        _directories.Add(directory);
+        return directory;
     }
 
-    private static string НоваяБаза(string строка) =>
-        new NpgsqlConnectionStringBuilder(строка) { Database = "m" + Guid.NewGuid().ToString("N") }.ConnectionString;
+    private static string NewDatabase(string row) =>
+        new NpgsqlConnectionStringBuilder(row) { Database = "m" + Guid.NewGuid().ToString("N") }.ConnectionString;
 
-    private WebApplicationFactory<Program> Сервер(string база, string? каталог) =>
-        фабрика.WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, конфигурация) =>
+    private WebApplicationFactory<Program> Server(string database, string? directory) =>
+        factory.WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, configuration) =>
         {
-            var значения = new Dictionary<string, string?> { ["ConnectionStrings:Default"] = база };
-            if (каталог is not null) значения["Modules:Path"] = каталог;
-            конфигурация.AddInMemoryCollection(значения);
+            var values = new Dictionary<string, string?> { ["ConnectionStrings:Default"] = database };
+            if (directory is not null) values["Modules:Path"] = directory;
+            configuration.AddInMemoryCollection(values);
         }));
 
-    private static async Task<JsonElement[]> Типы(HttpClient клиент)
+    private static async Task<JsonElement[]> FetchTypes(HttpClient client)
     {
-        var вход = await клиент.PostAsJsonAsync("/api/auth/login",
+        var login = await client.PostAsJsonAsync("/api/auth/login",
             new { email = ServerFactory.AdminEmail, password = ServerFactory.AdminPassword });
-        var токен = (await вход.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken;
-        клиент.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", токен);
-        return (await клиент.GetFromJsonAsync<JsonElement[]>("/api/types"))!;
+        var token = (await login.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken;
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return (await client.GetFromJsonAsync<JsonElement[]>("/api/types"))!;
     }
 
-    private static async Task<long> ЧислоСтрок(string база)
+    private static async Task<long> RowCount(string database)
     {
-        await using var соединение = new NpgsqlConnection(база);
-        return await соединение.ExecuteScalarAsync<long>("select count(*) from types");
+        await using var connection = new NpgsqlConnection(database);
+        return await connection.ExecuteScalarAsync<long>("select count(*) from types");
     }
 
-    private static string Ид(JsonElement тип) => тип.GetProperty("id").GetString()!;
+    private static string GetId(JsonElement type) => type.GetProperty("id").GetString()!;
 
     [Fact]
-    public async Task Типы_БезТокена_Возвращает401()
+    public async Task Types_WithoutToken_Returns401()
     {
-        using var клиент = фабрика.CreateClient();
+        using var client = factory.CreateClient();
 
-        var ответ = await клиент.GetAsync("/api/types");
+        var response = await client.GetAsync("/api/types");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, ответ.StatusCode);
-    }
-
-    [Fact]
-    public async Task Типы_МанифестТрекераПоУмолчанию_ВозвращаетЗаметкуИГруппуЗаметок()
-    {
-        using var клиент = фабрика.CreateClient();
-
-        var типы = await Типы(клиент);
-
-        var ид = типы.Select(Ид).ToList();
-        Assert.Contains("Note", ид);
-        Assert.Contains("NoteGroup", ид);
-        var заметка = типы.Single(т => Ид(т) == "Note");
-        Assert.Equal("tracker", заметка.GetProperty("module").GetString());
-        Assert.Contains(заметка.GetProperty("properties").EnumerateArray(),
-            с => с.GetProperty("id").GetString() == "priority" && с.GetProperty("kind").GetString() == "enum");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task Старт_ЗагружаетТипыИзМанифеста()
+    public async Task Types_DefaultTrackerManifest_ReturnsNoteAndNoteGroup()
     {
-        var база = НоваяБаза(фабрика.ConnectionString);
-        using var сервер = Сервер(база, Каталог(Манифест(1, ТипJson("A", "Первый"), ТипJson("B"))));
-        using var клиент = сервер.CreateClient();
+        using var client = factory.CreateClient();
 
-        var типы = await Типы(клиент);
+        var types = await FetchTypes(client);
 
-        Assert.Equal(["A", "B"], типы.Select(Ид).Order());
-        var a = типы.Single(т => Ид(т) == "A");
+        var ids = types.Select(GetId).ToList();
+        Assert.Contains("Note", ids);
+        Assert.Contains("NoteGroup", ids);
+        var note = types.Single(type => GetId(type) == "Note");
+        Assert.Equal("tracker", note.GetProperty("module").GetString());
+        Assert.Contains(note.GetProperty("properties").EnumerateArray(),
+            property => property.GetProperty("id").GetString() == "priority" && property.GetProperty("kind").GetString() == "enum");
+    }
+
+    [Fact]
+    public async Task Startup_LoadsTypesFromManifest()
+    {
+        var database = NewDatabase(factory.ConnectionString);
+        using var server = Server(database, ModulesDirectory(Manifest(1, TypeJson("A", "Первый"), TypeJson("B"))));
+        using var client = server.CreateClient();
+
+        var types = await FetchTypes(client);
+
+        Assert.Equal(["A", "B"], types.Select(GetId).Order());
+        var a = types.Single(type => GetId(type) == "A");
         Assert.Equal("Первый", a.GetProperty("name").GetString());
         Assert.Equal(1, a.GetProperty("moduleVersion").GetInt32());
     }
 
     [Fact]
-    public async Task ПовторныйСтарт_ТойЖеВерсии_НеДублируетТипы()
+    public async Task Restart_SameVersion_DoesNotDuplicateTypes()
     {
-        var база = НоваяБаза(фабрика.ConnectionString);
-        var каталог = Каталог(Манифест(1, ТипJson("A"), ТипJson("B")));
-        using (var первый = Сервер(база, каталог))
+        var database = NewDatabase(factory.ConnectionString);
+        var directory = ModulesDirectory(Manifest(1, TypeJson("A"), TypeJson("B")));
+        using (var first = Server(database, directory))
         {
-            using var к = первый.CreateClient();
-            await Типы(к);
+            using var serverClient = first.CreateClient();
+            await FetchTypes(serverClient);
         }
 
-        using var второй = Сервер(база, каталог);
-        using var клиент = второй.CreateClient();
-        var типы = await Типы(клиент);
+        using var second = Server(database, directory);
+        using var client = second.CreateClient();
+        var types = await FetchTypes(client);
 
-        Assert.Equal(2, типы.Length);
-        Assert.Equal(2, await ЧислоСтрок(база));
+        Assert.Equal(2, types.Length);
+        Assert.Equal(2, await RowCount(database));
     }
 
     [Fact]
-    public async Task Старт_СНовойВерсиейМанифеста_ОбновляетТипыИДобавляетНовые()
+    public async Task Startup_NewManifestVersion_UpdatesTypesAndAddsNew()
     {
-        var база = НоваяБаза(фабрика.ConnectionString);
-        var каталог = Каталог(Манифест(1, ТипJson("A", "Старое имя")));
-        using (var первый = Сервер(база, каталог))
+        var database = NewDatabase(factory.ConnectionString);
+        var directory = ModulesDirectory(Manifest(1, TypeJson("A", "Старое имя")));
+        using (var first = Server(database, directory))
         {
-            using var к = первый.CreateClient();
-            await Типы(к);
+            using var serverClient = first.CreateClient();
+            await FetchTypes(serverClient);
         }
-        File.WriteAllText(Path.Combine(каталог, "demo", "manifest.json"),
-            Манифест(2, ТипJson("A", "Новое имя"), ТипJson("C")));
+        File.WriteAllText(Path.Combine(directory, "demo", "manifest.json"),
+            Manifest(2, TypeJson("A", "Новое имя"), TypeJson("C")));
 
-        using var второй = Сервер(база, каталог);
-        using var клиент = второй.CreateClient();
-        var типы = await Типы(клиент);
+        using var second = Server(database, directory);
+        using var client = second.CreateClient();
+        var types = await FetchTypes(client);
 
-        Assert.Equal(2, типы.Length);
-        var a = типы.Single(т => Ид(т) == "A");
+        Assert.Equal(2, types.Length);
+        var a = types.Single(type => GetId(type) == "A");
         Assert.Equal("Новое имя", a.GetProperty("name").GetString());
         Assert.Equal(2, a.GetProperty("moduleVersion").GetInt32());
     }
 
     [Fact]
-    public async Task Старт_СТойЖеВерсиейНоДругимСодержимым_НеПерезаписываетТипы()
+    public async Task Startup_SameVersionDifferentContent_DoesNotOverwriteTypes()
     {
-        var база = НоваяБаза(фабрика.ConnectionString);
-        var каталог = Каталог(Манифест(1, ТипJson("A", "Исходное")));
-        using (var первый = Сервер(база, каталог))
+        var database = NewDatabase(factory.ConnectionString);
+        var directory = ModulesDirectory(Manifest(1, TypeJson("A", "Исходное")));
+        using (var first = Server(database, directory))
         {
-            using var к = первый.CreateClient();
-            await Типы(к);
+            using var serverClient = first.CreateClient();
+            await FetchTypes(serverClient);
         }
-        File.WriteAllText(Path.Combine(каталог, "demo", "manifest.json"), Манифест(1, ТипJson("A", "Правка без версии")));
+        File.WriteAllText(Path.Combine(directory, "demo", "manifest.json"), Manifest(1, TypeJson("A", "Правка без версии")));
 
-        using var второй = Сервер(база, каталог);
-        using var клиент = второй.CreateClient();
-        var типы = await Типы(клиент);
+        using var second = Server(database, directory);
+        using var client = second.CreateClient();
+        var types = await FetchTypes(client);
 
-        Assert.Equal("Исходное", типы.Single().GetProperty("name").GetString());
+        Assert.Equal("Исходное", types.Single().GetProperty("name").GetString());
     }
 
-    public static TheoryData<string, string> НевалидныеМанифесты => new()
+    public static TheoryData<string, string> InvalidManifests => new()
     {
         { "{ не json", "JSON" },
         { """{ "module": "demo", "types": [] }""", "version" },
         { """{ "module": "demo", "version": 1 }""", "types" },
-        { Манифест(1, """{ "name": "Без id" }"""), "id" },
-        { Манифест(1, ТипJson("A"), ТипJson("A")), "повторяется" },
-        { Манифест(1, """{ "id": "A", "name": "A", "properties": [ { "id": "p", "name": "P", "kind": "float" } ] }"""), "float" },
-        { Манифест(1, """{ "id": "A", "name": "A", "properties": [ { "id": "p", "name": "P", "kind": "enum" } ] }"""), "enum" },
-        { Манифест(1, """{ "id": "A", "name": "A", "allowedChildren": ["Нет"] }"""), "Нет" },
-        { Манифест(1, """{ "id": "A", "name": "A", "abstract": true, "sealed": true }"""), "abstract" },
-        { Манифест(1, """{ "id": "A", "name": "A", "actions": [ { "id": "x", "name": "X", "placements": ["toolbar"] } ] }"""), "toolbar" },
-        { Манифест(1, """{ "id": "A", "name": "A", "colorRules": [ { "property": "нет", "equals": "1", "color": "red" } ] }"""), "нет" },
+        { Manifest(1, """{ "name": "Без id" }"""), "id" },
+        { Manifest(1, TypeJson("A"), TypeJson("A")), "повторяется" },
+        { Manifest(1, """{ "id": "A", "name": "A", "properties": [ { "id": "p", "name": "P", "kind": "float" } ] }"""), "float" },
+        { Manifest(1, """{ "id": "A", "name": "A", "properties": [ { "id": "p", "name": "P", "kind": "enum" } ] }"""), "enum" },
+        { Manifest(1, """{ "id": "A", "name": "A", "allowedChildren": ["Нет"] }"""), "Нет" },
+        { Manifest(1, """{ "id": "A", "name": "A", "abstract": true, "sealed": true }"""), "abstract" },
+        { Manifest(1, """{ "id": "A", "name": "A", "actions": [ { "id": "x", "name": "X", "placements": ["toolbar"] } ] }"""), "toolbar" },
+        { Manifest(1, """{ "id": "A", "name": "A", "colorRules": [ { "property": "нет", "equals": "1", "color": "red" } ] }"""), "нет" },
     };
 
     [Theory]
-    [MemberData(nameof(НевалидныеМанифесты))]
-    public void Старт_НевалидныйМанифест_ОстанавливаетсяСПонятнойОшибкой(string манифест, string подстрока)
+    [MemberData(nameof(InvalidManifests))]
+    public void Startup_InvalidManifest_FailsWithClearError(string manifest, string substring)
     {
-        var база = НоваяБаза(фабрика.ConnectionString);
-        using var сервер = Сервер(база, Каталог(манифест));
+        var database = NewDatabase(factory.ConnectionString);
+        using var server = Server(database, ModulesDirectory(manifest));
 
-        var ошибка = Assert.ThrowsAny<Exception>(() => сервер.CreateClient());
+        var error = Assert.ThrowsAny<Exception>(() => server.CreateClient());
 
-        Assert.Contains(подстрока, ошибка.ToString());
-        Assert.Contains("manifest.json", ошибка.ToString());
+        Assert.Contains(substring, error.ToString());
+        Assert.Contains("manifest.json", error.ToString());
     }
 }

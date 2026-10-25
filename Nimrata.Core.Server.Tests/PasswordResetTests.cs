@@ -1,3 +1,4 @@
+using Nimrata.Core.Server.Controllers.Responses;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,173 +9,173 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Сброс пароля по e-mail: HTTP API с поддельной почтой (фабрика с Postgres в Testcontainers).</summary>
-public class PasswordResetTests(ServerFactory фабрика) : IClassFixture<ServerFactory>
+/// <summary>Сброс пароля по e-mail: HTTP API с поддельной почтой (фабрика с Postgres в Testcontainers)</summary>
+public class PasswordResetTests(ServerFactory factory) : IClassFixture<ServerFactory>
 {
     private record UserDto(Guid Id, string Email);
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    private HttpClient Клиент() => фабрика.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+    private HttpClient NewClient() => factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
 
-    private static string Уникальный() => $"r{Guid.NewGuid():N}@example.test";
+    private static string UniqueEmail() => $"r{Guid.NewGuid():N}@example.test";
 
-    private async Task<HttpClient> Администратор()
+    private async Task<HttpClient> Administrator()
     {
-        var клиент = Клиент();
-        var вход = await клиент.PostAsJsonAsync("/api/auth/login", new { email = ServerFactory.AdminEmail, password = ServerFactory.AdminPassword });
-        var токен = (await вход.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken;
-        клиент.DefaultRequestHeaders.Authorization = new("Bearer", токен);
-        return клиент;
+        var client = NewClient();
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { email = ServerFactory.AdminEmail, password = ServerFactory.AdminPassword });
+        var token = (await login.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken;
+        client.DefaultRequestHeaders.Authorization = new("Bearer", token);
+        return client;
     }
 
-    private async Task<UserDto> СоздатьПользователя(string email, string пароль = "old-password-1")
+    private async Task<UserDto> CreateUserAsync(string email, string password = "old-password-1")
     {
-        using var админ = await Администратор();
-        var ответ = await админ.PostAsJsonAsync("/api/admin/users", new { email, name = "Имя", password = пароль, role = "member" });
-        Assert.Equal(HttpStatusCode.Created, ответ.StatusCode);
-        return (await ответ.Content.ReadFromJsonAsync<UserDto>(Json))!;
+        using var admin = await Administrator();
+        var response = await admin.PostAsJsonAsync("/api/admin/users", new { email, name = "Имя", password = password, role = "member" });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<UserDto>(Json))!;
     }
 
-    private static string ТокенИзПисьма(Auth.Письмо письмо) =>
-        Uri.UnescapeDataString(Regex.Match(письмо.Текст, @"token=([^\s]+)").Groups[1].Value);
+    private static string TokenFromEmail(Auth.EmailMessage email) =>
+        Uri.UnescapeDataString(Regex.Match(email.Body, @"token=([^\s]+)").Groups[1].Value);
 
-    private Auth.Письмо? ПоследнееПисьмо(string email) =>
-        фабрика.Почта.Письма.LastOrDefault(п => п.Кому == email);
+    private Auth.EmailMessage? LastEmail(string email) =>
+        factory.Mailbox.Emails.LastOrDefault(mail => mail.To == email);
 
-    private static Task<HttpResponseMessage> Запросить(HttpClient клиент, string email) =>
-        клиент.PostAsJsonAsync("/api/auth/forgot-password", new { email });
+    private static Task<HttpResponseMessage> RequestReset(HttpClient client, string email) =>
+        client.PostAsJsonAsync("/api/auth/forgot-password", new { email });
 
-    private static Task<HttpResponseMessage> Подтвердить(HttpClient клиент, string токен, string пароль) =>
-        клиент.PostAsJsonAsync("/api/auth/reset-password", new { token = токен, password = пароль });
+    private static Task<HttpResponseMessage> Confirm(HttpClient client, string token, string password) =>
+        client.PostAsJsonAsync("/api/auth/reset-password", new { token = token, password = password });
 
-    private static Task<HttpResponseMessage> Войти(HttpClient клиент, string email, string пароль) =>
-        клиент.PostAsJsonAsync("/api/auth/login", new { email, password = пароль });
+    private static Task<HttpResponseMessage> Login(HttpClient client, string email, string password) =>
+        client.PostAsJsonAsync("/api/auth/login", new { email, password = password });
 
     [Fact]
-    public async Task Запрос_ДляИзвестногоИНеизвестногоEmail_ОтвечаетОдинаковоИШлётПисьмоТолькоСуществующему()
+    public async Task Request_ForKnownAndUnknownEmail_RespondsSameAndMailsOnlyExistingUser()
     {
-        var email = Уникальный();
-        await СоздатьПользователя(email);
-        using var клиент = Клиент();
+        var email = UniqueEmail();
+        await CreateUserAsync(email);
+        using var client = NewClient();
 
-        var известный = await Запросить(клиент, email);
-        var неизвестный = await Запросить(клиент, "nobody-" + Уникальный());
+        var known = await RequestReset(client, email);
+        var unknown = await RequestReset(client, "nobody-" + UniqueEmail());
 
-        Assert.Equal(известный.StatusCode, неизвестный.StatusCode);
-        Assert.Equal(await известный.Content.ReadAsStringAsync(), await неизвестный.Content.ReadAsStringAsync());
-        Assert.NotNull(ПоследнееПисьмо(email));
-        Assert.DoesNotContain(фабрика.Почта.Письма, п => п.Кому.StartsWith("nobody-"));
-        Assert.Contains("https://nimrata.test/reset-password?token=", ПоследнееПисьмо(email)!.Текст);
-    }
-
-    [Fact]
-    public async Task Подтверждение_СПравильнойСсылкой_МеняетПарольИОтзываетRefresh()
-    {
-        var email = Уникальный();
-        await СоздатьПользователя(email);
-        using var клиент = Клиент();
-        var вход = await Войти(клиент, email, "old-password-1");
-        var refresh = вход.Headers.GetValues("Set-Cookie").First(v => v.StartsWith("refresh_token=")).Split(';')[0];
-        await Запросить(клиент, email);
-        var токен = ТокенИзПисьма(ПоследнееПисьмо(email)!);
-
-        var ответ = await Подтвердить(клиент, токен, "new-password-1");
-
-        Assert.Equal(HttpStatusCode.NoContent, ответ.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await Войти(клиент, email, "new-password-1")).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await Войти(клиент, email, "old-password-1")).StatusCode);
-        var обновление = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
-        обновление.Headers.Add("Cookie", refresh);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await клиент.SendAsync(обновление)).StatusCode);
+        Assert.Equal(known.StatusCode, unknown.StatusCode);
+        Assert.Equal(await known.Content.ReadAsStringAsync(), await unknown.Content.ReadAsStringAsync());
+        Assert.NotNull(LastEmail(email));
+        Assert.DoesNotContain(factory.Mailbox.Emails, mail => mail.To.StartsWith("nobody-"));
+        Assert.Contains("https://nimrata.test/reset-password?token=", LastEmail(email)!.Body);
     }
 
     [Fact]
-    public async Task Подтверждение_ПовторноСТойЖеСсылкой_Отклоняется()
+    public async Task Confirm_WithValidLink_ChangesPasswordAndRevokesRefresh()
     {
-        var email = Уникальный();
-        await СоздатьПользователя(email);
-        using var клиент = Клиент();
-        await Запросить(клиент, email);
-        var токен = ТокенИзПисьма(ПоследнееПисьмо(email)!);
-        Assert.Equal(HttpStatusCode.NoContent, (await Подтвердить(клиент, токен, "new-password-1")).StatusCode);
+        var email = UniqueEmail();
+        await CreateUserAsync(email);
+        using var client = NewClient();
+        var login = await Login(client, email, "old-password-1");
+        var refresh = login.Headers.GetValues("Set-Cookie").First(v => v.StartsWith("refresh_token=")).Split(';')[0];
+        await RequestReset(client, email);
+        var token = TokenFromEmail(LastEmail(email)!);
 
-        var повтор = await Подтвердить(клиент, токен, "another-password-2");
+        var response = await Confirm(client, token, "new-password-1");
 
-        Assert.Equal(HttpStatusCode.BadRequest, повтор.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await Войти(клиент, email, "new-password-1")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Login(client, email, "new-password-1")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Login(client, email, "old-password-1")).StatusCode);
+        var update = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        update.Headers.Add("Cookie", refresh);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.SendAsync(update)).StatusCode);
     }
 
     [Fact]
-    public async Task Подтверждение_СИстёкшейСсылкой_Отклоняется()
+    public async Task Confirm_ReusingSameLink_IsRejected()
     {
-        var email = Уникальный();
-        await СоздатьПользователя(email);
-        using var клиент = Клиент();
-        await Запросить(клиент, email);
-        var токен = ТокенИзПисьма(ПоследнееПисьмо(email)!);
-        await using (var соединение = new NpgsqlConnection(фабрика.ConnectionString))
+        var email = UniqueEmail();
+        await CreateUserAsync(email);
+        using var client = NewClient();
+        await RequestReset(client, email);
+        var token = TokenFromEmail(LastEmail(email)!);
+        Assert.Equal(HttpStatusCode.NoContent, (await Confirm(client, token, "new-password-1")).StatusCode);
+
+        var repeat = await Confirm(client, token, "another-password-2");
+
+        Assert.Equal(HttpStatusCode.BadRequest, repeat.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Login(client, email, "new-password-1")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Confirm_WithExpiredLink_IsRejected()
+    {
+        var email = UniqueEmail();
+        await CreateUserAsync(email);
+        using var client = NewClient();
+        await RequestReset(client, email);
+        var token = TokenFromEmail(LastEmail(email)!);
+        await using (var connection = new NpgsqlConnection(factory.ConnectionString))
         {
-            await соединение.ExecuteAsync(
-                "update password_reset_tokens set expires_at = now() - interval '1 minute' where token_hash = @хеш",
-                new { хеш = Auth.ResetTokens.Хеш(токен) });
+            await connection.ExecuteAsync(
+                "update password_reset_tokens set expires_at = now() - interval '1 minute' where token_hash = @hash",
+                new { hash = Auth.OpaqueTokens.Hash(token) });
         }
 
-        var ответ = await Подтвердить(клиент, токен, "new-password-1");
+        var response = await Confirm(client, token, "new-password-1");
 
-        Assert.Equal(HttpStatusCode.BadRequest, ответ.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await Войти(клиент, email, "old-password-1")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Login(client, email, "old-password-1")).StatusCode);
     }
 
     [Fact]
-    public async Task Подтверждение_СПроизвольнымТокеном_ИлиКоротким_Паролем_Отклоняется()
+    public async Task Confirm_WithArbitraryTokenOrShortPassword_IsRejected()
     {
-        var email = Уникальный();
-        await СоздатьПользователя(email);
-        using var клиент = Клиент();
-        await Запросить(клиент, email);
-        var токен = ТокенИзПисьма(ПоследнееПисьмо(email)!);
+        var email = UniqueEmail();
+        await CreateUserAsync(email);
+        using var client = NewClient();
+        await RequestReset(client, email);
+        var token = TokenFromEmail(LastEmail(email)!);
 
-        Assert.Equal(HttpStatusCode.BadRequest, (await Подтвердить(клиент, "не-тот-токен", "new-password-1")).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Подтвердить(клиент, токен, "short")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Confirm(client, "не-тот-токен", "new-password-1")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Confirm(client, token, "short")).StatusCode);
         // слабый пароль не сжигает ссылку
-        Assert.Equal(HttpStatusCode.NoContent, (await Подтвердить(клиент, токен, "new-password-1")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Confirm(client, token, "new-password-1")).StatusCode);
     }
 
     [Fact]
-    public async Task Запрос_ДляОтключённогоПользователя_ПисьмоНеУходит()
+    public async Task Request_ForDisabledUser_SendsNoMail()
     {
-        var email = Уникальный();
-        var пользователь = await СоздатьПользователя(email);
-        using var админ = await Администратор();
-        await админ.PostAsync($"/api/admin/users/{пользователь.Id}/disable", null);
-        using var клиент = Клиент();
+        var email = UniqueEmail();
+        var user = await CreateUserAsync(email);
+        using var admin = await Administrator();
+        await admin.PostAsync($"/api/admin/users/{user.Id}/disable", null);
+        using var client = NewClient();
 
-        var ответ = await Запросить(клиент, email);
+        var response = await RequestReset(client, email);
 
-        Assert.Equal(HttpStatusCode.Accepted, ответ.StatusCode);
-        Assert.Null(ПоследнееПисьмо(email));
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Null(LastEmail(email));
     }
 
     [Fact]
-    public async Task Администратор_ОтправляетСсылкуПользователю_УчастникПолучает403()
+    public async Task Administrator_SendsResetLinkToUser_MemberGets403()
     {
-        var email = Уникальный();
-        var пользователь = await СоздатьПользователя(email);
-        using var админ = await Администратор();
+        var email = UniqueEmail();
+        var user = await CreateUserAsync(email);
+        using var admin = await Administrator();
 
-        var ответ = await админ.PostAsync($"/api/admin/users/{пользователь.Id}/password-reset", null);
+        var response = await admin.PostAsync($"/api/admin/users/{user.Id}/password-reset", null);
 
-        Assert.Equal(HttpStatusCode.NoContent, ответ.StatusCode);
-        var письмо = ПоследнееПисьмо(email);
-        Assert.NotNull(письмо);
-        Assert.Equal(HttpStatusCode.NoContent, (await Подтвердить(Клиент(), ТокенИзПисьма(письмо!), "new-password-1")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        var mail = LastEmail(email);
+        Assert.NotNull(mail);
+        Assert.Equal(HttpStatusCode.NoContent, (await Confirm(NewClient(), TokenFromEmail(mail!), "new-password-1")).StatusCode);
 
-        Assert.Equal(HttpStatusCode.NotFound, (await админ.PostAsync($"/api/admin/users/{Guid.NewGuid()}/password-reset", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsync($"/api/admin/users/{Guid.NewGuid()}/password-reset", null)).StatusCode);
 
-        using var участник = Клиент();
-        var вход = await Войти(участник, email, "new-password-1");
-        участник.DefaultRequestHeaders.Authorization = new("Bearer", (await вход.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken);
-        Assert.Equal(HttpStatusCode.Forbidden, (await участник.PostAsync($"/api/admin/users/{пользователь.Id}/password-reset", null)).StatusCode);
+        using var member = NewClient();
+        var login = await Login(member, email, "new-password-1");
+        member.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken);
+        Assert.Equal(HttpStatusCode.Forbidden, (await member.PostAsync($"/api/admin/users/{user.Id}/password-reset", null)).StatusCode);
     }
 }

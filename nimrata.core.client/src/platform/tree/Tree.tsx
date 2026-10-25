@@ -1,19 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
-import { useActionLauncher } from '../actions/useActionLauncher';
-import type { DataController, DataObject } from '../data/DataController';
-import { useData } from '../data/DataProvider';
-import { useSelection } from '../selection/SelectionProvider';
-import type { TypeDefinition } from '../types/types';
+import { useActionLauncher } from '@platform/actions/useActionLauncher';
+import { useData } from '@platform/data/useData';
+import { useSelection } from '@platform/selection/useSelection';
+
 import { planMove, positionInRow } from './planMove';
-import type { DropPosition } from './planMove';
 import { colorPresentation, resolveRuleColor } from './colorRules';
 import './ruleColors.css';
 
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { DataController, DataObject } from '@platform/data/DataController';
+import type { TypeDefinition } from '@platform/types/types';
+import type { DropPosition } from './planMove';
+
 const ROW_HEIGHT = 24;
 const OVERSCAN = 5;
-/** Высота окна, пока она неизвестна (например, до первого измерения). */
+/** Высота окна, пока она неизвестна (например, до первого измерения) */
 const DEFAULT_VIEWPORT = 400;
 const collator = new Intl.Collator('ru');
 
@@ -30,7 +32,7 @@ function titleOf(data: DataController, object: DataObject): string {
     return data.getType(object.type)?.name ?? object.type;
 }
 
-/** Типы, объекты которых можно создать под узлом: допустимые дочерние неабстрактные типы. */
+/** Типы, объекты которых можно создать под узлом: допустимые дочерние неабстрактные типы */
 function creatableTypes(data: DataController, parent: DataObject): TypeDefinition[] {
     const allowed = data.getType(parent.type)?.allowedChildren ?? [];
     return allowed
@@ -38,7 +40,7 @@ function creatableTypes(data: DataController, parent: DataObject): TypeDefinitio
         .filter((t): t is TypeDefinition => t !== undefined && !t.abstract);
 }
 
-/** Видимые потомки узла: без скрытых типов, по порядку, затем по названию. */
+/** Видимые потомки узла: без скрытых типов, по порядку, затем по названию */
 function visibleChildren(data: DataController, parent: string | null) {
     return data
         .getChildren(parent)
@@ -65,7 +67,7 @@ function flatten(data: DataController, expanded: ReadonlySet<string>): Row[] {
     return rows;
 }
 
-/** Универсальное дерево: строится по типам и объектам `DataController`, не зная о модулях. */
+/** Универсальное дерево: строится по типам и объектам `DataController`, не зная о модулях */
 export function Tree() {
     const data = useData();
     const { selectedId, select, revealRequest } = useSelection();
@@ -82,7 +84,7 @@ export function Tree() {
             return next;
         });
 
-    // Переход к объекту (reveal): раскрыть родителей (подстройка состояния при рендере), затем прокрутить.
+    // Переход к объекту (reveal): раскрыть родителей (подстройка состояния при рендере), затем прокрутить
     const [handledReveal, setHandledReveal] = useState(revealRequest?.seq ?? 0);
     if (revealRequest && revealRequest.seq !== handledReveal) {
         setHandledReveal(revealRequest.seq);
@@ -98,7 +100,7 @@ export function Tree() {
     }
     const scrolledReveal = useRef(revealRequest?.seq ?? 0);
 
-    // Виртуализация: рисуются только строки в окне прокрутки плюс небольшой запас.
+    // Виртуализация: рисуются только строки в окне прокрутки плюс небольшой запас
     const containerRef = useRef<HTMLDivElement>(null);
     const [scrollTop, setScrollTop] = useState(0);
     const [viewport, setViewport] = useState(DEFAULT_VIEWPORT);
@@ -165,7 +167,7 @@ export function Tree() {
         else if (selectedId !== null && !data.getObject(selectedId)) select(null);
     };
 
-    // Перенос перетаскиванием: тянем строку, цель и положение берём из позиции указателя.
+    // Перенос перетаскиванием: тянем строку, цель и положение берём из позиции указателя
     const [drag, setDrag] = useState<{
         id: string;
         target: string | null;
@@ -184,7 +186,7 @@ export function Tree() {
         else if (plan.parent !== null) setExpanded((prev) => new Set(prev).add(plan.parent!));
     };
 
-    /** Alt+стрелки: то же, что перетаскивание, — порядок среди соседей, вложение и вынос. */
+    /** Alt+стрелки: то же, что перетаскивание, — порядок среди соседей, вложение и вынос */
     const onMoveKey = (e: ReactKeyboardEvent, object: DataObject) => {
         if (!e.altKey) return;
         const siblings = siblingsOf(object.parent);

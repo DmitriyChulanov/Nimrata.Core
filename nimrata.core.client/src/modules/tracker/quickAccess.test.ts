@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDataController } from '@platform';
-import type { DataController, TypeDefinition } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { ensureStartStructure, registerTracker } from './tracker';
+
+import type { DataController, TypeDefinition } from '@platform';
 
 const types = manifest.types.map((t) => ({
     ...t,
@@ -43,15 +44,15 @@ function entries(data: DataController) {
     return data.getChildren(null).filter((o) => o.type === ENTRY);
 }
 
-describe('Трекер: быстрый доступ', () => {
-    it('тип записи — механизм, скрытый в дереве, со ссылкой на цель', () => {
+describe('Tracker: quick access', () => {
+    it('quickAccess_entryType_isMechanismHiddenInTreeWithTargetReference', () => {
         const type = types.find((t) => t.id === ENTRY)!;
         expect(type.automation).toBe(true);
         expect(type.hiddenInTree).toBe(true);
         expect(type.properties?.find((p) => p.id === 'target')?.kind).toBe('reference');
     });
 
-    it('«Добавить» на заметке создаёт запись с названием цели', async () => {
+    it('quickAccess_addOnNote_createsEntryNamedAfterTarget', async () => {
         const { data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Купить молоко');
 
@@ -64,7 +65,7 @@ describe('Трекер: быстрый доступ', () => {
         expect(entry.properties.name).toBe('Купить молоко');
     });
 
-    it('«Добавить» на группе заметок создаёт запись с названием группы', async () => {
+    it('quickAccess_addOnNoteGroup_createsEntryNamedAfterGroup', async () => {
         const { data, notesRoot } = await start();
         const group = await addGroup(data, notesRoot.id, 'Работа');
 
@@ -75,7 +76,7 @@ describe('Трекер: быстрый доступ', () => {
         ]);
     });
 
-    it('повторное «Добавить» дубля не создаёт', async () => {
+    it('quickAccess_addAgain_createsNoDuplicate', async () => {
         const { data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Одна');
         await data.runAction(note.id, 'addToQuickAccess');
@@ -85,7 +86,7 @@ describe('Трекер: быстрый доступ', () => {
         expect(entries(data)).toHaveLength(1);
     });
 
-    it('«Добавить» доступно, пока записи нет; «Убрать» — только когда она есть', async () => {
+    it('quickAccess_addAvailableWhileNoEntry_removeOnlyWhenPresent', async () => {
         const { data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Одна');
         const ids = () => data.getActions(note.id, 'propertyGrid').map((a) => a.id);
@@ -98,13 +99,13 @@ describe('Трекер: быстрый доступ', () => {
         expect(ids()).toContain('removeFromQuickAccess');
     });
 
-    it('«Убрать» удаляет все записи, ссылающиеся на цель, и не трогает чужие', async () => {
+    it('quickAccess_remove_deletesAllEntriesReferencingTargetAndLeavesOthers', async () => {
         const { data, notesRoot } = await start();
         const a = await addNote(data, notesRoot.id, 'A');
         const b = await addNote(data, notesRoot.id, 'B');
         await data.runAction(a.id, 'addToQuickAccess');
         await data.runAction(b.id, 'addToQuickAccess');
-        // Дубль, пришедший извне (например, из двух вкладок).
+        // Дубль, пришедший извне (например, из двух вкладок)
         await data.create({
             type: ENTRY,
             parent: null,
@@ -118,7 +119,7 @@ describe('Трекер: быстрый доступ', () => {
         expect(entries(data).map((e) => e.properties.target)).toEqual([b.id]);
     });
 
-    it('переименование заметки обновляет название записи', async () => {
+    it('quickAccess_noteRenamed_updatesEntryName', async () => {
         const { data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Старое');
         await data.runAction(note.id, 'addToQuickAccess');
@@ -128,7 +129,7 @@ describe('Трекер: быстрый доступ', () => {
         expect(entries(data)[0].properties.name).toBe('Новое');
     });
 
-    it('смена статуса заметки обновляет название записи вместе с заметкой', async () => {
+    it('quickAccess_noteStatusChanged_updatesEntryNameWithNote', async () => {
         const { api, data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Дело');
         await data.runAction(note.id, 'addToQuickAccess');
@@ -140,7 +141,7 @@ describe('Трекер: быстрый доступ', () => {
         expect(api.changesets).toHaveLength(sent + 1);
     });
 
-    it('переименование группы обновляет название записи', async () => {
+    it('quickAccess_groupRenamed_updatesEntryName', async () => {
         const { data, notesRoot } = await start();
         const group = await addGroup(data, notesRoot.id, 'Работа');
         await data.runAction(group.id, 'addToQuickAccess');
@@ -150,7 +151,7 @@ describe('Трекер: быстрый доступ', () => {
         expect(entries(data)[0].properties.name).toBe('Дом');
     });
 
-    it('удаление заметки удаляет её запись в том же наборе изменений', async () => {
+    it('quickAccess_noteDeleted_deletesItsEntryInSameChangeset', async () => {
         const { api, data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Одна');
         await data.runAction(note.id, 'addToQuickAccess');
@@ -163,7 +164,7 @@ describe('Трекер: быстрый доступ', () => {
         expect(api.changesets).toHaveLength(sent + 1);
     });
 
-    it('удаление группы удаляет записи группы и всех вложенных заметок и групп', async () => {
+    it('quickAccess_groupDeleted_deletesEntriesOfGroupAndAllNestedNotesAndGroups', async () => {
         const { api, data, notesRoot } = await start();
         const group = await addGroup(data, notesRoot.id, 'Внешняя');
         const inner = await addGroup(data, group.id, 'Внутренняя');
@@ -182,7 +183,7 @@ describe('Трекер: быстрый доступ', () => {
         expect(api.changesets).toHaveLength(sent + 1);
     });
 
-    it('отмена удаления цели возвращает и запись', async () => {
+    it('quickAccess_undoTargetDeletion_restoresEntryToo', async () => {
         const { data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Одна');
         await data.runAction(note.id, 'addToQuickAccess');

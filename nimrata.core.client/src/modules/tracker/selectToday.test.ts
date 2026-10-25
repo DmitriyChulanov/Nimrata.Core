@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDataController } from '@platform';
-import type { TypeDefinition } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { ensureStartStructure, registerTracker } from './tracker';
+
+import type { TypeDefinition } from '@platform';
 
 const types = manifest.types.map((t) => ({
     ...t,
@@ -28,7 +29,7 @@ async function start() {
     return { api, data, reveal, mechanisms, current };
 }
 
-/** Фиксирует «сейчас» (местное время) на время теста. */
+/** Фиксирует «сейчас» (местное время) на время теста */
 async function atDate(year: number, month: number, day: number, body: () => Promise<void>) {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(year, month - 1, day, 12, 0));
@@ -39,8 +40,8 @@ async function atDate(year: number, month: number, day: number, body: () => Prom
     }
 }
 
-describe('Трекер: «Выделить текущий день»', () => {
-    it('тип — механизм автоматизации, скрытый в дереве, с действием в «Автоматизации»', () => {
+describe('Tracker: "Select today"', () => {
+    it('selectToday_type_isAutomationMechanismHiddenInTreeWithActionInAutomation', () => {
         const type = types.find((t) => t.id === MECHANISM)!;
         expect(type.automation).toBe(true);
         expect(type.hiddenInTree).toBe(true);
@@ -49,7 +50,7 @@ describe('Трекер: «Выделить текущий день»', () => {
         );
     });
 
-    it('стартовая настройка создаёт единственный механизм и не дублирует при повторе', async () => {
+    it('selectToday_startSetup_createsSingleMechanismWithoutDuplicates', async () => {
         const { data, mechanisms } = await start();
         expect(mechanisms()).toHaveLength(1);
 
@@ -58,7 +59,7 @@ describe('Трекер: «Выделить текущий день»', () => {
         expect(mechanisms()).toHaveLength(1);
     });
 
-    it('пользователю со структурой, но без механизма, он создаётся при следующем входе', async () => {
+    it('selectToday_userWithStructureButNoMechanism_getsItOnNextLogin', async () => {
         const { data, mechanisms } = await start();
         await data.perform((tx) => {
             const result = tx.remove(mechanisms()[0].id);
@@ -72,7 +73,7 @@ describe('Трекер: «Выделить текущий день»', () => {
         expect(mechanisms()).toHaveLength(1);
     });
 
-    it('действие выделяет день с сегодняшней датой', async () => {
+    it('selectToday_action_selectsDayWithTodaysDate', async () => {
         await atDate(2026, 6, 10, async () => {
             const { data, reveal, mechanisms, current } = await start();
             await data.runAction(current.id, 'createTask', { title: 'Вчера', date: '2026-06-09' });
@@ -91,7 +92,7 @@ describe('Трекер: «Выделить текущий день»', () => {
         });
     });
 
-    it('выделяет и день-выходной', async () => {
+    it('selectToday_action_selectsWeekendDayToo', async () => {
         await atDate(2026, 6, 13, async () => {
             const { data, reveal, mechanisms, current } = await start();
             await data.runAction(current.id, 'createTask', { title: 'Т', date: '2026-06-13' });
@@ -104,7 +105,7 @@ describe('Трекер: «Выделить текущий день»', () => {
         });
     });
 
-    it('если дня на сегодня нет — сообщение, объекты не создаются, ничего не выделяется', async () => {
+    it('selectToday_noDayForToday_returnsMessageCreatesNoObjectsSelectsNothing', async () => {
         await atDate(2026, 6, 10, async () => {
             const { api, data, reveal, mechanisms, current } = await start();
             await data.runAction(current.id, 'createTask', { title: 'Вчера', date: '2026-06-09' });

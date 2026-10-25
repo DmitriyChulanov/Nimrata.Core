@@ -1,18 +1,18 @@
-/** Запись журнала в виде, в котором её отдаёт `GET /api/journal`. */
+/** Запись журнала в виде, в котором её отдаёт `GET /api/journal` */
 export interface JournalEntry {
     id: number;
     changesetId: string;
-    /** Время набора изменений (ISO, UTC). */
+    /** Время набора изменений (ISO, UTC) */
     at: string;
-    /** E-mail автора. */
+    /** E-mail автора */
     user: string;
     objectId: string;
     operation: 'create' | 'update' | 'move' | 'delete';
-    /** Имя свойства (для `update`). */
+    /** Имя свойства (для `update`) */
     property: string | null;
     old: unknown;
     new: unknown;
-    /** Полный снимок удалённого объекта (для `delete`). */
+    /** Полный снимок удалённого объекта (для `delete`) */
     snapshot: unknown;
 }
 
@@ -21,21 +21,21 @@ export interface JournalPage {
     total: number;
 }
 
-/** Размер страницы журнала. */
+/** Размер страницы журнала */
 export const JOURNAL_PAGE_SIZE = 50;
 
-/** Что нужно знать об окружении, чтобы описать запись по-человечески. */
+/** Что нужно знать об окружении, чтобы описать запись по-человечески */
 export interface JournalResolver {
     typeName(typeId: string): string;
     propertyName(typeId: string | null, propertyId: string): string;
-    /** Подпись существующего объекта; `null`, если объекта нет (например, удалён). */
+    /** Подпись существующего объекта; `null`, если объекта нет (например, удалён) */
     objectLabel(objectId: string): string | null;
-    /** Тип существующего объекта; `null`, если объекта нет. */
+    /** Тип существующего объекта; `null`, если объекта нет */
     objectTypeId(objectId: string): string | null;
 }
 
 export interface EntryDescription {
-    /** Что произошло: «Создан объект …», имя свойства, «Перенесён». */
+    /** Что произошло: «Создан объект …», имя свойства, «Перенесён» */
     what: string;
     was: string;
     became: string;
@@ -65,7 +65,7 @@ function parentText(parent: unknown, resolver: JournalResolver): string {
     return label ? `в «${label}»` : 'в удалённом объекте';
 }
 
-/** Превращает запись журнала в три строки для таблицы. */
+/** Превращает запись журнала в три строки для таблицы */
 export function describeEntry(entry: JournalEntry, resolver: JournalResolver): EntryDescription {
     switch (entry.operation) {
         case 'create': {
@@ -106,13 +106,19 @@ export function describeEntry(entry: JournalEntry, resolver: JournalResolver): E
     }
 }
 
-/** Записи одного набора изменений (одно действие пользователя) в порядке появления. */
-export function groupByChangeset(entries: JournalEntry[]): JournalEntry[][] {
-    const groups = new Map<string, JournalEntry[]>();
+/** Записи одного набора изменений (одно действие пользователя) */
+export interface ChangesetGroup {
+    changesetId: string;
+    entries: JournalEntry[];
+}
+
+/** Группирует записи по наборам изменений в порядке появления */
+export function groupByChangeset(entries: readonly JournalEntry[]): ChangesetGroup[] {
+    const groups = new Map<string, ChangesetGroup>();
     for (const entry of entries) {
         const group = groups.get(entry.changesetId);
-        if (group) group.push(entry);
-        else groups.set(entry.changesetId, [entry]);
+        if (group) group.entries.push(entry);
+        else groups.set(entry.changesetId, { changesetId: entry.changesetId, entries: [entry] });
     }
     return [...groups.values()];
 }

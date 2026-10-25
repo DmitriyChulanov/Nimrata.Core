@@ -1,24 +1,26 @@
 import { useState } from 'react';
-import type { ReactNode } from 'react';
 
-import { useData } from '../data/DataProvider';
-import type { ActionDefinition } from '../types/types';
+import { useData } from '@platform/data/useData';
+
 import { ActionDialog } from './ActionDialog';
+
+import type { ReactNode } from 'react';
+import type { ActionDefinition } from '@platform/types/types';
 
 export interface ActionLauncher {
     /**
      * Запускает действие над объектом: без параметров сразу, с параметрами — через диалог.
-     * Отказ запуска без диалога попадает в `error`.
+     * Отказ запуска без диалога попадает в `error`
      */
     launch(objectId: string, action: ActionDefinition): Promise<void>;
-    /** Диалог параметров (или `null`): рисуется там, где вызвана хук-функция. */
+    /** Диалог параметров (или `null`): рисуется там, где вызвана хук-функция */
     dialog: ReactNode;
-    /** Причина последнего отказа запуска без диалога. */
+    /** Причина последнего отказа запуска без диалога */
     error: string | null;
     clearError(): void;
 }
 
-/** Общий запуск действий для кнопок таблицы свойств и пунктов контекстного меню. */
+/** Общий запуск действий для кнопок таблицы свойств и пунктов контекстного меню */
 export function useActionLauncher(): ActionLauncher {
     const data = useData();
     const [pending, setPending] = useState<{ objectId: string; action: ActionDefinition } | null>(

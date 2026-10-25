@@ -17,8 +17,8 @@ const create = (id: string, type: string, parent: string | null) => ({
     properties: {},
 });
 
-describe('fakeApi: допустимость родителя как на сервере', () => {
-    it('принимает тип из allowedChildren и любой тип в корне', async () => {
+describe('fakeApi: parent allowance like on the server', () => {
+    it('fakeApi_typeFromAllowedChildrenAndAnyTypeAtRoot_isAccepted', async () => {
         const api = createFakeApi(types);
         await api.post('changesets', {
             operations: [create('r', 'Root', null), create('l', 'Leaf', 'r')],
@@ -26,7 +26,7 @@ describe('fakeApi: допустимость родителя как на сер�
         expect(api.changesets).toHaveLength(1);
     });
 
-    it('пустой список allowedChildren запрещает любых потомков (422)', async () => {
+    it('fakeApi_emptyAllowedChildren_forbidsAnyChildren422', async () => {
         const api = createFakeApi(types);
         await expect(
             api.post('changesets', {
@@ -36,7 +36,7 @@ describe('fakeApi: допустимость родителя как на сер�
         expect(api.changesets).toHaveLength(0);
     });
 
-    it('тип вне списка отклоняется, а отсутствие поля не ограничивает', async () => {
+    it('fakeApi_typeOutsideList_isRejectedAndMissingFieldDoesNotRestrict', async () => {
         const api = createFakeApi(types);
         await expect(
             api.post('changesets', {
@@ -49,7 +49,7 @@ describe('fakeApi: допустимость родителя как на сер�
         expect(api.changesets).toHaveLength(1);
     });
 
-    it('проверяет и перенос, учитывая объекты из прежних наборов', async () => {
+    it('fakeApi_move_isCheckedToo_takingObjectsFromEarlierChangesetsIntoAccount', async () => {
         const api = createFakeApi(types, [
             { id: 'l', type: 'Leaf', parent: null, order: 0, properties: {} },
         ]);

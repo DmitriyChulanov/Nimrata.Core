@@ -1,8 +1,7 @@
-import { useTabs } from './TabsProvider';
-
+import { useTabs } from './useTabs';
 import './Tabs.css';
 
-/** Контейнер вкладок: полоса заголовков и содержимое активной вкладки. */
+/** Контейнер вкладок: полоса заголовков и содержимое активной вкладки */
 export function TabContainer() {
     const { tabs, activeId, registry, activate, closeTab } = useTabs();
     const active = tabs.find((t) => t.id === activeId);

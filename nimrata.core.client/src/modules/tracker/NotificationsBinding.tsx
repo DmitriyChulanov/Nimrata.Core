@@ -7,21 +7,22 @@ import {
     createLocalShownStore,
     startNotificationService,
 } from './notifications';
+
 import type { BrowserNotifications } from './notifications';
 
 export interface NotificationsBindingProps {
-    /** Notification API; `null` — не поддерживается. По умолчанию берётся из браузера. */
+    /** Notification API; `null` — не поддерживается. По умолчанию берётся из браузера */
     browser?: BrowserNotifications | null;
-    /** Часы; подменяются в тестах. */
+    /** Часы; подменяются в тестах */
     now?: () => Date;
-    /** Пользователь: показанные за день уведомления запоминаются по нему и переживают перезагрузку. */
+    /** Пользователь: показанные за день уведомления запоминаются по нему и переживают перезагрузку */
     userId?: string;
 }
 
 /**
  * Запускает службу уведомлений, пока компонент смонтирован (вкладка открыта).
  * Пока решение о разрешении не принято, показывает кнопку: запрос идёт только по её нажатию
- * и один раз — после ответа (в том числе отказа) кнопка пропадает.
+ * и один раз — после ответа (в том числе отказа) кнопка пропадает
  */
 export function NotificationsBinding({ browser, now, userId }: NotificationsBindingProps) {
     const data = useData();

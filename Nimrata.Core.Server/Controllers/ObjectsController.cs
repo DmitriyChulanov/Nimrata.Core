@@ -1,58 +1,40 @@
-using System.Security.Claims;
 using System.Text.Json;
-using System.Text.Json.Nodes;
-using Dapper;
 using Microsoft.AspNetCore.Mvc;
+using Nimrata.Core.Server.Auth;
+using Nimrata.Core.Server.Controllers.Responses;
 using Nimrata.Core.Server.Objects;
-using Npgsql;
 
 namespace Nimrata.Core.Server.Controllers;
 
+/// <summary>Объекты пользователя и применение наборов изменений</summary>
 [ApiController]
-public sealed class ObjectsController(NpgsqlDataSource источник, ChangesetService наборы) : ControllerBase
+public sealed class ObjectsController(ObjectsService objectsService, ChangesetService changesetService) : ControllerBase
 {
-    private sealed record Строка(Guid Id, string Type, Guid? Parent, double Order, JsonElement Properties);
-
-    private Guid Пользователь => Guid.Parse(User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-    /// <summary>Все объекты текущего пользователя и только они.</summary>
+    /// <summary>Все объекты текущего пользователя и только они</summary>
     [HttpGet("api/objects")]
-    public async Task<IActionResult> Загрузить()
-    {
-        await using var соединение = await источник.OpenConnectionAsync();
-        var строки = await соединение.QueryAsync<Строка>(
-            """
-            select id as Id, type_id as Type, parent_id as Parent, sort_order as "Order", properties as Properties
-            from objects where owner_id = @пользователь order by sort_order, id
-            """, new { пользователь = Пользователь });
-        var результат = new JsonArray();
-        foreach (var с in строки)
-        {
-            результат.Add(new JsonObject
-            {
-                ["id"] = с.Id,
-                ["type"] = с.Type,
-                ["parent"] = с.Parent,
-                ["order"] = с.Order,
-                ["properties"] = JsonNode.Parse(с.Properties.GetRawText()),
-            });
-        }
-        return Content(результат.ToJsonString(), "application/json");
-    }
+    public async Task<ActionResult<IReadOnlyList<ObjectRecord>>> Load(CancellationToken cancellationToken) =>
+        Ok(await objectsService.LoadAsync(User.GetUserId(), cancellationToken));
 
-    /// <summary>Применяет набор изменений целиком или отклоняет его с причиной.</summary>
+    /// <summary>Применяет набор изменений целиком или отклоняет его с причиной</summary>
     [HttpPost("api/changesets")]
-    public async Task<IActionResult> Применить([FromBody] JsonElement тело)
+    [ProducesResponseType<ChangesetResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<ChangesetResponse>> Apply(
+        [FromBody] JsonElement body, CancellationToken cancellationToken)
     {
         try
         {
-            var id = await наборы.Применить(Пользователь, тело);
-            return Ok(new { id });
+            var id = await changesetService.ApplyAsync(User.GetUserId(), body, cancellationToken);
+            return new ChangesetResponse(id);
         }
-        catch (ChangesetRejectedException отказ)
+        catch (ChangesetRejectedException rejection)
         {
-            return StatusCode(отказ.Conflict ? StatusCodes.Status409Conflict : StatusCodes.Status422UnprocessableEntity,
-                new { error = отказ.Message });
+            return Problem(
+                detail: rejection.Message,
+                statusCode: rejection.Conflict
+                    ? StatusCodes.Status409Conflict
+                    : StatusCodes.Status422UnprocessableEntity);
         }
     }
 }

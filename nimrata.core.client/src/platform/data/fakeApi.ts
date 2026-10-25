@@ -1,13 +1,14 @@
-import { ApiError } from '../api/apiClient';
-import type { ApiClient } from '../api/apiClient';
+import { ApiError } from '@platform/api/apiClient';
 
-/** Поддельный API-клиент в памяти для тестов `DataController`: отдаёт типы и объекты, записывает наборы изменений. */
+import type { ApiClient } from '@platform/api/apiClient';
+
+/** Поддельный API-клиент в памяти для тестов `DataController`: отдаёт типы и объекты, записывает наборы изменений */
 export interface FakeApi extends ApiClient {
     types: unknown[];
     objects: unknown[];
-    /** Все принятые наборы изменений (тела запросов). */
+    /** Все принятые наборы изменений (тела запросов) */
     changesets: { operations: Record<string, unknown>[] }[];
-    /** Следующий набор будет отклонён этой ошибкой. */
+    /** Следующий набор будет отклонён этой ошибкой */
     rejectNext(status: number, message: string): void;
 }
 
@@ -23,7 +24,7 @@ interface TypeLike {
 
 /**
  * Проверка допустимости родителя так же, как на сервере: пустой список `allowedChildren` —
- * запрет любых потомков, отсутствие поля — без ограничений, корень допустим для любого типа.
+ * запрет любых потомков, отсутствие поля — без ограничений, корень допустим для любого типа
  */
 function checkParent(
     types: Map<string, TypeLike>,
@@ -42,7 +43,7 @@ function checkParent(
 
 export function createFakeApi(types: unknown[] = [], objects: unknown[] = []): FakeApi {
     let rejection: ApiError | null = null;
-    // Состояние объектов после принятых наборов: поверх исходных `objects`; `null` — удалён.
+    // Состояние объектов после принятых наборов: поверх исходных `objects`; `null` — удалён
     const accepted = new Map<string, Known | null>();
     const validate = (operations: Record<string, unknown>[]): Map<string, Known> => {
         const typeMap = new Map((api.types as TypeLike[]).map((t) => [t.id, t]));

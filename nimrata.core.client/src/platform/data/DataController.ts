@@ -1,10 +1,13 @@
-import { ApiError } from '../api/apiClient';
-import type { ApiClient } from '../api/apiClient';
-import type { ActionDefinition, ActionPlacement, TypeDefinition } from '../types/types';
+import { ApiError } from '@platform/api/apiClient';
+
+import type { Operation } from './undoHistory';
 import { applyOperations, createUndoHistory, invertOperations, touchedIds } from './undoHistory';
 import { uuid7 } from './uuid7';
 
-/** Объект в дереве: значения свойств лежат в `properties`, отсутствующее значение — нет ключа. */
+import type { ApiClient } from '@platform/api/apiClient';
+import type { ActionDefinition, ActionPlacement, TypeDefinition } from '@platform/types/types';
+
+/** Объект в дереве: значения свойств лежат в `properties`, отсутствующее значение — нет ключа */
 export interface DataObject {
     id: string;
     type: string;
@@ -15,25 +18,25 @@ export interface DataObject {
 
 export type DataStatus = 'idle' | 'loading' | 'ready' | 'error';
 
-/** Состояние модели для подписчиков UI (неизменяемый снимок). */
+/** Состояние модели для подписчиков UI (неизменяемый снимок) */
 export interface DataSnapshot {
     status: DataStatus;
-    /** Версия модели: растёт при каждом изменении (удобно для `useSyncExternalStore`). */
+    /** Версия модели: растёт при каждом изменении (удобно для `useSyncExternalStore`) */
     version: number;
-    /** Причина последней ошибки загрузки или отказа сервера; `null`, если всё в порядке. */
+    /** Причина последней ошибки загрузки или отказа сервера; `null`, если всё в порядке */
     error: string | null;
-    /** Данные разошлись с сервером: нужно вызвать `reload()`. */
+    /** Данные разошлись с сервером: нужно вызвать `reload()` */
     needsReload: boolean;
 }
 
-/** Результат изменения: успех либо причина отказа, пригодная для показа пользователю. */
+/** Результат изменения: успех либо причина отказа, пригодная для показа пользователю */
 export type ChangeResult = { ok: true } | { ok: false; error: string };
 export type CreateResult = { ok: true; id: string } | { ok: false; error: string };
 
 export interface CreateInput {
     type: string;
     parent?: string | null;
-    /** Порядок среди соседей; без него объект добавляется последним. */
+    /** Порядок среди соседей; без него объект добавляется последним */
     order?: number;
     properties?: Record<string, unknown>;
 }
@@ -43,11 +46,11 @@ export interface MoveInput {
     order?: number;
 }
 
-/** Параметры выполнения операции. */
+/** Параметры выполнения операции */
 export interface OperationOptions {
     /**
      * `false` — не запускать хуки (внутренние операции: повторы, Undo).
-     * По умолчанию хуки запускаются.
+     * По умолчанию хуки запускаются
      */
     hooks?: boolean;
 }
@@ -55,7 +58,7 @@ export interface OperationOptions {
 /**
  * Операции внутри одного набора изменений. Применяются к модели сразу и синхронно;
  * любой отказ отменяет весь набор. Внутри хуков и обработчиков действий пользоваться
- * только ими, а не методами `DataController` (иначе очередь изменений зависнет).
+ * только ими, а не методами `DataController` (иначе очередь изменений зависнет)
  */
 export interface ChangeScope {
     create(input: CreateInput): CreateResult;
@@ -67,70 +70,70 @@ export interface ChangeScope {
 export type HookOperation = 'create' | 'setProperty' | 'move' | 'remove';
 export type HookPhase = 'before' | 'after';
 
-/** Контекст хука. */
+/** Контекст хука */
 export interface HookContext {
     operation: HookOperation;
     phase: HookPhase;
     /**
      * Объект операции: «до» создания — черновик (ещё не в модели), «после» удаления —
-     * снимок удалённого корня поддерева. Менять его не нужно: правки идут через `tx`.
+     * снимок удалённого корня поддерева. Менять его не нужно: правки идут через `tx`
      */
     object: DataObject;
-    /** `setProperty`: свойство, прежнее и новое значения (`null` — значения нет). */
+    /** `setProperty`: свойство, прежнее и новое значения (`null` — значения нет) */
     property?: string;
     oldValue?: unknown;
     newValue?: unknown;
-    /** `move`: прежнее и новое положение. */
+    /** `move`: прежнее и новое положение */
     from?: { parent: string | null; order: number };
     to?: { parent: string | null; order: number };
-    /** Тот же набор изменений, что и у исходного действия пользователя. */
+    /** Тот же набор изменений, что и у исходного действия пользователя */
     tx: ChangeScope;
 }
 
-/** Результат хука «до»: `{ cancel: сообщение }` отменяет операцию (и весь набор). */
+/** Результат хука «до»: `{ cancel: сообщение }` отменяет операцию (и весь набор) */
 export type HookResult = { cancel: string } | void;
 export type HookHandler = (context: HookContext) => HookResult;
 
 export interface ActionContext {
-    /** Снимок объекта-цели на момент запуска. */
+    /** Снимок объекта-цели на момент запуска */
     object: DataObject;
-    /** Значения параметров, собранные диалогом. */
+    /** Значения параметров, собранные диалогом */
     params: Record<string, unknown>;
-    /** Набор изменений действия: всё, что обработчик делает через него, — один набор. */
+    /** Набор изменений действия: всё, что обработчик делает через него, — один набор */
     tx: ChangeScope;
 }
 
 export type ActionHandler = (context: ActionContext) => void | Promise<void>;
 
 export interface ActionRegistrationOptions {
-    /** Условие доступности: действие показывается и запускается только для объектов, где оно истинно. */
+    /** Условие доступности: действие показывается и запускается только для объектов, где оно истинно */
     available?: (object: DataObject) => boolean;
 }
 
 export interface DataControllerOptions {
     api: ApiClient;
-    /** Генератор идентификаторов новых объектов (по умолчанию UUIDv7). */
+    /** Генератор идентификаторов новых объектов (по умолчанию UUIDv7) */
     newId?: () => string;
 }
 
 export interface DataController {
-    /** Загружает типы и объекты пользователя, заменяя модель. */
+    /** Загружает типы и объекты пользователя, заменяя модель */
     load(): Promise<void>;
     getSnapshot(): DataSnapshot;
     subscribe(listener: () => void): () => void;
     getType(id: string): TypeDefinition | undefined;
     getTypes(): TypeDefinition[];
     getObject(id: string): DataObject | undefined;
-    /** Потомки родителя по возрастанию порядка; `null` — корневые объекты. */
+    /** Потомки родителя по возрастанию порядка; `null` — корневые объекты */
     getChildren(parent: string | null): DataObject[];
     /**
      * Порядок для вставки на позицию `index` среди потомков `parent`
-     * (объект `exclude` — перемещаемый, в соседи не входит).
+     * (объект `exclude` — перемещаемый, в соседи не входит)
      */
     orderAt(parent: string | null, index: number, exclude?: string): number;
-    /** Создаёт объект (одно действие — один набор изменений). */
+    /** Создаёт объект (одно действие — один набор изменений) */
     create(input: CreateInput, options?: OperationOptions): Promise<CreateResult>;
-    /** Меняет свойство; `null` удаляет значение. */
+    /** Меняет свойство; `null` удаляет значение */
     setProperty(
         id: string,
         property: string,
@@ -138,17 +141,17 @@ export interface DataController {
         options?: OperationOptions,
     ): Promise<ChangeResult>;
     move(id: string, to: MoveInput, options?: OperationOptions): Promise<ChangeResult>;
-    /** Удаляет объект вместе с потомками одним набором. */
+    /** Удаляет объект вместе с потомками одним набором */
     remove(id: string, options?: OperationOptions): Promise<ChangeResult>;
-    /** Отменяет последнее действие (обратным набором, без хуков); при отказе сервера стек не меняется. */
+    /** Отменяет последнее действие (обратным набором, без хуков); при отказе сервера стек не меняется */
     undo(): Promise<ChangeResult>;
-    /** Повторяет последнее отменённое действие (без хуков). */
+    /** Повторяет последнее отменённое действие (без хуков) */
     redo(): Promise<ChangeResult>;
     canUndo(): boolean;
     canRedo(): boolean;
     /**
      * Выполняет произвольную последовательность операций одним набором изменений:
-     * сбой любой операции или исключение отменяет весь набор.
+     * сбой любой операции или исключение отменяет весь набор
      */
     perform(
         run: (tx: ChangeScope) => void | Promise<void>,
@@ -156,7 +159,7 @@ export interface DataController {
     ): Promise<ChangeResult>;
     /**
      * Регистрирует хук операции для объектов типа `type` (`'*'` — любой тип).
-     * Хуки одного вида вызываются в порядке регистрации. Возвращает функцию отписки.
+     * Хуки одного вида вызываются в порядке регистрации. Возвращает функцию отписки
      */
     registerHook(
         type: string,
@@ -164,7 +167,7 @@ export interface DataController {
         phase: HookPhase,
         handler: HookHandler,
     ): () => void;
-    /** Привязывает обработчик к действию `actionId` типа `typeId`. Возвращает функцию отписки. */
+    /** Привязывает обработчик к действию `actionId` типа `typeId`. Возвращает функцию отписки */
     registerAction(
         typeId: string,
         actionId: string,
@@ -173,10 +176,10 @@ export interface DataController {
     ): () => void;
     /**
      * Действия объекта, у которых есть обработчик; с `placement` — только показываемые
-     * в этом месте. Действие без обработчика не возвращается.
+     * в этом месте. Действие без обработчика не возвращается
      */
     getActions(objectId: string, placement?: ActionPlacement): ActionDefinition[];
-    /** Запускает действие над объектом-целью одним набором; проверяет обязательные параметры. */
+    /** Запускает действие над объектом-целью одним набором; проверяет обязательные параметры */
     runAction(
         objectId: string,
         actionId: string,
@@ -189,16 +192,16 @@ function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
-/** Предел вложенности хуков: защита от бесконечной рекурсии. */
+/** Предел вложенности хуков: защита от бесконечной рекурсии */
 const MAX_HOOK_DEPTH = 16;
 
 interface Scope {
-    operations: Record<string, unknown>[];
-    /** Состояние затронутых объектов до первого изменения (для отката); `undefined` — не было. */
+    operations: Operation[];
+    /** Состояние затронутых объектов до первого изменения (для отката); `undefined` — не было */
     before: Map<string, DataObject | undefined>;
     hooks: boolean;
     depth: number;
-    /** Первая причина отказа: набор будет отменён. */
+    /** Первая причина отказа: набор будет отменён */
     error: string | null;
 }
 
@@ -227,7 +230,7 @@ export function createDataController(options: DataControllerOptions): DataContro
     >();
 
     // Индекс «родитель → потомки по порядку»: строится по требованию, сбрасывается при любом
-    // изменении модели (в том числе внутри набора, между его операциями).
+    // изменении модели (в том числе внутри набора, между его операциями)
     let childrenIndex: Map<string | null, DataObject[]> | null = null;
 
     function publish(patch: Partial<DataSnapshot>, model = true) {
@@ -265,7 +268,7 @@ export function createDataController(options: DataControllerOptions): DataContro
 
     const newId = options.newId ?? uuid7;
     const history = createUndoHistory();
-    // Наборы выполняются строго по очереди, чтобы откат одного не затирал соседние.
+    // Наборы выполняются строго по очереди, чтобы откат одного не затирал соседние
     let queue: Promise<unknown> = Promise.resolve();
 
     function descendantsFirst(id: string): string[] {
@@ -297,7 +300,7 @@ export function createDataController(options: DataControllerOptions): DataContro
         return { ok: false, error };
     }
 
-    /** Запускает хуки; для фазы «до» возвращает сообщение отмены, если хук отказал. */
+    /** Запускает хуки; для фазы «до» возвращает сообщение отмены, если хук отказал */
     function runHooks(
         scope: Scope,
         tx: ChangeScope,
@@ -321,7 +324,7 @@ export function createDataController(options: DataControllerOptions): DataContro
                 if (phase === 'before' && result && typeof result.cancel === 'string') {
                     return result.cancel;
                 }
-                // Вложенная операция хука отказала — набор уже помечен ошибкой.
+                // Вложенная операция хука отказала — набор уже помечен ошибкой
                 if (scope.error) return scope.error;
             }
             return null;
@@ -345,9 +348,9 @@ export function createDataController(options: DataControllerOptions): DataContro
                 }
                 const id = newId();
                 const siblings = getChildren(parent);
-                const order =
-                    input.order ?? (siblings.length ? siblings[siblings.length - 1].order + 1 : 0);
-                // Значения по умолчанию из определения типа; заданные явно приоритетнее.
+                const lastSibling = siblings.at(-1);
+                const order = input.order ?? (lastSibling ? lastSibling.order + 1 : 0);
+                // Значения по умолчанию из определения типа; заданные явно приоритетнее
                 const properties: Record<string, unknown> = {};
                 for (const p of type.properties ?? []) {
                     if (p.default !== undefined && p.default !== null) properties[p.id] = p.default;
@@ -385,7 +388,7 @@ export function createDataController(options: DataControllerOptions): DataContro
                 const cancelled = runHooks(scope, tx, 'setProperty', 'before', context);
                 if (cancelled !== null) return refuse(scope, cancelled);
 
-                // Хук «до» мог изменить объект: берём актуальную версию.
+                // Хук «до» мог изменить объект: берём актуальную версию
                 const current = objects.get(id);
                 if (!current) return refuse(scope, 'Объект не найден.');
                 touch(scope, id);
@@ -438,7 +441,7 @@ export function createDataController(options: DataControllerOptions): DataContro
 
                 const current = objects.get(id);
                 if (!current) return refuse(scope, 'Объект не найден.');
-                const operation: Record<string, unknown> = { op: 'move', id };
+                const operation: Extract<Operation, { op: 'move' }> = { op: 'move', id };
                 if (parent !== from.parent) operation.parent = { old: from.parent, new: parent };
                 if (order !== from.order) operation.order = { old: from.order, new: order };
                 touch(scope, id);
@@ -476,7 +479,7 @@ export function createDataController(options: DataControllerOptions): DataContro
 
     /**
      * Выполняет набор: локально применяет операции, отправляет их на сервер одним запросом;
-     * при отказе (в том числе вложенной операции или сервера) возвращает модель как была.
+     * при отказе (в том числе вложенной операции или сервера) возвращает модель как была
      */
     function execute(
         run: (tx: ChangeScope, scope: Scope) => void | Promise<void>,
@@ -525,7 +528,7 @@ export function createDataController(options: DataControllerOptions): DataContro
 
     /**
      * Отмена и повтор: применяют сохранённый набор напрямую к модели, минуя `makeScope`,
-     * поэтому хуки не вызываются; идут через ту же очередь. При отказе стек остаётся прежним.
+     * поэтому хуки не вызываются; идут через ту же очередь. При отказе стек остаётся прежним
      */
     function replay(kind: 'undo' | 'redo'): Promise<ChangeResult> {
         const step = async (): Promise<ChangeResult> => {
@@ -622,10 +625,14 @@ export function createDataController(options: DataControllerOptions): DataContro
         getChildren: (parent) => getChildren(parent),
         orderAt(parent, index, exclude) {
             const siblings = getChildren(parent, exclude);
-            if (siblings.length === 0) return 0;
-            if (index <= 0) return siblings[0].order - 1;
-            if (index >= siblings.length) return siblings[siblings.length - 1].order + 1;
-            return (siblings[index - 1].order + siblings[index].order) / 2;
+            const first = siblings[0];
+            const last = siblings.at(-1);
+            if (!first || !last) return 0;
+            if (index <= 0) return first.order - 1;
+            const before = siblings[index - 1];
+            const after = siblings[index];
+            if (!before || !after) return last.order + 1;
+            return (before.order + after.order) / 2;
         },
         async create(input, opts) {
             let created: CreateResult = { ok: false, error: 'Объект не создан.' };

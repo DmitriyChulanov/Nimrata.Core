@@ -2,54 +2,54 @@ using Nimrata.Core.Server.Auth;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Логика сброса пароля, не требующая БД: токены и письмо.</summary>
+/// <summary>Логика сброса пароля, не требующая БД: токены и письмо</summary>
 public class PasswordResetUnitTests
 {
     [Fact]
-    public void Токен_УникаленИНеСовпадаетСХешем()
+    public void Token_IsUniqueAndDiffersFromHash()
     {
-        var а = ResetTokens.Создать();
-        var б = ResetTokens.Создать();
+        var first = OpaqueTokens.Create();
+        var second = OpaqueTokens.Create();
 
-        Assert.NotEqual(а.Токен, б.Токен);
-        Assert.NotEqual(а.Токен, а.Хеш);
-        Assert.True(а.Токен.Length >= 43); // 32 байта в base64url
+        Assert.NotEqual(first.Value, second.Value);
+        Assert.NotEqual(first.Value, first.Hash);
+        Assert.True(first.Value.Length >= 43); // 32 байта в base64url
     }
 
     [Fact]
-    public void Хеш_ДетерминированИСовпадаетСХешемВыданногоТокена()
+    public void Hash_IsDeterministicAndMatchesIssuedTokenHash()
     {
-        var токен = ResetTokens.Создать();
+        var token = OpaqueTokens.Create();
 
-        Assert.Equal(токен.Хеш, ResetTokens.Хеш(токен.Токен));
-        Assert.NotEqual(токен.Хеш, ResetTokens.Хеш(токен.Токен + "x"));
+        Assert.Equal(token.Hash, OpaqueTokens.Hash(token.Value));
+        Assert.NotEqual(token.Hash, OpaqueTokens.Hash(token.Value + "x"));
     }
 
     [Fact]
-    public void Токен_БезопасенДляUrl()
+    public void Token_IsUrlSafe()
     {
-        var токен = ResetTokens.Создать().Токен;
+        var token = OpaqueTokens.Create().Value;
 
-        Assert.Equal(токен, Uri.EscapeDataString(токен));
+        Assert.Equal(token, Uri.EscapeDataString(token));
     }
 
     [Fact]
-    public void Ссылка_СтроитсяОтПубличногоАдресаИЭкранируетТокен()
+    public void Link_BuiltFromPublicUrlAndEscapesToken()
     {
         Assert.Equal("https://nimrata.test/reset-password?token=abc%2B1",
-            PasswordResetMail.Ссылка("https://nimrata.test/", "abc+1"));
+            PasswordResetMail.BuildLink("https://nimrata.test/", "abc+1"));
         Assert.Equal("http://localhost:8080/reset-password?token=t",
-            PasswordResetMail.Ссылка("http://localhost:8080", "t"));
+            PasswordResetMail.BuildLink("http://localhost:8080", "t"));
     }
 
     [Fact]
-    public void Письмо_СодержитСсылкуИСрокДействия()
+    public void Email_ContainsLinkAndLifetime()
     {
-        var письмо = PasswordResetMail.Составить("user@example.test", "https://nimrata.test/reset-password?token=t", TimeSpan.FromMinutes(90));
+        var email = PasswordResetMail.Compose("user@example.test", "https://nimrata.test/reset-password?token=t", TimeSpan.FromMinutes(90));
 
-        Assert.Equal("user@example.test", письмо.Кому);
-        Assert.Contains("пароля", письмо.Тема);
-        Assert.Contains("https://nimrata.test/reset-password?token=t", письмо.Текст);
-        Assert.Contains("90 мин", письмо.Текст);
+        Assert.Equal("user@example.test", email.To);
+        Assert.Contains("пароля", email.Subject);
+        Assert.Contains("https://nimrata.test/reset-password?token=t", email.Body);
+        Assert.Contains("90 мин", email.Body);
     }
 }

@@ -4,18 +4,18 @@ using Microsoft.Extensions.Options;
 
 namespace Nimrata.Core.Server.Auth;
 
-/// <summary>Отправка по SMTP (Mailpit в разработке).</summary>
-public sealed class SmtpEmailSender(IOptions<SmtpOptions> настройки) : IEmailSender
+/// <summary>Отправка по SMTP (Mailpit в разработке)</summary>
+public sealed class SmtpEmailSender(IOptions<SmtpOptions> options) : IEmailSender
 {
-    public async Task Отправить(Письмо письмо)
+    public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
     {
-        var o = настройки.Value;
-        using var клиент = new SmtpClient(o.Host, o.Port) { EnableSsl = o.UseSsl };
-        if (!string.IsNullOrEmpty(o.User))
+        var smtp = options.Value;
+        using var client = new SmtpClient(smtp.Host, smtp.Port) { EnableSsl = smtp.UseSsl };
+        if (!string.IsNullOrEmpty(smtp.User))
         {
-            клиент.Credentials = new NetworkCredential(o.User, o.Password);
+            client.Credentials = new NetworkCredential(smtp.User, smtp.Password);
         }
-        using var сообщение = new MailMessage(o.From, письмо.Кому, письмо.Тема, письмо.Текст);
-        await клиент.SendMailAsync(сообщение);
+        using var mail = new MailMessage(smtp.From, message.To, message.Subject, message.Body);
+        await client.SendMailAsync(mail, cancellationToken);
     }
 }

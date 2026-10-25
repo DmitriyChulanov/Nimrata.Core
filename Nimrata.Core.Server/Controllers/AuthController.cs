@@ -3,108 +3,111 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Nimrata.Core.Server.Auth;
+using Nimrata.Core.Server.Controllers.Requests;
+using Nimrata.Core.Server.Controllers.Responses;
 
 namespace Nimrata.Core.Server.Controllers;
 
-public sealed record LoginRequest(string? Email, string? Password);
-
-public sealed record ForgotPasswordRequest(string? Email);
-
-public sealed record ResetPasswordRequest(string? Token, string? Password);
-
+/// <summary>Вход, обновление и отзыв токенов, сброс пароля</summary>
 [ApiController]
 [Route("api/auth")]
 public sealed class AuthController(
-    AuthService авторизация, PasswordResetService сброс, IOptions<JwtOptions> настройки) : ControllerBase
+    AuthService authService, PasswordResetService passwordResetService, IOptions<JwtOptions> jwtOptions)
+    : ControllerBase
 {
     private const string RefreshCookie = "refresh_token";
 
-    /// <summary>Всегда отвечает одинаково, не раскрывая, есть ли такой пользователь.</summary>
+    /// <summary>Всегда отвечает одинаково, не раскрывая, есть ли такой пользователь</summary>
     [AllowAnonymous]
     [HttpPost("forgot-password")]
-    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest запрос)
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(запрос.Email))
+        if (!string.IsNullOrWhiteSpace(request.Email))
         {
-            await сброс.ЗапроситьПоEmail(запрос.Email.Trim());
+            await passwordResetService.RequestByEmailAsync(request.Email.Trim(), cancellationToken);
         }
         return Accepted();
     }
 
     [AllowAnonymous]
     [HttpPost("reset-password")]
-    public async Task<IActionResult> ResetPassword(ResetPasswordRequest запрос)
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken cancellationToken)
     {
-        var результат = await сброс.УстановитьПароль(запрос.Token, запрос.Password);
-        return результат == ResetStatus.Ok
+        var status = await passwordResetService.SetPasswordAsync(request.Token, request.Password, cancellationToken);
+        return status == ResetStatus.Ok
             ? NoContent()
-            : BadRequest(new
-            {
-                error = $"Ссылка недействительна или устарела, либо пароль короче {AuthService.MinPasswordLength} символов.",
-            });
+            : Problem(
+                detail: $"Ссылка недействительна или устарела, либо пароль короче {Passwords.MinLength} символов.",
+                statusCode: StatusCodes.Status400BadRequest);
     }
 
     [AllowAnonymous]
     [HttpPost("login")]
-    public async Task<IActionResult> Login(LoginRequest запрос)
+    [ProducesResponseType<TokenResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<TokenResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(запрос.Email) || string.IsNullOrEmpty(запрос.Password))
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrEmpty(request.Password))
         {
             return Unauthorized();
         }
-        var результат = await авторизация.Войти(запрос.Email.Trim(), запрос.Password);
-        return результат is null ? Unauthorized() : Выдать(результат);
+        var result = await authService.LoginAsync(request.Email.Trim(), request.Password, cancellationToken);
+        return result is null ? Unauthorized() : IssueTokens(result);
     }
 
     [AllowAnonymous]
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh()
+    [ProducesResponseType<TokenResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<TokenResponse>> Refresh(CancellationToken cancellationToken)
     {
-        if (!Request.Cookies.TryGetValue(RefreshCookie, out var токен) || string.IsNullOrEmpty(токен))
+        if (!Request.Cookies.TryGetValue(RefreshCookie, out var token) || string.IsNullOrEmpty(token))
         {
             return Unauthorized();
         }
-        var результат = await авторизация.Обновить(токен);
-        if (результат is null)
+        var result = await authService.RefreshAsync(token, cancellationToken);
+        if (result is null)
         {
-            Response.Cookies.Delete(RefreshCookie, ПараметрыCookie(null));
+            Response.Cookies.Delete(RefreshCookie, CreateCookieOptions(null));
             return Unauthorized();
         }
-        return Выдать(результат);
+        return IssueTokens(result);
     }
 
     [AllowAnonymous]
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout()
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
-        if (Request.Cookies.TryGetValue(RefreshCookie, out var токен) && !string.IsNullOrEmpty(токен))
+        if (Request.Cookies.TryGetValue(RefreshCookie, out var token) && !string.IsNullOrEmpty(token))
         {
-            await авторизация.Выйти(токен);
+            await authService.LogoutAsync(token, cancellationToken);
         }
-        Response.Cookies.Delete(RefreshCookie, ПараметрыCookie(null));
+        Response.Cookies.Delete(RefreshCookie, CreateCookieOptions(null));
         return NoContent();
     }
 
     [HttpGet("me")]
-    public IActionResult Me() => Ok(new
-    {
-        id = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub"),
-        email = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email"),
-        isAdmin = User.IsInRole("admin"),
-    });
+    public ActionResult<CurrentUserResponse> Me() => new CurrentUserResponse(
+        User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub"),
+        User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email"),
+        User.IsInRole(Roles.Admin));
 
-    private IActionResult Выдать(AuthResult результат)
+    private TokenResponse IssueTokens(AuthResult result)
     {
-        Response.Cookies.Append(RefreshCookie, результат.RefreshToken, ПараметрыCookie(результат.RefreshExpiresAt));
-        return Ok(new { accessToken = результат.AccessToken, expiresIn = настройки.Value.AccessMinutes * 60 });
+        Response.Cookies.Append(RefreshCookie, result.RefreshToken, CreateCookieOptions(result.RefreshExpiresAt));
+        return new TokenResponse(result.AccessToken, jwtOptions.Value.AccessMinutes * 60);
     }
 
-    private CookieOptions ПараметрыCookie(DateTimeOffset? истекает) => new()
+    private CookieOptions CreateCookieOptions(DateTimeOffset? expiresAt) => new()
     {
         HttpOnly = true,
         SameSite = SameSiteMode.Strict,
         Secure = Request.IsHttps,
         Path = "/api/auth",
-        Expires = истекает,
+        Expires = expiresAt,
     };
 }

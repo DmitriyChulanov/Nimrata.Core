@@ -13,11 +13,13 @@ using Npgsql;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddOpenApi();
 
 SqlMapper.AddTypeHandler(new JsonbTypeHandler());
 
-// Настройки читаются лениво (уже после сборки хоста), чтобы работали и переопределения тестового стенда.
+// Настройки читаются лениво (уже после сборки хоста), чтобы работали и переопределения тестового стенда
 builder.Services.AddOptions<JwtOptions>().BindConfiguration(JwtOptions.Section);
 builder.Services.AddOptions<AdminSeedOptions>().BindConfiguration(AdminSeedOptions.Section);
 builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(
@@ -31,6 +33,9 @@ builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<AdminSeeder>();
 builder.Services.AddSingleton<UserAdminService>();
 builder.Services.AddSingleton<ChangesetService>();
+builder.Services.AddSingleton<ObjectsService>();
+builder.Services.AddSingleton<JournalService>();
+builder.Services.AddSingleton<TypesService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -41,13 +46,13 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         {
             ValidIssuer = jwt.Value.Issuer,
             ValidAudience = jwt.Value.Audience,
-            IssuerSigningKey = AuthService.КлючПодписи(jwt.Value),
+            IssuerSigningKey = jwt.Value.CreateSigningKey(),
             RoleClaimType = System.Security.Claims.ClaimTypes.Role,
             NameClaimType = "sub",
             ClockSkew = TimeSpan.FromSeconds(30),
         };
     });
-// Всё API закрыто по умолчанию; открытые маршруты помечаются AllowAnonymous.
+// Всё API закрыто по умолчанию; открытые маршруты помечаются AllowAnonymous
 builder.Services.AddAuthorizationBuilder()
     .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
@@ -58,12 +63,12 @@ var connectionString = app.Configuration.GetConnectionString("Default")
         "Не задана строка подключения ConnectionStrings:Default (appsettings или переменная ConnectionStrings__Default).");
 
 Startup.ApplyMigrations(connectionString);
-ManifestLoader.Загрузить(connectionString, app.Configuration["Modules:Path"] ?? ManifestLoader.КаталогПоУмолчанию);
-app.Services.GetRequiredService<AdminSeeder>().Выполнить().GetAwaiter().GetResult();
+ManifestLoader.Load(connectionString, app.Configuration["Modules:Path"] ?? ManifestLoader.DefaultDirectory);
+await app.Services.GetRequiredService<AdminSeeder>().SeedAsync();
 
 app.UseDefaultFiles();
 // Собранный клиент лежит в wwwroot (кладётся при публикации); раздаём его с диска, без манифеста статических ресурсов.
-// UseRouting вызывается явно после статики: иначе fallback-маршрут выбирается раньше и перекрывает файлы.
+// UseRouting вызывается явно после статики: иначе fallback-маршрут выбирается раньше и перекрывает файлы
 app.UseStaticFiles();
 app.UseRouting();
 
@@ -79,14 +84,14 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapGet("/health", async () =>
+app.MapGet("/health", async (CancellationToken cancellationToken) =>
 {
-    await using var соединение = new NpgsqlConnection(connectionString);
-    await соединение.ExecuteScalarAsync<int>("select 1");
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.ExecuteScalarAsync<int>(new CommandDefinition("select 1", cancellationToken: cancellationToken));
     return Results.Ok(new { status = "ok" });
 }).AllowAnonymous();
 
-// Неизвестные маршруты отдают клиентское приложение (клиентская маршрутизация), кроме /api: там остаётся 404.
+// Неизвестные маршруты отдают клиентское приложение (клиентская маршрутизация), кроме /api: там остаётся 404
 app.MapFallbackToFile("{*path:regex(^(?!api(/|$)).*$)}", "index.html").AllowAnonymous();
 
 app.Run();

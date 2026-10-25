@@ -2,7 +2,8 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { AuthProvider } from '../auth/AuthProvider';
+import { AuthProvider } from '@platform/auth/AuthProvider';
+
 import { UsersTab } from './UsersTab';
 
 interface User {
@@ -36,7 +37,7 @@ const olga: User = {
     isActive: false,
 };
 
-/** Сервер в памяти: список пользователей и запись вызовов администрирования. */
+/** Сервер в памяти: список пользователей и запись вызовов администрирования */
 function stubServer(
     initial: User[] = [admin, ivan, olga],
     reject?: { status: number; error: string },
@@ -50,7 +51,10 @@ function stubServer(
         const body = init?.body ? (JSON.parse(String(init.body)) as unknown) : undefined;
         calls.push({ method, url, body });
         if (method === 'GET') return Promise.resolve(jsonResponse(users));
-        if (reject) return Promise.resolve(jsonResponse({ error: reject.error }, reject.status));
+        if (reject)
+            return Promise.resolve(
+                jsonResponse({ title: 'Conflict', detail: reject.error }, reject.status),
+            );
         if (method === 'POST' && url === '/api/admin/users') {
             const b = body as { email: string; name: string; role: 'admin' | 'member' };
             users.push({ id: 'new', email: b.email, name: b.name, role: b.role, isActive: true });
@@ -79,7 +83,7 @@ function renderTab() {
     );
 }
 
-it('показывает список пользователей с ролью и состоянием', async () => {
+it('usersTab_list_showsUsersWithRoleAndState', async () => {
     stubServer();
     renderTab();
 
@@ -87,11 +91,11 @@ it('показывает список пользователей с ролью �
     expect(within(row).getByText('Иван')).toBeInTheDocument();
     expect(within(row).getByLabelText('Роль ivan@x.test')).toHaveValue('member');
     expect(within(row).getByText('Активен')).toBeInTheDocument();
-    const отключённый = screen.getByRole('row', { name: /olga@x\.test/ });
-    expect(within(отключённый).getByText('Отключён')).toBeInTheDocument();
+    const disabledRow = screen.getByRole('row', { name: /olga@x\.test/ });
+    expect(within(disabledRow).getByText('Отключён')).toBeInTheDocument();
 });
 
-it('создаёт пользователя с паролем и ролью и обновляет список', async () => {
+it('usersTab_create_addsUserWithPasswordAndRoleAndRefreshesList', async () => {
     const { calls } = stubServer();
     const user = userEvent.setup();
     renderTab();
@@ -113,7 +117,7 @@ it('создаёт пользователя с паролем и ролью и �
     expect(screen.getByLabelText('Пароль')).toHaveValue('');
 });
 
-it('меняет роль выбором в списке', async () => {
+it('usersTab_changeRole_bySelectingInList', async () => {
     const { calls } = stubServer();
     const user = userEvent.setup();
     renderTab();
@@ -130,7 +134,7 @@ it('меняет роль выбором в списке', async () => {
     expect(await screen.findByLabelText('Роль ivan@x.test')).toHaveValue('admin');
 });
 
-it('отключает и включает пользователя', async () => {
+it('usersTab_disableAndEnable_user', async () => {
     const { calls } = stubServer();
     const user = userEvent.setup();
     renderTab();
@@ -148,19 +152,19 @@ it('отключает и включает пользователя', async () =
     ]);
 });
 
-it('причина отказа сервера (последний администратор) показывается пользователю', async () => {
-    const причина = 'Нельзя отключить или понизить последнего действующего администратора.';
-    stubServer([admin], { status: 409, error: причина });
+it('usersTab_serverRefusal_lastAdministratorIsShownToUser', async () => {
+    const reason = 'Нельзя отключить или понизить последнего действующего администратора.';
+    stubServer([admin], { status: 409, error: reason });
     const user = userEvent.setup();
     renderTab();
 
     await user.click(await screen.findByRole('button', { name: 'Отключить admin@x.test' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(причина);
+    expect(await screen.findByRole('alert')).toHaveTextContent(reason);
     expect(screen.getByLabelText('Роль admin@x.test')).toHaveValue('admin');
 });
 
-it('кнопка «Отправить ссылку на смену пароля» отправляет письмо выбранному пользователю', async () => {
+it('usersTab_sendPasswordResetButton_sendsEmailToSelectedUser', async () => {
     const { calls } = stubServer();
     const user = userEvent.setup();
     renderTab();

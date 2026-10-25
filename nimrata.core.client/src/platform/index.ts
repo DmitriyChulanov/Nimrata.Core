@@ -2,11 +2,14 @@ export { ApiError, API_PREFIX, createApiClient } from './api/apiClient';
 export type { ApiClient, ApiClientOptions, FetchFn } from './api/apiClient';
 export { createAuthSession } from './auth/authSession';
 export type { AuthSession, AuthState, AuthStatus } from './auth/authSession';
-export { AuthProvider, useAuth, useApi } from './auth/AuthProvider';
+export { AuthProvider } from './auth/AuthProvider';
+export { useAuth } from './auth/useAuth';
+export { useApi } from './auth/useApi';
 export { LoginScreen } from './auth/LoginScreen';
 export { ResetPasswordScreen } from './auth/ResetPasswordScreen';
-export { TypesProvider, useTypes } from './types/TypesProvider';
-export type { TypesContextValue, TypesStatus } from './types/TypesProvider';
+export { TypesProvider } from './types/TypesProvider';
+export { useTypes } from './types/useTypes';
+export type { TypesContextValue, TypesStatus } from './types/TypesContext';
 export { createDataController } from './data/DataController';
 export type {
     ActionContext,
@@ -29,18 +32,17 @@ export type {
     MoveInput,
     OperationOptions,
 } from './data/DataController';
-export { DataProvider, useData } from './data/DataProvider';
+export { DataProvider } from './data/DataProvider';
+export { useData } from './data/useData';
 export { UndoControls } from './data/UndoControls';
 export { ActionDialog } from './actions/ActionDialog';
 export type { ActionDialogProps } from './actions/ActionDialog';
 export { useActionLauncher } from './actions/useActionLauncher';
 export type { ActionLauncher } from './actions/useActionLauncher';
-export {
-    SelectionProvider,
-    useOptionalSelection,
-    useSelection,
-} from './selection/SelectionProvider';
-export type { SelectionValue } from './selection/SelectionProvider';
+export { SelectionProvider } from './selection/SelectionProvider';
+export { useOptionalSelection } from './selection/useOptionalSelection';
+export { useSelection } from './selection/useSelection';
+export type { SelectionValue } from './selection/SelectionContext';
 export { Tree } from './tree/Tree';
 export { PropertyGrid } from './properties/PropertyGrid';
 export { Workspace } from './layout/Workspace';
@@ -59,7 +61,8 @@ export type {
     TabRegistry,
     UserRole,
 } from './tabs/registries';
-export { TabsProvider, useTabs } from './tabs/TabsProvider';
+export { TabsProvider } from './tabs/TabsProvider';
+export { useTabs } from './tabs/useTabs';
 export { TabContainer } from './tabs/TabContainer';
 export { MainMenu } from './tabs/MainMenu';
 export { useCurrentUser } from './auth/useCurrentUser';

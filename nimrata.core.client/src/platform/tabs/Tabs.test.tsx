@@ -6,6 +6,7 @@ import { MainMenu } from './MainMenu';
 import { TabContainer } from './TabContainer';
 import { TabsProvider } from './TabsProvider';
 import { createMenuRegistry, createTabRegistry } from './registries';
+
 import type { UserRole } from './registries';
 
 afterEach(() => {
@@ -45,7 +46,7 @@ async function choose(user: ReturnType<typeof userEvent.setup>, group: string, i
     await user.click(screen.getByRole('menuitem', { name: item }));
 }
 
-it('меню строится из реестра и открывает вкладку выбранного пункта', async () => {
+it('tabs_menu_isBuiltFromRegistryAndOpensSelectedItemTab', async () => {
     const user = userEvent.setup();
     setup();
 
@@ -55,7 +56,7 @@ it('меню строится из реестра и открывает вкла
     expect(screen.getByText('Содержимое журнала')).toBeInTheDocument();
 });
 
-it('пункты, недоступные роли, не показываются', async () => {
+it('tabs_itemsUnavailableToRole_areNotShown', async () => {
     const user = userEvent.setup();
     setup('member');
 
@@ -64,7 +65,7 @@ it('пункты, недоступные роли, не показываются
     expect(screen.queryByRole('menuitem', { name: 'Пользователи' })).not.toBeInTheDocument();
 });
 
-it('администратор видит административный пункт', async () => {
+it('tabs_administrator_seesAdministrativeItem', async () => {
     const user = userEvent.setup();
     setup('admin');
 
@@ -73,7 +74,7 @@ it('администратор видит административный пу�
     expect(screen.getByText('Список')).toBeInTheDocument();
 });
 
-it('вкладки переключаются и закрываются', async () => {
+it('tabs_switchAndClose_work', async () => {
     const user = userEvent.setup();
     setup();
     await choose(user, 'Вид', 'Журнал');
@@ -89,7 +90,7 @@ it('вкладки переключаются и закрываются', async 
     expect(screen.getByText('Содержимое заметки')).toBeInTheDocument();
 });
 
-it('повторное открытие вида с одной копией переключает на существующую вкладку', async () => {
+it('tabs_reopenSingleCopyKind_switchesToExistingTab', async () => {
     const user = userEvent.setup();
     setup();
     await choose(user, 'Вид', 'Журнал');
@@ -101,7 +102,7 @@ it('повторное открытие вида с одной копией пе
     expect(screen.getByRole('tab', { name: /Журнал/ })).toHaveAttribute('aria-selected', 'true');
 });
 
-it('вид с несколькими копиями открывается заново каждый раз', async () => {
+it('tabs_multiCopyKind_opensAnewEveryTime', async () => {
     const user = userEvent.setup();
     setup();
 
@@ -111,7 +112,7 @@ it('вид с несколькими копиями открывается за�
     expect(screen.getAllByRole('tab', { name: /Заметка/ })).toHaveLength(2);
 });
 
-it('раскладка восстанавливается после перезагрузки для того же пользователя', async () => {
+it('tabs_layout_isRestoredAfterReloadForSameUser', async () => {
     const user = userEvent.setup();
     const first = setup();
     await choose(user, 'Вид', 'Журнал');
@@ -125,7 +126,7 @@ it('раскладка восстанавливается после перез�
     expect(screen.getByRole('tab', { name: /Журнал/ })).toHaveAttribute('aria-selected', 'true');
 });
 
-it('у другого пользователя раскладка пустая', async () => {
+it('tabs_otherUser_hasEmptyLayout', async () => {
     const user = userEvent.setup();
     const first = setup('member', 'u1');
     await choose(user, 'Вид', 'Журнал');
@@ -136,7 +137,7 @@ it('у другого пользователя раскладка пустая',
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
 });
 
-it('недоступное хранилище не ломает работу вкладок', async () => {
+it('tabs_unavailableStorage_doesNotBreakTabs', async () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
         throw new Error('закрыто');
     });
@@ -151,7 +152,7 @@ it('недоступное хранилище не ломает работу в�
     expect(screen.getByText('Содержимое журнала')).toBeInTheDocument();
 });
 
-it('вкладки неизвестного вида из сохранённой раскладки пропускаются', () => {
+it('tabs_unknownKindInSavedLayout_isSkipped', () => {
     localStorage.setItem(
         'nimrata.layout.u1',
         JSON.stringify({

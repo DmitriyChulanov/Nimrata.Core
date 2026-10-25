@@ -1,16 +1,16 @@
-/** Единый префикс всех маршрутов API платформы (совпадает с прокси в vite.config.ts). */
+/** Единый префикс всех маршрутов API платформы (совпадает с прокси в vite.config.ts) */
 export const API_PREFIX = '/api';
 
 export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
 export interface ApiClientOptions {
-    /** Базовый адрес API. По умолчанию `/api`. */
+    /** Базовый адрес API. По умолчанию `/api` */
     baseUrl?: string;
-    /** Подмена `fetch` (для тестов). */
+    /** Подмена `fetch` (для тестов) */
     fetch?: FetchFn;
-    /** Дополнительные заголовки для каждого запроса (например, токен доступа). */
+    /** Дополнительные заголовки для каждого запроса (например, токен доступа) */
     getHeaders?: () => Record<string, string>;
-    /** Вызывается при ответе 401; если вернула true, запрос повторяется один раз. */
+    /** Вызывается при ответе 401; если вернула true, запрос повторяется один раз */
     onUnauthorized?: () => Promise<boolean>;
 }
 
@@ -36,17 +36,14 @@ async function readErrorMessage(response: Response): Promise<string> {
     try {
         const body: unknown = await response.json();
         if (body && typeof body === 'object') {
-            const { title, message, error } = body as {
-                title?: unknown;
-                message?: unknown;
-                error?: unknown;
-            };
-            if (typeof title === 'string' && title) return title;
-            if (typeof message === 'string' && message) return message;
-            if (typeof error === 'string' && error) return error;
+            // ProblemDetails: понятное сообщение лежит в detail, title — лишь общий текст статуса
+            for (const key of ['detail', 'message', 'error', 'title']) {
+                const text = (body as Record<string, unknown>)[key];
+                if (typeof text === 'string' && text) return text;
+            }
         }
     } catch {
-        // Тело не JSON — используем сообщение по умолчанию.
+        // Тело не JSON — используем сообщение по умолчанию
     }
     return fallback;
 }

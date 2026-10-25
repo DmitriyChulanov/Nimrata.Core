@@ -2,10 +2,12 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import { createDataController } from '../data/DataController';
-import { DataProvider } from '../data/DataProvider';
-import { createFakeApi } from '../data/fakeApi';
-import { SelectionProvider, useSelection } from '../selection/SelectionProvider';
+import { createDataController } from '@platform/data/DataController';
+import { DataProvider } from '@platform/data/DataProvider';
+import { createFakeApi } from '@platform/data/fakeApi';
+import { SelectionProvider } from '@platform/selection/SelectionProvider';
+import { useSelection } from '@platform/selection/useSelection';
+
 import { PropertyGrid } from './PropertyGrid';
 
 const types = [
@@ -82,14 +84,14 @@ async function renderGrid(selected: string | null = 't') {
     return { api, controller };
 }
 
-describe('PropertyGrid: отрисовка', () => {
-    it('без выбранного объекта подсказывает выбрать объект', async () => {
+describe('PropertyGrid: rendering', () => {
+    it('propertyGrid_noSelectedObject_suggestsSelectingObject', async () => {
         await renderGrid(null);
 
         expect(screen.getByText('Объект не выбран.')).toBeInTheDocument();
     });
 
-    it('группирует свойства по категориям в порядке описания типа', async () => {
+    it('propertyGrid_properties_groupedByCategoryInTypeDescriptionOrder', async () => {
         await renderGrid();
 
         const groups = screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'));
@@ -99,7 +101,7 @@ describe('PropertyGrid: отрисовка', () => {
         expect(within(main).getByLabelText('Описание')).toHaveValue('');
     });
 
-    it('показывает ссылочное свойство текстом только для чтения', async () => {
+    it('propertyGrid_referenceProperty_shownAsReadOnlyText', async () => {
         await renderGrid();
 
         const group = screen.getByRole('group', { name: 'Прочее' });
@@ -108,7 +110,7 @@ describe('PropertyGrid: отрисовка', () => {
         expect(within(group).queryByRole('textbox')).not.toBeInTheDocument();
     });
 
-    it('свойство «только чтение» недоступно для правки', async () => {
+    it('propertyGrid_readOnlyProperty_isNotEditable', async () => {
         const { api } = await renderGrid();
 
         const code = screen.getByLabelText('Код');
@@ -118,8 +120,8 @@ describe('PropertyGrid: отрисовка', () => {
     });
 });
 
-describe('PropertyGrid: правка', () => {
-    it('строка: Enter отправляет набор изменений «было → стало»', async () => {
+describe('PropertyGrid: editing', () => {
+    it('propertyGrid_string_enterSendsChangesetOldToNew', async () => {
         const { api, controller } = await renderGrid();
 
         const input = screen.getByLabelText('Название');
@@ -133,7 +135,7 @@ describe('PropertyGrid: правка', () => {
         expect(controller.getObject('t')?.properties.title).toBe('Вторая');
     });
 
-    it('многострочный текст: уход фокуса отправляет изменение', async () => {
+    it('propertyGrid_multilineText_blurSendsChange', async () => {
         const { api } = await renderGrid();
 
         await userEvent.type(screen.getByLabelText('Описание'), 'строка 1{Enter}строка 2');
@@ -144,7 +146,7 @@ describe('PropertyGrid: правка', () => {
         });
     });
 
-    it('целое число: отправляется числом; нецелое не отправляется и показывает ошибку', async () => {
+    it('propertyGrid_integer_sentAsNumberNonIntegerNotSentAndShowsError', async () => {
         const { api } = await renderGrid();
         const input = screen.getByLabelText('Количество');
 
@@ -161,7 +163,7 @@ describe('PropertyGrid: правка', () => {
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
-    it('логическое: щелчок по флажку переключает значение', async () => {
+    it('propertyGrid_boolean_checkboxClickTogglesValue', async () => {
         const { api } = await renderGrid();
 
         await userEvent.click(screen.getByLabelText('Готово'));
@@ -172,7 +174,7 @@ describe('PropertyGrid: правка', () => {
         expect(screen.getByLabelText('Готово')).toBeChecked();
     });
 
-    it('дата: вводится как YYYY-MM-DD', async () => {
+    it('propertyGrid_date_enteredAsYyyyMmDd', async () => {
         const { api } = await renderGrid();
 
         await userEvent.type(screen.getByLabelText('День'), '2026-03-15');
@@ -183,7 +185,7 @@ describe('PropertyGrid: правка', () => {
         });
     });
 
-    it('время: вводится как HH:mm', async () => {
+    it('propertyGrid_time_enteredAsHhMm', async () => {
         const { api } = await renderGrid();
 
         await userEvent.type(screen.getByLabelText('Время'), '09:30');
@@ -194,7 +196,7 @@ describe('PropertyGrid: правка', () => {
         });
     });
 
-    it('перечисление: выбор значения из списка; пустой выбор снимает значение', async () => {
+    it('propertyGrid_enum_selectsValueFromListEmptyChoiceClearsValue', async () => {
         const { api } = await renderGrid();
         const select = screen.getByLabelText('Приоритет');
 
@@ -207,7 +209,7 @@ describe('PropertyGrid: правка', () => {
         ]);
     });
 
-    it('неизменённое значение набор не создаёт', async () => {
+    it('propertyGrid_unchangedValue_createsNoChangeset', async () => {
         const { api } = await renderGrid();
 
         await userEvent.click(screen.getByLabelText('Название'));
@@ -216,7 +218,7 @@ describe('PropertyGrid: правка', () => {
         expect(api.changesets).toHaveLength(0);
     });
 
-    it('при отказе сервера значение откатывается и показывается причина', async () => {
+    it('propertyGrid_serverRejection_revertsValueAndShowsReason', async () => {
         const { api } = await renderGrid();
         api.rejectNext(400, 'Название слишком длинное');
 
@@ -228,7 +230,7 @@ describe('PropertyGrid: правка', () => {
         expect(screen.getByLabelText('Название')).toHaveValue('Первая');
     });
 
-    it('при отказе флажок возвращается в прежнее положение', async () => {
+    it('propertyGrid_serverRejection_checkboxReturnsToPreviousPosition', async () => {
         const { api } = await renderGrid();
         api.rejectNext(400, 'Нельзя завершить');
 
@@ -238,7 +240,7 @@ describe('PropertyGrid: правка', () => {
         expect(screen.getByLabelText('Готово')).not.toBeChecked();
     });
 
-    it('при смене выбранного объекта показывает его свойства', async () => {
+    it('propertyGrid_selectedObjectChange_showsItsProperties', async () => {
         await renderGrid();
 
         await userEvent.click(screen.getByRole('button', { name: 'выбрать p' }));

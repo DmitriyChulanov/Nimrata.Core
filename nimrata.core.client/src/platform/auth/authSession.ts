@@ -1,4 +1,4 @@
-import type { ApiClient } from '../api/apiClient';
+import type { ApiClient } from '@platform/api/apiClient';
 
 export type AuthStatus = 'loading' | 'anonymous' | 'authenticated';
 
@@ -9,12 +9,12 @@ export interface AuthState {
 export interface AuthSession {
     getState(): AuthState;
     subscribe(listener: () => void): () => void;
-    /** Заголовки с access-токеном для API-клиента (пусто, пока не вошли). */
+    /** Заголовки с access-токеном для API-клиента (пусто, пока не вошли) */
     getHeaders(): Record<string, string>;
     login(email: string, password: string): Promise<void>;
-    /** Восстанавливает сессию по refresh-cookie (при загрузке страницы). */
+    /** Восстанавливает сессию по refresh-cookie (при загрузке страницы) */
     restore(): Promise<void>;
-    /** Обновляет access по refresh-cookie; параллельные вызовы сливаются в один запрос. */
+    /** Обновляет access по refresh-cookie; параллельные вызовы сливаются в один запрос */
     refresh(): Promise<boolean>;
     logout(): Promise<void>;
 }
@@ -24,11 +24,11 @@ interface TokenResponse {
 }
 
 export interface AuthSessionOptions {
-    /** API-клиент без повтора при 401 (иначе обновление токена зациклится). */
+    /** API-клиент без повтора при 401 (иначе обновление токена зациклится) */
     api: ApiClient;
 }
 
-/** Состояние входа. Access-токен живёт только в замыкании (в памяти вкладки), в хранилища не пишется. */
+/** Состояние входа. Access-токен живёт только в замыкании (в памяти вкладки), в хранилища не пишется */
 export function createAuthSession({ api }: AuthSessionOptions): AuthSession {
     let accessToken: string | null = null;
     let state: AuthState = { status: 'loading' };

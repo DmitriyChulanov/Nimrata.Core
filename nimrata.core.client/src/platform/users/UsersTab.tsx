@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
 
-import { useApi } from '../auth/AuthProvider';
-import type { UserRole } from '../tabs/registries';
+import { useApi } from '@platform/auth/useApi';
 
 import './UsersTab.css';
+
+import type { FormEvent } from 'react';
+import type { UserRole } from '@platform/tabs/registries';
 
 interface ManagedUser {
     id: string;
@@ -18,7 +19,7 @@ const ROLE_TITLES: Record<UserRole, string> = { admin: 'Администрато
 
 const BASE = '/admin/users';
 
-/** Вкладка «Пользователи» (только администратор): список, создание, смена роли, отключение и включение. */
+/** Вкладка «Пользователи» (только администратор): список, создание, смена роли, отключение и включение */
 export function UsersTab() {
     const api = useApi();
     const [users, setUsers] = useState<ManagedUser[]>([]);
@@ -33,7 +34,7 @@ export function UsersTab() {
         setUsers(await api.get<ManagedUser[]>(BASE));
     }, [api]);
 
-    /** Выполняет операцию, затем перечитывает список; при отказе показывает причину сервера. */
+    /** Выполняет операцию, затем перечитывает список; при отказе показывает причину сервера */
     const run = useCallback(
         async (operation: () => Promise<unknown>): Promise<boolean> => {
             setError(null);
@@ -109,7 +110,13 @@ export function UsersTab() {
                 </label>
                 <label>
                     Роль
-                    <select value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
+                    <select
+                        value={role}
+                        onChange={(e) => {
+                            const next = e.target.value;
+                            if (next === 'admin' || next === 'member') setRole(next);
+                        }}
+                    >
                         <option value="member">{ROLE_TITLES.member}</option>
                         <option value="admin">{ROLE_TITLES.admin}</option>
                     </select>

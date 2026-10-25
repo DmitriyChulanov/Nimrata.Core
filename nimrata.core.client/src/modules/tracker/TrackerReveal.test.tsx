@@ -9,13 +9,14 @@ import {
     createDataController,
     useSelection,
 } from '@platform';
-import type { TypeDefinition } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { RevealBinding } from './RevealBinding';
 import { createRevealBridge } from './revealBridge';
 import { ensureStartStructure, registerTracker } from './tracker';
+
+import type { TypeDefinition } from '@platform';
 
 const types = manifest.types.map((t) => ({
     ...t,
@@ -36,8 +37,8 @@ function Probe({ id }: { id: string }) {
     );
 }
 
-describe('Трекер: переход по внутренней ссылке в интерфейсе', () => {
-    it('кнопка «Перейти по внутренней ссылке» выделяет целевой объект и просит дерево его показать', async () => {
+describe('Tracker: internal link navigation in the interface', () => {
+    it('internalLinkUi_button_selectsTargetObjectAndAsksTreeToShowIt', async () => {
         const bridge = createRevealBridge();
         const data = createDataController({ api: createFakeApi(types, []) });
         await data.load();
