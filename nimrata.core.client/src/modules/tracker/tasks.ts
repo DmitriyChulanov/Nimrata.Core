@@ -3,10 +3,10 @@ import type { ChangeScope, DataController, DataObject, HookResult } from '@platf
 /** Типы узлов дерева задач. */
 export const TASK = 'Task';
 const MONTH = 'Month';
-const CATEGORY = 'Category';
+export const CATEGORY = 'Category';
 /** Категории дня идут перед задачами (у задач порядок не меньше 0). */
 const CATEGORY_ORDER = -1;
-const DAY_TYPES = ['Day', 'DayOff'];
+export const DAY_TYPES = ['Day', 'DayOff'];
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME = /^\d{2}:\d{2}$/;
@@ -20,7 +20,7 @@ interface Ymd {
     day: number;
 }
 
-function parseIso(value: string): Ymd | null {
+export function parseIso(value: string): Ymd | null {
     const match = ISO_DATE.exec(value);
     if (!match) return null;
     const ymd = { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
@@ -36,7 +36,7 @@ function utc({ year, month, day }: Ymd): Date {
     return new Date(Date.UTC(year, month - 1, day));
 }
 
-const pad = (n: number, width = 2) => String(n).padStart(width, '0');
+export const pad = (n: number, width = 2) => String(n).padStart(width, '0');
 
 /** Сегодняшняя дата по местному времени в виде `ГГГГ-ММ-ДД`. */
 export function todayIso(): string {
@@ -105,7 +105,7 @@ export function taskDate(data: DataController, task: DataObject): string | undef
     return undefined;
 }
 
-function create(
+export function create(
     tx: ChangeScope,
     parent: string,
     type: string,
@@ -117,7 +117,7 @@ function create(
     return result.id;
 }
 
-function child(
+export function child(
     data: DataController,
     parent: string,
     type: string,
@@ -127,7 +127,12 @@ function child(
 }
 
 /** Находит или создаёт месяц и день внутри «Текущих задач»; возвращает идентификатор дня. */
-function ensureDay(data: DataController, tx: ChangeScope, rootId: string, date: Ymd): string {
+export function ensureDay(
+    data: DataController,
+    tx: ChangeScope,
+    rootId: string,
+    date: Ymd,
+): string {
     const monthDate = `${pad(date.year, 4)}-${pad(date.month)}-01`;
     const month =
         child(data, rootId, MONTH, (o) => o.properties.date === monthDate)?.id ??
@@ -165,7 +170,7 @@ export function ensureCategory(
     );
 }
 
-function ancestors(data: DataController, object: DataObject): DataObject[] {
+export function ancestors(data: DataController, object: DataObject): DataObject[] {
     const chain: DataObject[] = [];
     for (let id = object.parent; id;) {
         const parent = data.getObject(id);

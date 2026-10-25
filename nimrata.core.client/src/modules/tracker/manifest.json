@@ -1,6 +1,6 @@
 {
     "module": "tracker",
-    "version": 5,
+    "version": 6,
     "types": [
         {
             "id": "TasksRoot",
@@ -582,6 +582,24 @@
                     "id": "openInternalLink",
                     "name": "Перейти по внутренней ссылке",
                     "placements": ["propertyGrid", "contextMenu"]
+                },
+                {
+                    "id": "complete",
+                    "name": "Завершить",
+                    "placements": ["propertyGrid", "contextMenu"]
+                },
+                {
+                    "id": "postpone",
+                    "name": "Отложить",
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "parameters": [
+                        {
+                            "id": "date",
+                            "name": "Дата",
+                            "kind": "date",
+                            "required": true
+                        }
+                    ]
                 }
             ],
             "colorRules": [

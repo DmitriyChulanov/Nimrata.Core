@@ -1,3 +1,4 @@
+import { registerCompletion } from './completion';
 import { TASK, createTaskAction, syncTask } from './tasks';
 import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
@@ -146,7 +147,7 @@ export function registerTracker(data: DataController, options: TrackerOptions = 
         );
     }
 
-    disposers.push(registerQuickAccess(data));
+    disposers.push(registerQuickAccess(data), registerCompletion(data));
 
     return () => disposers.forEach((dispose) => dispose());
 }
