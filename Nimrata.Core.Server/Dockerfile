@@ -1,38 +1,31 @@
-# См. статью по ссылке https://aka.ms/customizecontainer, чтобы узнать как настроить контейнер отладки и как Visual Studio использует этот Dockerfile для создания образов для ускорения отладки.
+# Сборка всего приложения одним образом: клиент (Vite) + сервер (ASP.NET Core).
+# Контекст сборки — корень репозитория: docker build -f Nimrata.Core.Server/Dockerfile .
 
-# Этот этап используется при запуске из VS в быстром режиме (по умолчанию для конфигурации отладки)
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-USER $APP_UID
-WORKDIR /app
-EXPOSE 8080
-EXPOSE 8081
+# Стадия 1: собираем клиент.
+FROM node:22-alpine AS client
+WORKDIR /src/nimrata.core.client
+COPY nimrata.core.client/package.json nimrata.core.client/package-lock.json ./
+RUN npm ci
+COPY nimrata.core.client/ ./
+RUN npm run build
 
-
-# Этот этап используется для сборки проекта службы
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS with-node
-RUN apt-get update
-RUN apt-get install curl
-RUN curl -sL https://deb.nodesource.com/setup_20.x | bash
-RUN apt-get -y install nodejs
-
-
-FROM with-node AS build
-ARG BUILD_CONFIGURATION=Release
+# Стадия 2: публикуем сервер; готовый dist подкладывается в wwwroot (SkipClientBuild отключает node-сборку в MSBuild).
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS publish
 WORKDIR /src
-COPY ["Nimrata.Core.Server/Nimrata.Core.Server.csproj", "Nimrata.Core.Server/"]
-COPY ["nimrata.core.client/nimrata.core.client.esproj", "nimrata.core.client/"]
-RUN dotnet restore "./Nimrata.Core.Server/Nimrata.Core.Server.csproj"
-COPY . .
-WORKDIR "/src/Nimrata.Core.Server"
-RUN dotnet build "./Nimrata.Core.Server.csproj" -c $BUILD_CONFIGURATION -o /app/build
+COPY Nimrata.Core.Server/Nimrata.Core.Server.csproj Nimrata.Core.Server/
+RUN dotnet restore Nimrata.Core.Server/Nimrata.Core.Server.csproj -p:SkipClientBuild=true
+COPY Nimrata.Core.Server/ Nimrata.Core.Server/
+COPY --from=client /src/nimrata.core.client/dist nimrata.core.client/dist
+# Манифест модуля читается сервером (Content в csproj ссылается на клиентскую часть).
+COPY nimrata.core.client/src/modules/tracker/manifest.json nimrata.core.client/src/modules/tracker/manifest.json
+RUN dotnet publish Nimrata.Core.Server/Nimrata.Core.Server.csproj -c Release -o /app/publish \
+    -p:SkipClientBuild=true -p:UseAppHost=false --no-restore
 
-# Этот этап используется для публикации проекта службы, который будет скопирован на последний этап
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./Nimrata.Core.Server.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
-
-# Этот этап используется в рабочей среде или при запуске из VS в обычном режиме (по умолчанию, когда конфигурация отладки не используется)
-FROM base AS final
+# Стадия 3: рабочий образ.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
+ENV ASPNETCORE_HTTP_PORTS=8080
+EXPOSE 8080
 COPY --from=publish /app/publish .
+USER $APP_UID
 ENTRYPOINT ["dotnet", "Nimrata.Core.Server.dll"]

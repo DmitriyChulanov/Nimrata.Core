@@ -1,17 +1,20 @@
 # Nimrata.Core
 
-Шаблонный проект: ASP.NET Core (.NET 10) + React 19 + Vite + TypeScript.
+Nimrata — веб-платформа автоматизации (ASP.NET Core .NET 10 + React 19 + Vite + TypeScript + Postgres) и её первый модуль Трекер. Термины — в `GLOSSARY.md`; ключевое решение — бизнес-логика модулей на клиенте, см. `docs/adr/0001-client-side-business-logic.md`. Настройки и развёртывание — `docs/configuration.md`.
 
 ## Структура
-- `Nimrata.Core.Server/` — бэкенд (Web API, контроллеры в `Controllers/`, OpenAPI в Development).
-- `nimrata.core.client/` — фронтенд (Vite, алиас `@` → `src`).
-- `Nimrata.Core.Server.Tests/` — тесты бэкенда (xUnit).
+- `Nimrata.Core.Server/` — бэкенд (Web API под `/api`, `Controllers/`, `Auth/`, `Data/`, SQL-миграции `Migrations/`, OpenAPI в Development). В продакшене раздаёт собранный клиент из `wwwroot`.
+- `nimrata.core.client/` — фронтенд (Vite). `src/platform/` (`@platform`) — общие компоненты и API-клиент платформы; `src/modules/` (например `tracker`, `@tracker`) — модули; `@` → `src`.
+- `Nimrata.Core.Server.Tests/` — тесты бэкенда (xUnit, Testcontainers/Postgres).
 - `Nimrata.Core.slnx` — solution со всеми проектами.
+- `docker-compose.yml`, `Nimrata.Core.Server/Dockerfile` — запуск целиком (приложение + Postgres + Mailpit).
 
 ## Команды
-- Сервер (поднимает и Vite через SpaProxy): `dotnet run --project Nimrata.Core.Server --launch-profile https`
+- Сервер (поднимает и Vite через SpaProxy): `dotnet run --project Nimrata.Core.Server --launch-profile https` (нужен Postgres: `docker compose up -d postgres mailpit`)
+- Всё приложение в контейнерах: `docker compose up --build` → http://localhost:8080
 - Сборка бэкенда: `dotnet build Nimrata.Core.slnx`
-- Тесты бэкенда: `dotnet test Nimrata.Core.slnx`
+- Тесты бэкенда: `dotnet test Nimrata.Core.slnx` (нужен Docker для Testcontainers; на старом Docker задать `DOCKER_API_VERSION`)
+- Публикация сервера вместе с клиентом: `dotnet publish Nimrata.Core.Server -c Release` (собирает клиент и кладёт в `wwwroot`)
 - Клиент, из `nimrata.core.client/`: `npm run dev`, `npm run build`, `npm run lint`, `npm test` (Vitest + Testing Library), `npm run format`
 
 ## Порты
@@ -21,7 +24,8 @@
 ## Соглашения
 - Все серверные маршруты API живут под единым префиксом `/api`; он проксируется одним правилом `^/api` в `server.proxy` (`nimrata.core.client/vite.config.ts`), новые маршруты отдельно в прокси добавлять не нужно. Клиент обращается к API через `createApiClient` (`@platform`).
 - Клиент разделён на `src/platform/` (алиас `@platform`) и `src/modules/tracker/` (алиас `@tracker`); `platform/` не импортирует из модулей (проверяет ESLint `no-restricted-imports`).
-- `WeatherForecast*` — демо-код шаблона, его можно удалять.
+- Неизвестные маршруты вне `/api` сервер отдаёт как клиентское приложение (SPA-fallback); опечатка в `/api/...` даёт не-успешный ответ, а не `index.html`.
+- Секреты (`Jwt:Key`, пароли) не кладём в репозиторий: user-secrets или переменные окружения/`.env` (шаблон — `.env.example`).
 - Изменения фиксируются в `CHANGELOG.md` соответствующего проекта.
 - Коммиты и комментарии — на русском.
 

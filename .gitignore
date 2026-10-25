@@ -15,3 +15,6 @@ dist/
 
 # Локальная конфигурация MCP (Rider)
 .mcp.json
+
+# Локальные секреты docker compose
+.env
