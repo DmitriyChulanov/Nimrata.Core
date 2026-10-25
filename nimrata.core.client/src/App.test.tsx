@@ -72,13 +72,15 @@ it('неверный пароль показывает сообщение и о�
 });
 
 it('выход возвращает на экран входа', async () => {
-    const fetchMock = vi.fn().mockImplementation((url: string) =>
-        Promise.resolve(
-            url === '/api/auth/logout'
-                ? new Response(null, { status: 204 })
-                : jsonResponse({ accessToken: 'tok' }),
-        ),
-    );
+    const fetchMock = vi
+        .fn()
+        .mockImplementation((url: string) =>
+            Promise.resolve(
+                url === '/api/auth/logout'
+                    ? new Response(null, { status: 204 })
+                    : jsonResponse({ accessToken: 'tok' }),
+            ),
+        );
     vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
     render(<App />);

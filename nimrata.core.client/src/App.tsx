@@ -1,5 +1,5 @@
 ﻿import './App.css';
-import { AuthProvider, LoginScreen, useAuth } from '@platform';
+import { AuthProvider, LoginScreen, TypesProvider, useAuth } from '@platform';
 
 function Shell() {
     const { status, login, logout } = useAuth();
@@ -21,7 +21,9 @@ function Shell() {
 function App() {
     return (
         <AuthProvider>
-            <Shell />
+            <TypesProvider>
+                <Shell />
+            </TypesProvider>
         </AuthProvider>
     );
 }

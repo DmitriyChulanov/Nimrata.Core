@@ -16,5 +16,9 @@
 - Первый администратор создаётся при старте из `Admin:Email` / `Admin:Password` (user-secrets или `Admin__Email`/`Admin__Password`), повторный запуск дубль не создаёт. Ключ подписи — `Jwt:Key` (user-secrets или `Jwt__Key`); в `appsettings.Development.json` лежат только dev-значения.
 - Интеграционные тесты HTTP API входа (`AuthTests`).
 
+- Манифест модуля и типы: миграция `0003_types.sql` (таблица `types`); при старте `ManifestLoader` читает `Modules/*/manifest.json`, проверяет формат (`ManifestValidator`: восемь видов свойств, перечисления, abstract/sealed, допустимые дочерние типы, `hiddenInTree`, `automation`, действия с `placements` и параметрами, цветовые правила) и вставляет или обновляет типы, если версия манифеста выше сохранённой; невалидный манифест останавливает старт с перечнем ошибок. Манифест Трекера подключён в сборку как контент из клиентской части; каталог можно переопределить `Modules:Path`.
+- `GET /api/types` — типы для авторизованного пользователя (определение плюс `module`, `moduleVersion`).
+- Интеграционные тесты манифеста (`ManifestTests`).
+
 ### Удалено
 - Демо-код шаблона `WeatherForecast*` и его тест; прокси `/weatherforecast` в Vite.
