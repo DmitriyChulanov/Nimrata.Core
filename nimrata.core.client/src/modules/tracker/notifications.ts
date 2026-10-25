@@ -1,6 +1,8 @@
 import type { DataController, DataObject } from '@platform';
 
-import { TASK, taskDate } from './tasks';
+import { COMPLETED } from './constants';
+import { pad, todayIso } from './dates';
+import { allTasks, taskDate } from './tasks';
 
 /** Период проверки задач. */
 export const CHECK_INTERVAL_MS = 60_000;
@@ -8,7 +10,6 @@ export const CHECK_INTERVAL_MS = 60_000;
 export const GRACE_MINUTES = 60;
 
 const TIME = /^(\d{2}):(\d{2})$/;
-const pad = (n: number, width = 2) => String(n).padStart(width, '0');
 
 /** Уведомление, которое пора показать. */
 export interface DueNotification {
@@ -29,11 +30,6 @@ export function createNotificationState(): NotificationState {
     return { date: '', shown: new Set() };
 }
 
-/** Дата в местном времени: `ГГГГ-ММ-ДД`. */
-function isoDate(now: Date): string {
-    return `${pad(now.getFullYear(), 4)}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-
 /** Время задачи в минутах от полуночи; `undefined`, если времени нет. */
 function minutesOfDay(task: DataObject): number | undefined {
     const time = task.properties.time;
@@ -46,18 +42,6 @@ function notifyBefore(task: DataObject): number {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
-function allTasks(data: DataController): DataObject[] {
-    const tasks: DataObject[] = [];
-    const walk = (parent: string | null) => {
-        for (const object of data.getChildren(parent)) {
-            if (object.type === TASK) tasks.push(object);
-            else walk(object.id);
-        }
-    };
-    walk(null);
-    return tasks;
-}
-
 /**
  * Чистый расчёт: какие уведомления пора показать в момент `now`. Берёт задачи сегодняшнего дня
  * с временем, не завершённые; момент уведомления — «время минус N минут». Уже показанные
@@ -68,13 +52,13 @@ export function checkNotifications(
     now: Date,
     state: NotificationState,
 ): { due: DueNotification[]; state: NotificationState } {
-    const today = isoDate(now);
+    const today = todayIso(now);
     const shown = new Set(state.date === today ? state.shown : []);
     const current = now.getHours() * 60 + now.getMinutes();
     const due: DueNotification[] = [];
 
     for (const task of allTasks(data)) {
-        if (shown.has(task.id) || task.properties.status === 'completed') continue;
+        if (shown.has(task.id) || task.properties.status === COMPLETED) continue;
         const time = minutesOfDay(task);
         if (time === undefined || taskDate(data, task) !== today) continue;
         const moment = time - notifyBefore(task);
@@ -95,6 +79,52 @@ export interface NotificationServiceOptions {
     notify?: (title: string, body: string) => void;
     /** Часы; подменяются в тестах. */
     now?: () => Date;
+    /** Хранилище показанных на день; без него память живёт только до перезагрузки страницы. */
+    store?: ShownStore;
+}
+
+/** Где запоминаются задачи, по которым уведомление за день уже показано. */
+export interface ShownStore {
+    /** Показанные в сутки `date` (`ГГГГ-ММ-ДД`); записи прошлых дней могут быть удалены. */
+    load(date: string): ReadonlySet<string>;
+    save(date: string, shown: ReadonlySet<string>): void;
+}
+
+const STORE_PREFIX = 'nimrata.tracker.notifications.';
+
+/**
+ * Хранилище в `localStorage`: ключ — пользователь и дата. Любая ошибка хранилища (недоступно,
+ * переполнено, мусор в значении) молча даёт пустой набор: уведомления просто могут повториться.
+ */
+export function createLocalShownStore(userId: string): ShownStore {
+    const prefix = `${STORE_PREFIX}${userId}.`;
+    return {
+        load(date) {
+            try {
+                const parsed: unknown = JSON.parse(localStorage.getItem(prefix + date) ?? '[]');
+                return new Set(
+                    Array.isArray(parsed)
+                        ? parsed.filter((id): id is string => typeof id === 'string')
+                        : [],
+                );
+            } catch {
+                return new Set();
+            }
+        },
+        save(date, shown) {
+            try {
+                localStorage.setItem(prefix + date, JSON.stringify([...shown]));
+                // Записи прошлых дней этого пользователя больше не нужны.
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const key = localStorage.key(i);
+                    if (key?.startsWith(prefix) && key !== prefix + date)
+                        localStorage.removeItem(key);
+                }
+            } catch {
+                // хранилище недоступно: уведомления после перезагрузки могут повториться
+            }
+        },
+    };
 }
 
 /** Узкий слой над Notification API браузера (подменяется в тестах). */
@@ -130,11 +160,17 @@ export function startNotificationService({
     data,
     notify = showBrowserNotification,
     now = () => new Date(),
+    store,
 }: NotificationServiceOptions): () => void {
     let state = createNotificationState();
     const tick = () => {
-        const result = checkNotifications(data, now(), state);
+        const moment = now();
+        const today = todayIso(moment);
+        // Новые сутки (или первый запуск): показанное восстанавливается из хранилища.
+        if (store && state.date !== today) state = { date: today, shown: store.load(today) };
+        const result = checkNotifications(data, moment, state);
         state = result.state;
+        if (store && result.due.length > 0) store.save(today, state.shown);
         for (const item of result.due) notify(item.title, item.body);
     };
     tick();

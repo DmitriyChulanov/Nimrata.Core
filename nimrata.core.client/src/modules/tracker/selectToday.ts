@@ -1,11 +1,8 @@
 import type { DataController, DataObject } from '@platform';
 
-import { todayIso } from './tasks';
-
-/** Механизм «Выделить текущий день»: единственный объект, скрытый в дереве. */
-export const SELECT_TODAY = 'SelectTodayMechanism';
-
-const DAY_TYPES = ['Day', 'DayOff'];
+import { CURRENT_TASKS_ROOT, DAY_TYPES, SELECT_TODAY } from './constants';
+import { todayIso } from './dates';
+import { findRoot } from './nodes';
 
 /** День с сегодняшней датой внутри «Текущих задач»; `undefined`, если его ещё нет. */
 export function findToday(data: DataController): DataObject | undefined {
@@ -21,15 +18,8 @@ export function findToday(data: DataController): DataObject | undefined {
         }
         return undefined;
     };
-    for (const root of data.getChildren(null)) {
-        if (root.type !== 'TasksRoot') continue;
-        for (const current of data.getChildren(root.id)) {
-            if (current.type !== 'CurrentTasksRoot') continue;
-            const found = walk(current.id);
-            if (found) return found;
-        }
-    }
-    return undefined;
+    const root = findRoot(data, CURRENT_TASKS_ROOT);
+    return root && walk(root.id);
 }
 
 /** Нет ли у пользователя механизма «Выделить текущий день» (его нужно создать). */

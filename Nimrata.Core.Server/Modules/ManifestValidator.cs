@@ -158,6 +158,14 @@ public static class ManifestValidator
             ошибки.Add($"{путь}.values: список значений допустим только для вида enum");
         }
 
+        if (свойство.TryGetProperty("revealTarget", out var показать))
+        {
+            if (показать.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                ошибки.Add($"{путь}.revealTarget: нужно логическое значение");
+            else if (вид != "reference")
+                ошибки.Add($"{путь}.revealTarget: допустим только для вида reference");
+        }
+
         if (вид == "reference" && свойство.TryGetProperty("targetTypes", out var цели))
         {
             if (цели.ValueKind != JsonValueKind.Array) ошибки.Add($"{путь}.targetTypes: нужен массив");

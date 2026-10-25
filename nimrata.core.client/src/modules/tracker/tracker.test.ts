@@ -248,3 +248,22 @@ describe('Трекер: изоляция пользователей', () => {
         expect(second.data.getChildren(null)).toHaveLength(3);
     });
 });
+
+describe('Манифест Трекера: соответствие операциям логики', () => {
+    it('у каждого типа узла задан значок', () => {
+        const withoutIcon = manifest.types.filter((t) => !('icon' in t) || !t.icon);
+        expect(withoutIcon.map((t) => t.id)).toEqual([]);
+    });
+
+    it('стартовая структура принимается так же, как её принял бы сервер (allowedChildren)', async () => {
+        const { api, data } = await start([]);
+
+        const result = await ensureStartStructure(data);
+
+        expect(result.ok).toBe(true);
+        expect(api.changesets).toHaveLength(1);
+        const created = (api.changesets[0].operations as { type: string }[]).map((o) => o.type);
+        expect(created).toContain('CurrentTasksRoot');
+        expect(created).toContain('CompletedTasksRoot');
+    });
+});

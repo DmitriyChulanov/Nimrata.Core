@@ -1,13 +1,26 @@
-import { registerCompletion } from './completion';
-import { TASK, createTaskAction, syncTask } from './tasks';
 import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
+import { registerCompletion } from './completion';
+import {
+    COMPLETED_TASKS_ROOT,
+    CURRENT_TASKS_ROOT,
+    DAY,
+    DAY_OFF,
+    CATEGORY,
+    MONTH,
+    NOTE,
+    NOTES_ROOT,
+    NOTE_GROUP,
+    SELECT_TODAY,
+    TASK,
+    TASKS_ROOT,
+} from './constants';
+import { createNode } from './nodes';
 import { registerQuickAccess } from './quickAccess';
 import { registerRepeats } from './repeats';
-import { SELECT_TODAY, needsSelectToday, registerSelectToday } from './selectToday';
-
-/** Заметка: свойства `title` (вводит пользователь) и `name` (вычисляется, видно в дереве). */
-const NOTE = 'Note';
+import { cancelIfFailed } from './results';
+import { needsSelectToday, registerSelectToday } from './selectToday';
+import { createTaskAction, syncTask } from './tasks';
 
 /** Подпись статуса заметки по описанию типа; `undefined`, если статус не задан или неизвестен. */
 function statusLabel(data: DataController, status: unknown): string | undefined {
@@ -30,8 +43,7 @@ function syncNoteName(data: DataController, id: string, tx: ChangeScope): HookRe
     if (!note) return;
     const name = noteName(data, note);
     if (name === undefined || note.properties.name === name) return;
-    const result = tx.setProperty(id, 'name', name);
-    if (!result.ok) return { cancel: result.error };
+    return cancelIfFailed(tx.setProperty(id, 'name', name));
 }
 
 export { taskDate } from './tasks';
@@ -39,16 +51,6 @@ export { taskDate } from './tasks';
 function requireText(value: unknown, message: string): string {
     if (typeof value !== 'string' || value.trim() === '') throw new Error(message);
     return value.trim();
-}
-
-function createIn(
-    tx: ChangeScope,
-    parent: string,
-    type: string,
-    properties: Record<string, unknown>,
-) {
-    const result = tx.create({ type, parent, properties });
-    if (!result.ok) throw new Error(result.error);
 }
 
 /** Безопасный адрес для перехода: только http и https. */
@@ -84,7 +86,7 @@ export function registerTracker(data: DataController, options: TrackerOptions = 
         ),
     );
 
-    for (const parentType of ['CurrentTasksRoot', 'Month', 'Day', 'DayOff', 'Category']) {
+    for (const parentType of [CURRENT_TASKS_ROOT, MONTH, DAY, DAY_OFF, CATEGORY]) {
         disposers.push(data.registerAction(parentType, 'createTask', createTaskAction(data)));
     }
 
@@ -118,15 +120,15 @@ export function registerTracker(data: DataController, options: TrackerOptions = 
         ),
     );
 
-    for (const parentType of ['NotesRoot', 'NoteGroup']) {
+    for (const parentType of [NOTES_ROOT, NOTE_GROUP]) {
         disposers.push(
             data.registerAction(parentType, 'createNote', ({ object, params, tx }) => {
                 const title = requireText(params.title, 'Укажите название заметки.');
-                createIn(tx, object.id, NOTE, { title });
+                createNode(tx, object.id, NOTE, { title });
             }),
             data.registerAction(parentType, 'createNoteGroup', ({ object, params, tx }) => {
                 const name = requireText(params.name, 'Укажите название группы.');
-                createIn(tx, object.id, 'NoteGroup', { name });
+                createNode(tx, object.id, NOTE_GROUP, { name });
             }),
         );
     }
@@ -166,23 +168,18 @@ export function registerTracker(data: DataController, options: TrackerOptions = 
  */
 export async function ensureStartStructure(data: DataController): Promise<ChangeResult> {
     const roots = data.getChildren(null);
-    const needTasks = !roots.some((o) => o.type === 'TasksRoot');
-    const needNotes = !roots.some((o) => o.type === 'NotesRoot');
+    const needTasks = !roots.some((o) => o.type === TASKS_ROOT);
+    const needNotes = !roots.some((o) => o.type === NOTES_ROOT);
     const needSelectToday = needsSelectToday(data);
     if (!needTasks && !needNotes && !needSelectToday) return { ok: true };
 
     return data.perform((tx) => {
-        const make = (type: string, parent: string | null) => {
-            const result = tx.create({ type, parent });
-            if (!result.ok) throw new Error(result.error);
-            return result.id;
-        };
         if (needTasks) {
-            const tasks = make('TasksRoot', null);
-            make('CurrentTasksRoot', tasks);
-            make('CompletedTasksRoot', tasks);
+            const tasks = createNode(tx, null, TASKS_ROOT);
+            createNode(tx, tasks, CURRENT_TASKS_ROOT);
+            createNode(tx, tasks, COMPLETED_TASKS_ROOT);
         }
-        if (needNotes) make('NotesRoot', null);
-        if (needSelectToday) make(SELECT_TODAY, null);
+        if (needNotes) createNode(tx, null, NOTES_ROOT);
+        if (needSelectToday) createNode(tx, null, SELECT_TODAY);
     });
 }

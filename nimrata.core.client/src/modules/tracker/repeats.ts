@@ -1,26 +1,18 @@
 import { uuid7 } from '@platform';
 import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
-import { categoryChain, findRoot } from './completion';
-import {
-    TASK,
-    ensureCategory,
-    ensureDay,
-    create,
-    isWeekend,
-    pad,
-    parseIso,
-    taskDate,
-    taskName,
-    taskOrder,
-    todayIso,
-} from './tasks';
+import { categoryChain, taskRootId } from './completion';
+import { COMPLETED, CURRENT_TASKS_ROOT, TASK } from './constants';
+import { addDays, addMonths, fromUtc, isWeekend, parseIso, toIso, todayIso } from './dates';
+import type { Ymd } from './dates';
+import { createNode, ensureCategory, ensureDay } from './nodes';
+import { cancelIfFailed } from './results';
+import { allTasks, taskDate, taskName, taskOrder } from './tasks';
 
 const NONE = 'none';
 const WEEKDAYS = 'weekdays';
 const WEEKLY = 'weekly';
 const MONTHLY = 'monthly';
-const COMPLETED = 'completed';
 
 /** Свойства, правки которых распространяются на весь набор повторов (порядок — отдельно, через `move`). */
 const SYNCED = ['title', 'comment', 'link', 'priority', 'time'];
@@ -28,37 +20,6 @@ const SYNCED = ['title', 'comment', 'link', 'priority', 'time'];
 const COPIED = [...SYNCED, 'internalLink', 'notifyBefore', 'repeat', 'repeatId'];
 
 const WEEKEND_MESSAGE = 'Для задачи выходного дня нельзя включить повтор «Каждый будний день».';
-
-interface Ymd {
-    year: number;
-    month: number;
-    day: number;
-}
-
-const toIso = ({ year, month, day }: Ymd) => `${pad(year, 4)}-${pad(month)}-${pad(day)}`;
-
-function fromUtc(date: Date): Ymd {
-    return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
-}
-
-function toUtc({ year, month, day }: Ymd): Date {
-    return new Date(Date.UTC(year, month - 1, day));
-}
-
-function addDays(ymd: Ymd, days: number): Ymd {
-    const date = toUtc(ymd);
-    date.setUTCDate(date.getUTCDate() + days);
-    return fromUtc(date);
-}
-
-/** Прибавляет месяцы; если в месяце нет такого числа, берётся его последний день. */
-function addMonths(ymd: Ymd, months: number): Ymd {
-    const index = ymd.year * 12 + ymd.month - 1 + months;
-    const year = Math.floor(index / 12);
-    const month = (index % 12) + 1;
-    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-    return { year, month, day: Math.min(ymd.day, lastDay) };
-}
 
 /** Горизонт повторов: последний день следующего месяца (`ГГГГ-ММ-ДД`). */
 export function repeatHorizon(today: string): string {
@@ -89,19 +50,6 @@ function repeatKind(task: DataObject): string {
 function repeatIdOf(task: DataObject): string | undefined {
     const value = task.properties.repeatId;
     return typeof value === 'string' && value !== '' ? value : undefined;
-}
-
-/** Все задачи дерева (текущие и архив). */
-function allTasks(data: DataController): DataObject[] {
-    const tasks: DataObject[] = [];
-    const walk = (parent: string | null) => {
-        for (const object of data.getChildren(parent)) {
-            if (object.type === TASK) tasks.push(object);
-            else walk(object.id);
-        }
-    };
-    walk(null);
-    return tasks;
 }
 
 function datedMembers(data: DataController, members: DataObject[]) {
@@ -142,14 +90,14 @@ function fillSet(
     if (name !== undefined) properties.name = name;
     const order = taskOrder(draft);
     const chain = categoryChain(data, template.task);
-    const rootId = findRoot(data, template.task, 'CurrentTasksRoot');
+    const rootId = taskRootId(data, template.task, CURRENT_TASKS_ROOT);
 
     for (const iso of seriesDates(kind, anchor, repeatHorizon(today))) {
         if (iso <= last || iso < today || taken.has(iso)) continue;
         const ymd = parseIso(iso)!;
         let container = ensureDay(data, tx, rootId, ymd);
         for (const category of chain) container = ensureCategory(data, tx, container, category);
-        create(tx, container, TASK, { ...properties }, order);
+        createNode(tx, container, TASK, { ...properties }, order);
         taken.add(iso);
     }
 }
@@ -177,10 +125,6 @@ export async function ensureRepeats(data: DataController): Promise<ChangeResult>
         },
         { hooks: false },
     );
-}
-
-function failed(result: { ok: boolean; error?: string }): HookResult {
-    if (!result.ok) return { cancel: result.error ?? 'Не удалось обновить повторы.' };
 }
 
 /** Включение, смена и выключение повтора, синхронизация набора. Возвращает функцию отписки. */
@@ -213,19 +157,19 @@ export function registerRepeats(data: DataController): () => void {
                 const result = done
                     ? tx.setProperty(sibling.id, 'repeatId', null)
                     : tx.remove(sibling.id);
-                if (!result.ok) return failed(result);
+                if (!result.ok) return cancelIfFailed(result);
                 if (done) {
                     const kindReset = tx.setProperty(sibling.id, 'repeat', NONE);
-                    if (!kindReset.ok) return failed(kindReset);
+                    if (!kindReset.ok) return cancelIfFailed(kindReset);
                 }
             }
-            return failed(tx.setProperty(task.id, 'repeatId', null));
+            return cancelIfFailed(tx.setProperty(task.id, 'repeatId', null));
         }
 
         const repeatId = current ?? uuid7();
         if (!current) {
             const result = tx.setProperty(task.id, 'repeatId', repeatId);
-            if (!result.ok) return failed(result);
+            if (!result.ok) return cancelIfFailed(result);
         }
         // Смена вида: более поздние несделанные повторы пересоздаются по новому правилу.
         for (const sibling of siblings) {
@@ -233,7 +177,7 @@ export function registerRepeats(data: DataController): () => void {
                 sibling.properties.status !== COMPLETED && date && taskDate(data, sibling)! > date
                     ? tx.remove(sibling.id)
                     : tx.setProperty(sibling.id, 'repeat', kind);
-            if (!result.ok) return failed(result);
+            if (!result.ok) return cancelIfFailed(result);
         }
         const members = [data.getObject(task.id)!, ...others(task, repeatId)];
         fillSet(data, tx, members, kind, todayIso());
@@ -247,7 +191,7 @@ export function registerRepeats(data: DataController): () => void {
         if (!repeatId) return;
         for (const other of others(task, repeatId)) {
             const result = apply(other);
-            if (!result.ok) return failed(result);
+            if (!result.ok) return cancelIfFailed(result);
         }
     }
 

@@ -1,9 +1,9 @@
 import type { ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
-/** Запись быстрого доступа: механизм (скрыт в дереве) со ссылкой `target` на заметку или группу. */
-export const QUICK_ACCESS_ENTRY = 'QuickAccessEntry';
+import { NOTE, NOTE_GROUP, QUICK_ACCESS_ENTRY } from './constants';
+import { cancelIfFailed, orThrow } from './results';
 
-const TARGET_TYPES = ['Note', 'NoteGroup'];
+const TARGET_TYPES = [NOTE, NOTE_GROUP];
 
 /** Все записи быстрого доступа (лежат среди корневых объектов). */
 export function quickAccessEntries(data: DataController): DataObject[] {
@@ -35,14 +35,10 @@ function subtreeIds(data: DataController, id: string): Set<string> {
     return ids;
 }
 
-function failIfNotOk(result: { ok: boolean; error?: string }) {
-    if (!result.ok) throw new Error(result.error);
-}
-
 function removeEntries(entries: DataObject[], tx: ChangeScope): HookResult {
     for (const entry of entries) {
-        const result = tx.remove(entry.id);
-        if (!result.ok) return { cancel: result.error };
+        const failed = cancelIfFailed(tx.remove(entry.id));
+        if (failed) return failed;
     }
 }
 
@@ -62,7 +58,7 @@ export function registerQuickAccess(data: DataController): () => void {
                 ({ object, tx }) => {
                     // Повторное «Добавить» дубля не создаёт.
                     if (entriesOf(data, object.id).length > 0) return;
-                    failIfNotOk(
+                    orThrow(
                         tx.create({
                             type: QUICK_ACCESS_ENTRY,
                             parent: null,
@@ -76,8 +72,7 @@ export function registerQuickAccess(data: DataController): () => void {
                 type,
                 'removeFromQuickAccess',
                 ({ object, tx }) => {
-                    for (const entry of entriesOf(data, object.id))
-                        failIfNotOk(tx.remove(entry.id));
+                    for (const entry of entriesOf(data, object.id)) orThrow(tx.remove(entry.id));
                 },
                 { available: (object) => entriesOf(data, object.id).length > 0 },
             ),
@@ -87,8 +82,8 @@ export function registerQuickAccess(data: DataController): () => void {
                 const name = typeof ctx.newValue === 'string' ? ctx.newValue : '';
                 for (const entry of entriesOf(data, ctx.object.id)) {
                     if (entry.properties.name === name) continue;
-                    const result = ctx.tx.setProperty(entry.id, 'name', name);
-                    if (!result.ok) return { cancel: result.error };
+                    const failed = cancelIfFailed(ctx.tx.setProperty(entry.id, 'name', name));
+                    if (failed) return failed;
                 }
             }),
         );

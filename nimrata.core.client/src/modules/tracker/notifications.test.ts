@@ -7,6 +7,7 @@ import { createFakeApi } from '@platform/data/fakeApi';
 import manifest from './manifest.json';
 import {
     checkNotifications,
+    createLocalShownStore,
     createNotificationState,
     startNotificationService,
 } from './notifications';
@@ -184,5 +185,101 @@ describe('Трекер: служба уведомлений', () => {
 
         expect(notify).toHaveBeenCalledWith('09:01', 'Новая');
         stop();
+    });
+
+    describe('сохранение показанных на день', () => {
+        beforeEach(() => localStorage.clear());
+        afterEach(() => vi.restoreAllMocks());
+
+        async function run(store: ReturnType<typeof createLocalShownStore>, nowAt = at(9, 0)) {
+            const data = await start();
+            const id = await addTask(data, '2026-03-04', 'Созвон', { time: '09:00' });
+            const notify = vi.fn();
+            const stop = startNotificationService({ data, now: () => nowAt, notify, store });
+            stop();
+            return { notify, id };
+        }
+
+        it('после перезагрузки страницы уже показанное уведомление не дублируется', async () => {
+            const data = await start();
+            await addTask(data, '2026-03-04', 'Созвон', { time: '09:00' });
+            const first = vi.fn();
+            const second = vi.fn();
+
+            startNotificationService({
+                data,
+                now: () => at(9, 0),
+                notify: first,
+                store: createLocalShownStore('u1'),
+            })();
+            // Перезагрузка страницы: новая служба с пустой памятью, то же хранилище.
+            startNotificationService({
+                data,
+                now: () => at(9, 5),
+                notify: second,
+                store: createLocalShownStore('u1'),
+            })();
+
+            expect(first).toHaveBeenCalledTimes(1);
+            expect(second).not.toHaveBeenCalled();
+        });
+
+        it('пишет показанные в localStorage по ключу пользователя и даты', async () => {
+            const { id } = await run(createLocalShownStore('u1'));
+
+            const raw = localStorage.getItem('nimrata.tracker.notifications.u1.2026-03-04');
+            expect(JSON.parse(raw!)).toEqual([id]);
+        });
+
+        it('показанное другим пользователем или в другой день не учитывается', async () => {
+            const data = await start();
+            const id = await addTask(data, '2026-03-04', 'Созвон', { time: '09:00' });
+            localStorage.setItem(
+                'nimrata.tracker.notifications.u2.2026-03-04',
+                JSON.stringify([id]),
+            );
+            localStorage.setItem(
+                'nimrata.tracker.notifications.u1.2026-03-03',
+                JSON.stringify([id]),
+            );
+            const notify = vi.fn();
+
+            const stop = startNotificationService({
+                data,
+                now: () => at(9, 0),
+                notify,
+                store: createLocalShownStore('u1'),
+            });
+            stop();
+
+            expect(notify).toHaveBeenCalledTimes(1);
+        });
+
+        it('удаляет записи прошлых дней этого пользователя', async () => {
+            localStorage.setItem('nimrata.tracker.notifications.u1.2026-03-03', '["x"]');
+            localStorage.setItem('nimrata.tracker.notifications.u2.2026-03-03', '["x"]');
+
+            await run(createLocalShownStore('u1'));
+
+            expect(localStorage.getItem('nimrata.tracker.notifications.u1.2026-03-03')).toBeNull();
+            expect(
+                localStorage.getItem('nimrata.tracker.notifications.u2.2026-03-03'),
+            ).not.toBeNull();
+        });
+
+        it('недоступное хранилище и мусор в нём не ломают службу', async () => {
+            localStorage.setItem('nimrata.tracker.notifications.u1.2026-03-04', '{не json');
+            const garbage = await run(createLocalShownStore('u1'));
+            expect(garbage.notify).toHaveBeenCalledTimes(1);
+
+            vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+                throw new Error('недоступно');
+            });
+            vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+                throw new Error('недоступно');
+            });
+            const broken = await run(createLocalShownStore('u1'));
+            expect(broken.notify).toHaveBeenCalledTimes(1);
+        });
     });
 });
