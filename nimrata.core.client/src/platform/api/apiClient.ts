@@ -10,6 +10,8 @@ export interface ApiClientOptions {
     fetch?: FetchFn;
     /** Дополнительные заголовки для каждого запроса (например, токен доступа). */
     getHeaders?: () => Record<string, string>;
+    /** Вызывается при ответе 401; если вернула true, запрос повторяется один раз. */
+    onUnauthorized?: () => Promise<boolean>;
 }
 
 export interface ApiClient {
@@ -48,15 +50,22 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     const baseUrl = (options.baseUrl ?? API_PREFIX).replace(/\/+$/, '');
     const doFetch: FetchFn = options.fetch ?? ((input, init) => fetch(input, init));
 
-    async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    function send(method: string, path: string, body?: unknown): Promise<Response> {
         const headers = new Headers(options.getHeaders?.());
         const init: RequestInit = { method, headers, credentials: 'same-origin' };
         if (body !== undefined) {
             headers.set('Content-Type', 'application/json');
             init.body = JSON.stringify(body);
         }
+        return doFetch(`${baseUrl}/${path.replace(/^\/+/, '')}`, init);
+    }
 
-        const response = await doFetch(`${baseUrl}/${path.replace(/^\/+/, '')}`, init);
+    async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+        let response = await send(method, path, body);
+        if (response.status === 401 && options.onUnauthorized && (await options.onUnauthorized())) {
+            // единственная повторная попытка; заголовки собираются заново, уже с новым токеном
+            response = await send(method, path, body);
+        }
         if (!response.ok) {
             throw new ApiError(response.status, await readErrorMessage(response));
         }

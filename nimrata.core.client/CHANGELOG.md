@@ -5,6 +5,8 @@
 - Каркас клиента: области `platform/` и `modules/tracker/` с алиасами `@platform` и `@tracker`, ESLint-правило запрета импорта модулей из платформы.
 - API-клиент `createApiClient` (обёртка над `fetch`: базовый адрес `/api`, заголовки, `ApiError`) с тестами.
 - Прокси Vite: единый префикс `/api` вместо `/weatherforecast`.
+- Вход: экран входа `LoginScreen`, `AuthProvider`/`useAuth`/`useApi`, `createAuthSession`; access-токен хранится только в памяти, сессия восстанавливается через refresh-cookie после обновления страницы, выход отзывает refresh на сервере.
+- API-клиент: опция `onUnauthorized` — при 401 один раз обновляет токен и повторяет запрос.
 - Демо-экран с прогнозом погоды заменён заглушкой приложения.
 
 ---
