@@ -24,6 +24,11 @@ export interface PropertyDefinition {
     values?: EnumValue[];
     /** Допустимые типы целевого объекта (для `kind: 'reference'`). */
     targetTypes?: string[];
+    /**
+     * Для `kind: 'reference'`: ссылка ведёт к цели механизма — во вкладке «Автоматизация» название
+     * механизма выделяет цель в основном дереве.
+     */
+    revealTarget?: boolean;
 }
 
 export interface ActionDefinition {

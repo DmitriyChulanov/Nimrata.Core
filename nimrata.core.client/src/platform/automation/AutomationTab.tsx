@@ -16,9 +16,13 @@ function collectMechanisms(data: DataController): DataObject[] {
     return result;
 }
 
-function hasTargetReference(data: DataController, object: DataObject): boolean {
-    const property = data.getType(object.type)?.properties?.find((p) => p.id === 'target');
-    return property?.kind === 'reference';
+/** Цель механизма: значение ссылочного свойства с признаком `revealTarget`, если объект существует. */
+function revealTargetOf(data: DataController, object: DataObject): string | undefined {
+    const property = data
+        .getType(object.type)
+        ?.properties?.find((p) => p.kind === 'reference' && p.revealTarget);
+    const value = property ? object.properties[property.id] : undefined;
+    return typeof value === 'string' && data.getObject(value) ? value : undefined;
 }
 
 /** Вкладка «Автоматизация»: механизмы и их действия с размещением `automation`. */
@@ -37,12 +41,9 @@ export function AutomationTab() {
                     (object.properties.name as string | undefined) ||
                     data.getType(object.type)?.name ||
                     object.type;
-                // Механизм со ссылочным свойством `target` — ссылка на цель: клик по названию
-                // выделяет цель в основном дереве.
-                const reference = hasTargetReference(data, object)
-                    ? (object.properties.target as string | undefined)
-                    : undefined;
-                const targetId = reference && data.getObject(reference) ? reference : undefined;
+                // Механизм со ссылочным свойством revealTarget: клик по названию выделяет цель
+                // в основном дереве.
+                const targetId = revealTargetOf(data, object);
                 return (
                     <section key={object.id} role="group" aria-label={title}>
                         <h3>
