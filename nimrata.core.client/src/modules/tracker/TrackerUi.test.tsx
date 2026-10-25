@@ -143,3 +143,108 @@ describe('Трекер: интерфейс заметок', () => {
         expect(screen.getByRole('treeitem', { name: '[Завершена] Идея' })).toBeInTheDocument();
     });
 });
+
+async function expandRow(name: RegExp | string) {
+    const row = screen.getByRole('treeitem', { name });
+    await userEvent.click(within(row).getByRole('button', { name: 'Развернуть' }));
+}
+
+function currentRoot(data: Awaited<ReturnType<typeof setup>>['data']) {
+    const tasks = data.getChildren(null).find((o) => o.type === 'TasksRoot')!;
+    return data.getChildren(tasks.id).find((o) => o.type === 'CurrentTasksRoot')!;
+}
+
+describe('Трекер: интерфейс задач', () => {
+    it('«Создать задачу» из меню «Текущих задач» создаёт месяц, день и задачу', async () => {
+        const { data } = await setup();
+        mount(data);
+        await expandRow(/^.*Задачи$/);
+        await userEvent.pointer({
+            keys: '[MouseRight]',
+            target: screen.getByRole('treeitem', { name: /Текущие задачи/ }),
+        });
+        await userEvent.click(
+            within(screen.getByRole('menu', { name: 'Действия с объектом' })).getByRole(
+                'menuitem',
+                { name: 'Создать задачу' },
+            ),
+        );
+        const dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
+        await userEvent.type(within(dialog).getByLabelText(/Название/), 'Позвонить');
+        await userEvent.type(within(dialog).getByLabelText(/Дата/), '2026-03-05');
+        await userEvent.type(within(dialog).getByLabelText(/Категория/), 'Работа');
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
+
+        await expandRow(/Текущие задачи/);
+        await expandRow(/март, 2026/);
+        await expandRow(/05\.03\.2026, четверг/);
+        await expandRow(/Работа/);
+        expect(await screen.findByRole('treeitem', { name: /Позвонить/ })).toBeInTheDocument();
+    });
+
+    it('дни идут по датам, задачи дня — по времени', async () => {
+        const { data } = await setup();
+        const root = currentRoot(data);
+        for (const date of ['2026-03-10', '2026-03-02']) {
+            await data.runAction(root.id, 'createTask', { title: date, date });
+        }
+        const dayId = data
+            .getChildren(data.getChildren(root.id)[0].id)
+            .find((d) => d.properties.date === '2026-03-02')!.id;
+        const late = data.getChildren(dayId)[0];
+        await data.setProperty(late.id, 'time', '18:00');
+        await data.runAction(dayId, 'createTask', { title: 'Утренняя' });
+        const early = data.getChildren(dayId).find((o) => o.properties.title === 'Утренняя')!;
+        await data.setProperty(early.id, 'time', '09:00');
+        mount(data);
+
+        await expandRow(/^.*Задачи$/);
+        await expandRow(/Текущие задачи/);
+        await expandRow(/март, 2026/);
+        await expandRow(/02\.03\.2026/);
+
+        const names = screen.getAllByRole('treeitem').map((r) => r.textContent ?? '');
+        const index = (text: string) => names.findIndex((n) => n.includes(text));
+        expect(index('02.03.2026')).toBeLessThan(index('10.03.2026'));
+        expect(index('09:00 — Утренняя')).toBeLessThan(index('18:00 — 2026-03-02'));
+    });
+
+    it('таблица свойств показывает свойства задачи, но скрывает идентификатор повтора', async () => {
+        const { data } = await setup();
+        await data.runAction(currentRoot(data).id, 'createTask', {
+            title: 'Дело',
+            date: '2026-03-05',
+        });
+        const month = data.getChildren(currentRoot(data).id)[0];
+        const task = data.getChildren(data.getChildren(month.id)[0].id)[0];
+        mount(data, task.id);
+
+        await userEvent.click(screen.getByRole('button', { name: `выбрать ${task.id}` }));
+
+        expect(screen.getByText('Уведомить за (мин)')).toBeInTheDocument();
+        expect(screen.getByRole('group', { name: 'Повтор' })).toBeInTheDocument();
+        expect(screen.queryByText('Идентификатор повтора')).not.toBeInTheDocument();
+    });
+
+    it('задача с высоким приоритетом подкрашивается красным', async () => {
+        const { data } = await setup();
+        await data.runAction(currentRoot(data).id, 'createTask', {
+            title: 'Срочно',
+            date: '2026-03-05',
+        });
+        const month = data.getChildren(currentRoot(data).id)[0];
+        const day = data.getChildren(month.id)[0];
+        await data.setProperty(data.getChildren(day.id)[0].id, 'priority', 'high');
+        mount(data);
+
+        await expandRow(/^.*Задачи$/);
+        await expandRow(/Текущие задачи/);
+        await expandRow(/март, 2026/);
+        await expandRow(/05\.03\.2026/);
+
+        expect(screen.getByRole('treeitem', { name: /Срочно/ })).toHaveAttribute(
+            'data-rule-color',
+            'red',
+        );
+    });
+});

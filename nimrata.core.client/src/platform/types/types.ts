@@ -15,6 +15,8 @@ export interface PropertyDefinition {
     kind: PropertyKind;
     category?: string;
     readOnly?: boolean;
+    /** Служебное свойство: в таблице свойств не показывается. */
+    hidden?: boolean;
     /** Обязательный параметр действия: диалог не отправит пустое значение. */
     required?: boolean;
     default?: unknown;
