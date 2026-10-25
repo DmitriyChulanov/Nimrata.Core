@@ -27,6 +27,14 @@
     <EmbeddedResource Include="Migrations\*.sql" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Манифест модуля лежит в клиентской части; сервер читает тот же файл при старте. -->
+    <Content Include="..\nimrata.core.client\src\modules\tracker\manifest.json"
+             Link="Modules\tracker\manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- SkipClientBuild=true: клиент уже собран снаружи (Docker-стадия client), dist лежит в $(SpaRoot)\dist. -->
   <ItemGroup Condition="'$(SkipClientBuild)' != 'true'">
     <ProjectReference Include="..\nimrata.core.client\nimrata.core.client.esproj">
