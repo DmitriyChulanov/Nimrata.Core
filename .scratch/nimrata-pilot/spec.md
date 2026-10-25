@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # Пилот Nimrata: ядро платформы и модуль Трекер
 

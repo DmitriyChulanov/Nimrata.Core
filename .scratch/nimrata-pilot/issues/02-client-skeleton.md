@@ -4,10 +4,14 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Выделены области `platform/` и `modules/tracker/` с алиасами импорта; платформа не импортирует из модулей
 - [ ] Есть API-клиент (обёртка над `fetch`) с единым местом для базового адреса, ошибок и заголовков; покрыт тестами
 - [ ] Прокси Vite настроен под префикс API платформы (один префикс для всех маршрутов), правило записано в `CLAUDE.md`
 - [ ] Демо-экран шаблона заменён заглушкой приложения; тест заглушки проходит
 - [ ] `npm run build`, `npm run lint`, `npm test` проходят; запись добавлена в `CHANGELOG.md` клиента
+
+## Answer
+
+Реализовано на ветке `integration/nimrata-pilot` (тикет 02), код-ревью пройдено, замечания исправлены. Серверные интеграционные тесты (Testcontainers) не выполнялись из-за недоступного Docker — прогнать `DOCKER_API_VERSION=1.43 dotnet test Nimrata.Core.slnx` при рабочем Docker.

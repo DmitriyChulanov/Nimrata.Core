@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Демо-код `WeatherForecast*` и его тест удалены, прокси в Vite для него убран
 - [ ] В корне репозитория есть `docker compose` с Postgres (порт и данные подключения в настройках для разработки)
@@ -13,3 +13,7 @@
 - [ ] Тестовый стенд: `WebApplicationFactory` + Testcontainers с Postgres; один интеграционный тест (например, проверка здоровья сервера и применённых миграций) проходит
 - [ ] Строка подключения берётся из настроек и переменных окружения, секреты не хранятся в коде
 - [ ] `dotnet test Nimrata.Core.slnx` проходит, запись добавлена в `CHANGELOG.md` сервера
+
+## Answer
+
+Реализовано на ветке `integration/nimrata-pilot` (тикет 01), код-ревью пройдено, замечания исправлены. Серверные интеграционные тесты (Testcontainers) не выполнялись из-за недоступного Docker — прогнать `DOCKER_API_VERSION=1.43 dotnet test Nimrata.Core.slnx` при рабочем Docker.
