@@ -1,0 +1,28 @@
+.workspace {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.workspace > section {
+    min-width: 0;
+    overflow: auto;
+    flex: none;
+}
+
+.workspace > .workspace-center {
+    flex: 1 1 auto;
+}
+
+.workspace-handle {
+    flex: none;
+    width: 5px;
+    cursor: col-resize;
+    background: #8884;
+}
+
+.workspace-handle:hover,
+.workspace-handle:focus-visible {
+    background: #4a90d9;
+    outline: none;
+}

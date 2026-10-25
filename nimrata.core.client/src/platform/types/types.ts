@@ -46,6 +46,8 @@ export interface TypeDefinition {
     abstract?: boolean;
     sealed?: boolean;
     hiddenInTree?: boolean;
+    /** Иконка узла в дереве (символ или эмодзи); без неё показывается значок по умолчанию. */
+    icon?: string;
     automation?: boolean;
     allowedChildren?: string[];
     properties?: PropertyDefinition[];
