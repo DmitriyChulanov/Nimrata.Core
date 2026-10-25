@@ -56,6 +56,17 @@ describe('ApiClient', () => {
         expect(fetchMock.mock.calls[0][0]).toBe('/v2/x');
     });
 
+    it('берёт причину отказа из поля error (так отвечают наборы изменений)', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValue(jsonResponse({ error: 'Операция 1: объект не найден.' }, 422));
+        const api = createApiClient({ fetch: fetchMock });
+
+        const error = await api.post('/changesets', {}).catch((e: unknown) => e);
+
+        expect((error as ApiError).message).toBe('Операция 1: объект не найден.');
+    });
+
     it('для ответа с ошибкой бросает ApiError со статусом и сообщением сервера', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ title: 'Нет доступа' }, 403));
         const api = createApiClient({ fetch: fetchMock });

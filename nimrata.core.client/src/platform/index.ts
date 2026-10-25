@@ -6,6 +6,19 @@ export { AuthProvider, useAuth, useApi } from './auth/AuthProvider';
 export { LoginScreen } from './auth/LoginScreen';
 export { TypesProvider, useTypes } from './types/TypesProvider';
 export type { TypesContextValue, TypesStatus } from './types/TypesProvider';
+export { createDataController } from './data/DataController';
+export type {
+    ChangeResult,
+    CreateInput,
+    CreateResult,
+    DataController,
+    DataControllerOptions,
+    DataObject,
+    DataSnapshot,
+    DataStatus,
+    MoveInput,
+} from './data/DataController';
+export { uuid7 } from './data/uuid7';
 export type {
     ActionDefinition,
     ActionPlacement,
