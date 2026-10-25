@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 
 import { ApiError } from '../api/apiClient';
+import { ForgotPasswordForm } from './ForgotPasswordForm';
 
 interface LoginScreenProps {
     onLogin: (email: string, password: string) => Promise<void>;
@@ -12,6 +13,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const [forgot, setForgot] = useState(false);
 
     async function submit(event: FormEvent) {
         event.preventDefault();
@@ -28,6 +30,8 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             setBusy(false);
         }
     }
+
+    if (forgot) return <ForgotPasswordForm onBack={() => setForgot(false)} />;
 
     return (
         <main>
@@ -62,6 +66,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                     Войти
                 </button>
             </form>
+            <p>
+                <button type="button" onClick={() => setForgot(true)}>
+                    Забыли пароль?
+                </button>
+            </p>
         </main>
     );
 }

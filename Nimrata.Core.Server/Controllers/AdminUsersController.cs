@@ -12,8 +12,15 @@ public sealed record ChangeRoleRequest(string? Role);
 [ApiController]
 [Authorize(Roles = UserAdminService.RoleAdmin)]
 [Route("api/admin/users")]
-public sealed class AdminUsersController(UserAdminService пользователи) : ControllerBase
+public sealed class AdminUsersController(UserAdminService пользователи, PasswordResetService сброс) : ControllerBase
 {
+    /// <summary>Отправляет пользователю то же письмо со ссылкой на смену пароля, что и «Забыли пароль?».</summary>
+    [HttpPost("{id:guid}/password-reset")]
+    public async Task<IActionResult> SendPasswordReset(Guid id) =>
+        await сброс.ОтправитьПользователю(id) == ResetStatus.Ok
+            ? NoContent()
+            : NotFound(new { error = "Пользователь не найден или отключён." });
+
     [HttpGet]
     public async Task<IActionResult> List() => Ok(await пользователи.Список());
 

@@ -23,6 +23,10 @@ builder.Services.AddOptions<AdminSeedOptions>().BindConfiguration(AdminSeedOptio
 builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(
     sp.GetRequiredService<IConfiguration>().GetConnectionString("Default")
     ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings:Default.")));
+builder.Services.AddOptions<SmtpOptions>().BindConfiguration(SmtpOptions.Section);
+builder.Services.AddOptions<PasswordResetOptions>().BindConfiguration(PasswordResetOptions.Section);
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddSingleton<PasswordResetService>();
 builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<AdminSeeder>();
 builder.Services.AddSingleton<UserAdminService>();

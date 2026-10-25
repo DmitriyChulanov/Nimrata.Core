@@ -41,7 +41,7 @@ function stubServer(
     initial: User[] = [admin, ivan, olga],
     reject?: { status: number; error: string },
 ) {
-    const users = [...initial];
+    const users = initial.map((u) => ({ ...u }));
     const calls: { method: string; url: string; body?: unknown }[] = [];
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {
         const method = init?.method ?? 'GET';
@@ -158,4 +158,21 @@ it('причина отказа сервера (последний админи�
 
     expect(await screen.findByRole('alert')).toHaveTextContent(причина);
     expect(screen.getByLabelText('Роль admin@x.test')).toHaveValue('admin');
+});
+
+it('кнопка «Отправить ссылку на смену пароля» отправляет письмо выбранному пользователю', async () => {
+    const { calls } = stubServer();
+    const user = userEvent.setup();
+    renderTab();
+
+    await user.click(
+        await screen.findByRole('button', { name: 'Отправить ссылку на смену пароля ivan@x.test' }),
+    );
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/ivan@x\.test/);
+    expect(calls).toContainEqual({
+        method: 'POST',
+        url: '/api/admin/users/u1/password-reset',
+        body: undefined,
+    });
 });

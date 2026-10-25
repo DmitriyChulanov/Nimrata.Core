@@ -8,11 +8,41 @@ namespace Nimrata.Core.Server.Controllers;
 
 public sealed record LoginRequest(string? Email, string? Password);
 
+public sealed record ForgotPasswordRequest(string? Email);
+
+public sealed record ResetPasswordRequest(string? Token, string? Password);
+
 [ApiController]
 [Route("api/auth")]
-public sealed class AuthController(AuthService авторизация, IOptions<JwtOptions> настройки) : ControllerBase
+public sealed class AuthController(
+    AuthService авторизация, PasswordResetService сброс, IOptions<JwtOptions> настройки) : ControllerBase
 {
     private const string RefreshCookie = "refresh_token";
+
+    /// <summary>Всегда отвечает одинаково, не раскрывая, есть ли такой пользователь.</summary>
+    [AllowAnonymous]
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest запрос)
+    {
+        if (!string.IsNullOrWhiteSpace(запрос.Email))
+        {
+            await сброс.ЗапроситьПоEmail(запрос.Email.Trim());
+        }
+        return Accepted();
+    }
+
+    [AllowAnonymous]
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest запрос)
+    {
+        var результат = await сброс.УстановитьПароль(запрос.Token, запрос.Password);
+        return результат == ResetStatus.Ok
+            ? NoContent()
+            : BadRequest(new
+            {
+                error = $"Ссылка недействительна или устарела, либо пароль короче {AuthService.MinPasswordLength} символов.",
+            });
+    }
 
     [AllowAnonymous]
     [HttpPost("login")]
