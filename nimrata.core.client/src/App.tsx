@@ -21,6 +21,7 @@ import {
     useData,
     useTabs,
 } from '@platform';
+import { ensureStartStructure, registerTracker } from '@tracker/index';
 import { useEffect, useState } from 'react';
 
 function Main() {
@@ -56,7 +57,9 @@ function Application() {
     const [controller] = useState(() => createDataController({ api }));
 
     useEffect(() => {
-        void controller.load();
+        const unregister = registerTracker(controller);
+        void controller.load().then(() => ensureStartStructure(controller));
+        return unregister;
     }, [controller]);
 
     return (
