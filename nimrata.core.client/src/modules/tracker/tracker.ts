@@ -3,6 +3,7 @@ import { TASK, createTaskAction, syncTask } from './tasks';
 import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
 import { registerQuickAccess } from './quickAccess';
+import { registerRepeats } from './repeats';
 import { SELECT_TODAY, needsSelectToday, registerSelectToday } from './selectToday';
 
 /** Заметка: свойства `title` (вводит пользователь) и `name` (вычисляется, видно в дереве). */
@@ -152,6 +153,7 @@ export function registerTracker(data: DataController, options: TrackerOptions = 
         registerQuickAccess(data),
         registerSelectToday(data, options.reveal),
         registerCompletion(data),
+        registerRepeats(data),
     );
 
     return () => disposers.forEach((dispose) => dispose());
