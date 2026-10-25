@@ -3,6 +3,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Hosting;
 using Npgsql;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Nimrata.Core.Server.Auth;
 using Testcontainers.PostgreSql;
 
 namespace Nimrata.Core.Server.Tests;
@@ -24,7 +27,11 @@ public class ServerFactory : WebApplicationFactory<Program>, IAsyncLifetime
         await _postgres.DisposeAsync();
     }
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+    /// <summary>Поддельная почта: письма не уходят по сети, а копятся здесь.</summary>
+    public FakeEmailSender Почта { get; } = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
         builder.ConfigureAppConfiguration((_, конфигурация) =>
             конфигурация.AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -32,7 +39,26 @@ public class ServerFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 ["Jwt:Key"] = "тестовый-ключ-подписи-не-для-продакшена-0123456789",
                 ["Admin:Email"] = AdminEmail,
                 ["Admin:Password"] = AdminPassword,
+                ["PasswordReset:PublicUrl"] = "https://nimrata.test",
             }));
+        builder.ConfigureTestServices(сервисы => сервисы.AddSingleton<IEmailSender>(Почта));
+    }
+}
+
+public sealed class FakeEmailSender : IEmailSender
+{
+    private readonly List<Письмо> _письма = [];
+
+    public IReadOnlyList<Письмо> Письма
+    {
+        get { lock (_письма) return [.. _письма]; }
+    }
+
+    public Task Отправить(Письмо письмо)
+    {
+        lock (_письма) _письма.Add(письмо);
+        return Task.CompletedTask;
+    }
 }
 
 public class ServerSkeletonTests(ServerFactory фабрика) : IClassFixture<ServerFactory>

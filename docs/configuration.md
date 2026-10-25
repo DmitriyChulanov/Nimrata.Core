@@ -20,9 +20,17 @@ docker compose up --build
 | Секрет подписи JWT (минимум 32 символа) | `Jwt:Key` | `Jwt__Key` | `JWT_KEY` |
 | Первый администратор: e-mail | `Admin:Email` | `Admin__Email` | `ADMIN_EMAIL` |
 | Первый администратор: пароль (минимум 8 символов) | `Admin:Password` | `Admin__Password` | `ADMIN_PASSWORD` |
-| SMTP для писем (сброс пароля) | `Smtp:Host`, `Smtp:Port` | `Smtp__Host`, `Smtp__Port` | задано на Mailpit в compose |
+| SMTP для писем (сброс пароля) | `Smtp:Host`, `Smtp:Port`, `Smtp:From`, `Smtp:User`, `Smtp:Password`, `Smtp:UseSsl` | `Smtp__Host`, `Smtp__Port`, … | задано на Mailpit в compose |
+| Публичный адрес приложения (база ссылки в письме сброса пароля) | `PasswordReset:PublicUrl` | `PasswordReset__PublicUrl` | `http://localhost:8080` в compose |
+| Срок жизни ссылки сброса, минут (по умолчанию 60) | `PasswordReset:LifetimeMinutes` | `PasswordReset__LifetimeMinutes` | — |
 
-Первый администратор создаётся при старте, если пользователя с таким e-mail ещё нет; повторный запуск дубль не создаёт. Параметры SMTP зарезервированы за отправкой писем (сброс пароля, тикет 18) и до её реализации сервером не читаются.
+Первый администратор создаётся при старте, если пользователя с таким e-mail ещё нет; повторный запуск дубль не создаёт.
+
+## Сброс пароля и почта
+
+Пользователь нажимает «Забыли пароль?» на экране входа и получает письмо с одноразовой ссылкой (`<PublicUrl>/reset-password?token=…`, по умолчанию действует 60 минут); администратор может отправить такое же письмо из вкладки «Пользователи». Ответ на запрос сброса не зависит от того, есть ли такой e-mail. Новый пароль — не короче 8 символов; после смены все активные сессии пользователя завершаются.
+
+В разработке письма перехватывает Mailpit (`docker compose up -d mailpit`): SMTP `localhost:1025`, веб-интерфейс почты — http://localhost:8025. Для развёртывания задайте `Smtp__Host`, `Smtp__Port`, `Smtp__From` (и при необходимости `Smtp__User`, `Smtp__Password`, `Smtp__UseSsl`), а также `PasswordReset__PublicUrl` — внешний адрес приложения.
 
 ## Разработка
 
