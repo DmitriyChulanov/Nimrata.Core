@@ -8,7 +8,10 @@ export { TypesProvider, useTypes } from './types/TypesProvider';
 export type { TypesContextValue, TypesStatus } from './types/TypesProvider';
 export { createDataController } from './data/DataController';
 export type {
+    ActionContext,
+    ActionHandler,
     ChangeResult,
+    ChangeScope,
     CreateInput,
     CreateResult,
     DataController,
@@ -16,10 +19,20 @@ export type {
     DataObject,
     DataSnapshot,
     DataStatus,
+    HookContext,
+    HookHandler,
+    HookOperation,
+    HookPhase,
+    HookResult,
     MoveInput,
+    OperationOptions,
 } from './data/DataController';
 export { DataProvider, useData } from './data/DataProvider';
 export { UndoControls } from './data/UndoControls';
+export { ActionDialog } from './actions/ActionDialog';
+export type { ActionDialogProps } from './actions/ActionDialog';
+export { useActionLauncher } from './actions/useActionLauncher';
+export type { ActionLauncher } from './actions/useActionLauncher';
 export { SelectionProvider, useSelection } from './selection/SelectionProvider';
 export type { SelectionValue } from './selection/SelectionProvider';
 export { Tree } from './tree/Tree';
