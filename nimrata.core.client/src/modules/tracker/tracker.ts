@@ -1,6 +1,8 @@
 import { TASK, createTaskAction, syncTask } from './tasks';
 import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
+import { registerQuickAccess } from './quickAccess';
+
 /** Заметка: свойства `title` (вводит пользователь) и `name` (вычисляется, видно в дереве). */
 const NOTE = 'Note';
 
@@ -143,6 +145,8 @@ export function registerTracker(data: DataController, options: TrackerOptions = 
             ),
         );
     }
+
+    disposers.push(registerQuickAccess(data));
 
     return () => disposers.forEach((dispose) => dispose());
 }

@@ -16,6 +16,7 @@ import {
     menuRegistry,
     registerAutomation,
     registerJournal,
+    registerUsersAdmin,
     tabRegistry,
     useAuth,
     useApi,
@@ -33,6 +34,7 @@ import { useEffect, useState } from 'react';
 
 registerAutomation(tabRegistry, menuRegistry);
 registerJournal(tabRegistry, menuRegistry);
+registerUsersAdmin(tabRegistry, menuRegistry);
 
 function Main() {
     const data = useData();

@@ -25,6 +25,7 @@ builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(
     ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings:Default.")));
 builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<AdminSeeder>();
+builder.Services.AddSingleton<UserAdminService>();
 builder.Services.AddSingleton<ChangesetService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();

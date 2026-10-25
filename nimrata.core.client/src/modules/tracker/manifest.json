@@ -1,6 +1,6 @@
 {
     "module": "tracker",
-    "version": 3,
+    "version": 5,
     "types": [
         {
             "id": "TasksRoot",
@@ -117,6 +117,40 @@
                             "required": true
                         }
                     ]
+                },
+                {
+                    "id": "addToQuickAccess",
+                    "name": "Добавить",
+                    "placements": ["propertyGrid", "contextMenu"]
+                },
+                {
+                    "id": "removeFromQuickAccess",
+                    "name": "Убрать",
+                    "placements": ["propertyGrid", "contextMenu"]
+                }
+            ]
+        },
+        {
+            "id": "QuickAccessEntry",
+            "name": "Быстрый доступ",
+            "sealed": true,
+            "hiddenInTree": true,
+            "automation": true,
+            "allowedChildren": [],
+            "properties": [
+                {
+                    "id": "name",
+                    "name": "Название",
+                    "kind": "string",
+                    "category": "Основное",
+                    "readOnly": true
+                },
+                {
+                    "id": "target",
+                    "name": "Цель",
+                    "kind": "reference",
+                    "category": "Основное",
+                    "targetTypes": ["Note", "NoteGroup"]
                 }
             ]
         },
@@ -189,6 +223,16 @@
                 {
                     "id": "openExternalLink",
                     "name": "Перейти по внешней ссылке",
+                    "placements": ["propertyGrid", "contextMenu"]
+                },
+                {
+                    "id": "addToQuickAccess",
+                    "name": "Добавить",
+                    "placements": ["propertyGrid", "contextMenu"]
+                },
+                {
+                    "id": "removeFromQuickAccess",
+                    "name": "Убрать",
                     "placements": ["propertyGrid", "contextMenu"]
                 }
             ],

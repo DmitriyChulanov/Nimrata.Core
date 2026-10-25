@@ -1,5 +1,6 @@
 import { useActionLauncher } from '../actions/useActionLauncher';
 import { useData } from '../data/DataProvider';
+import { useOptionalSelection } from '../selection/SelectionProvider';
 import type { DataController, DataObject } from '../data/DataController';
 
 /** Все объекты типов с отметкой `automation` (включая скрытые в дереве), в порядке обхода. */
@@ -15,9 +16,15 @@ function collectMechanisms(data: DataController): DataObject[] {
     return result;
 }
 
+function hasTargetReference(data: DataController, object: DataObject): boolean {
+    const property = data.getType(object.type)?.properties?.find((p) => p.id === 'target');
+    return property?.kind === 'reference';
+}
+
 /** Вкладка «Автоматизация»: механизмы и их действия с размещением `automation`. */
 export function AutomationTab() {
     const data = useData();
+    const selection = useOptionalSelection();
     const launcher = useActionLauncher();
     const mechanisms = collectMechanisms(data);
 
@@ -30,9 +37,23 @@ export function AutomationTab() {
                     (object.properties.name as string | undefined) ||
                     data.getType(object.type)?.name ||
                     object.type;
+                // Механизм со ссылочным свойством `target` — ссылка на цель: клик по названию
+                // выделяет цель в основном дереве.
+                const reference = hasTargetReference(data, object)
+                    ? (object.properties.target as string | undefined)
+                    : undefined;
+                const targetId = reference && data.getObject(reference) ? reference : undefined;
                 return (
                     <section key={object.id} role="group" aria-label={title}>
-                        <h3>{title}</h3>
+                        <h3>
+                            {targetId && selection ? (
+                                <button type="button" onClick={() => selection.reveal(targetId)}>
+                                    {title}
+                                </button>
+                            ) : (
+                                title
+                            )}
+                        </h3>
                         {data.getActions(object.id, 'automation').map((action) => (
                             <button
                                 key={action.id}

@@ -34,7 +34,11 @@ export { ActionDialog } from './actions/ActionDialog';
 export type { ActionDialogProps } from './actions/ActionDialog';
 export { useActionLauncher } from './actions/useActionLauncher';
 export type { ActionLauncher } from './actions/useActionLauncher';
-export { SelectionProvider, useSelection } from './selection/SelectionProvider';
+export {
+    SelectionProvider,
+    useOptionalSelection,
+    useSelection,
+} from './selection/SelectionProvider';
 export type { SelectionValue } from './selection/SelectionProvider';
 export { Tree } from './tree/Tree';
 export { PropertyGrid } from './properties/PropertyGrid';
@@ -59,6 +63,8 @@ export { TabContainer } from './tabs/TabContainer';
 export { MainMenu } from './tabs/MainMenu';
 export { useCurrentUser } from './auth/useCurrentUser';
 export type { CurrentUser } from './auth/useCurrentUser';
+export { UsersTab } from './users/UsersTab';
+export { registerUsersAdmin, USERS_TAB_ID } from './users/registerUsersAdmin';
 export { uuid7 } from './data/uuid7';
 export { AutomationTab } from './automation/AutomationTab';
 export { registerAutomation } from './automation/registerAutomation';
