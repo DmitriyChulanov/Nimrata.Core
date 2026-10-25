@@ -34,7 +34,11 @@ export { ActionDialog } from './actions/ActionDialog';
 export type { ActionDialogProps } from './actions/ActionDialog';
 export { useActionLauncher } from './actions/useActionLauncher';
 export type { ActionLauncher } from './actions/useActionLauncher';
-export { SelectionProvider, useSelection } from './selection/SelectionProvider';
+export {
+    SelectionProvider,
+    useOptionalSelection,
+    useSelection,
+} from './selection/SelectionProvider';
 export type { SelectionValue } from './selection/SelectionProvider';
 export { Tree } from './tree/Tree';
 export { PropertyGrid } from './properties/PropertyGrid';
