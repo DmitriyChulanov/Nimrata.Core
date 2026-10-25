@@ -1,3 +1,4 @@
+import { TASK, createTaskAction, syncTask } from './tasks';
 import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
 import { registerQuickAccess } from './quickAccess';
@@ -30,6 +31,8 @@ function syncNoteName(data: DataController, id: string, tx: ChangeScope): HookRe
     if (!result.ok) return { cancel: result.error };
 }
 
+export { taskDate } from './tasks';
+
 function requireText(value: unknown, message: string): string {
     if (typeof value !== 'string' || value.trim() === '') throw new Error(message);
     return value.trim();
@@ -56,12 +59,50 @@ function safeUrl(value: unknown): string | null {
     }
 }
 
+/** Связь логики Трекера с интерфейсом. */
+export interface TrackerOptions {
+    /** Показывает объект в дереве (выделяет и раскрывает родителей); нужен для перехода по внутренней ссылке. */
+    reveal?: (id: string) => void;
+}
+
 /**
- * Подключает логику Трекера к контроллеру данных: вычисление имени заметки и действия.
+ * Подключает логику Трекера к контроллеру данных: вычисление имён и действия.
  * Возвращает функцию отписки.
  */
-export function registerTracker(data: DataController): () => void {
+export function registerTracker(data: DataController, options: TrackerOptions = {}): () => void {
     const disposers: (() => void)[] = [];
+
+    disposers.push(
+        data.registerHook(TASK, 'create', 'after', (ctx) => syncTask(data, ctx.object.id, ctx.tx)),
+        data.registerHook(TASK, 'setProperty', 'after', (ctx) =>
+            ctx.property === 'title' || ctx.property === 'time'
+                ? syncTask(data, ctx.object.id, ctx.tx)
+                : undefined,
+        ),
+    );
+
+    for (const parentType of ['CurrentTasksRoot', 'Month', 'Day', 'DayOff', 'Category']) {
+        disposers.push(data.registerAction(parentType, 'createTask', createTaskAction(data)));
+    }
+
+    disposers.push(
+        data.registerAction(
+            TASK,
+            'openInternalLink',
+            ({ object }) => {
+                const target = object.properties.internalLink;
+                if (typeof target !== 'string' || !data.getObject(target)) {
+                    throw new Error('Объект по ссылке недоступен.');
+                }
+                options.reveal?.(target);
+            },
+            {
+                available: (object) =>
+                    typeof object.properties.internalLink === 'string' &&
+                    object.properties.internalLink !== '',
+            },
+        ),
+    );
 
     disposers.push(
         data.registerHook(NOTE, 'create', 'after', (ctx) =>
@@ -87,21 +128,23 @@ export function registerTracker(data: DataController): () => void {
         );
     }
 
-    disposers.push(
-        data.registerAction(
-            NOTE,
-            'openExternalLink',
-            ({ object }) => {
-                const url = safeUrl(object.properties.link);
-                if (!url) throw new Error('Ссылка должна начинаться с http:// или https://.');
-                window.open(url, '_blank', 'noopener,noreferrer');
-            },
-            {
-                available: (object) =>
-                    typeof object.properties.link === 'string' && object.properties.link !== '',
-            },
-        ),
-    );
+    for (const linkType of [NOTE, TASK]) {
+        disposers.push(
+            data.registerAction(
+                linkType,
+                'openExternalLink',
+                ({ object }) => {
+                    const url = safeUrl(object.properties.link);
+                    if (!url) throw new Error('Ссылка должна начинаться с http:// или https://.');
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                },
+                {
+                    available: (object) =>
+                        typeof object.properties.link === 'string' && object.properties.link !== '',
+                },
+            ),
+        );
+    }
 
     disposers.push(registerQuickAccess(data));
 

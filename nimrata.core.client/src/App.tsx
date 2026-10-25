@@ -24,7 +24,12 @@ import {
     useData,
     useTabs,
 } from '@platform';
-import { ensureStartStructure, registerTracker } from '@tracker/index';
+import {
+    RevealBinding,
+    createRevealBridge,
+    ensureStartStructure,
+    registerTracker,
+} from '@tracker/index';
 import { useEffect, useState } from 'react';
 
 registerAutomation(tabRegistry, menuRegistry);
@@ -59,12 +64,14 @@ function Main() {
     );
 }
 
+const revealBridge = createRevealBridge();
+
 function Application() {
     const api = useApi();
     const [controller] = useState(() => createDataController({ api }));
 
     useEffect(() => {
-        const unregister = registerTracker(controller);
+        const unregister = registerTracker(controller, { reveal: revealBridge.reveal });
         void controller.load().then(() => ensureStartStructure(controller));
         return unregister;
     }, [controller]);
@@ -72,6 +79,7 @@ function Application() {
     return (
         <DataProvider controller={controller}>
             <SelectionProvider>
+                <RevealBinding bridge={revealBridge} />
                 <UndoControls registry={menuRegistry} />
                 <Main />
             </SelectionProvider>

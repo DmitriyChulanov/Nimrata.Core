@@ -210,7 +210,7 @@ export function PropertyGrid() {
     if (!object) return <p>Объект не выбран.</p>;
 
     const type = data.getType(object.type);
-    const groups = groupByCategory(type?.properties ?? []);
+    const groups = groupByCategory((type?.properties ?? []).filter((p) => !p.hidden));
     const actions = data.getActions(object.id, 'propertyGrid');
     const shownError = error ?? launcher.error;
 
