@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 
 import './Workspace.css';
@@ -19,6 +19,8 @@ export interface WorkspaceProps {
     /** Таблица свойств. */
     right: ReactNode;
     initialWidths?: WorkspaceWidths;
+    /** Вызывается после каждого изменения ширины панелей (для запоминания раскладки). */
+    onWidthsChange?: (widths: WorkspaceWidths) => void;
 }
 
 type Side = keyof WorkspaceWidths;
@@ -29,8 +31,19 @@ export function Workspace({
     center,
     right,
     initialWidths = { left: 280, right: 320 },
+    onWidthsChange,
 }: WorkspaceProps) {
     const [widths, setWidths] = useState<WorkspaceWidths>(initialWidths);
+    const notify = useRef(onWidthsChange);
+    const initial = useRef(widths);
+
+    useEffect(() => {
+        notify.current = onWidthsChange;
+    });
+
+    useEffect(() => {
+        if (widths !== initial.current) notify.current?.(widths);
+    }, [widths]);
     const [drag, setDrag] = useState<{ side: Side; startX: number; startWidth: number } | null>(
         null,
     );

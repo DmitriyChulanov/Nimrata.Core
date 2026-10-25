@@ -3,15 +3,22 @@ import {
     AuthProvider,
     DataProvider,
     LoginScreen,
+    MainMenu,
     SelectionProvider,
+    TabContainer,
+    TabsProvider,
     Tree,
     TypesProvider,
     Workspace,
     createDataController,
+    menuRegistry,
+    tabRegistry,
     useAuth,
     useApi,
+    useCurrentUser,
     useData,
     useSelection,
+    useTabs,
 } from '@platform';
 import { useEffect, useState } from 'react';
 
@@ -33,6 +40,7 @@ function SelectedObject() {
 
 function Main() {
     const data = useData();
+    const { widths, setWidths } = useTabs();
     const { status, error } = data.getSnapshot();
 
     if (status === 'error') {
@@ -50,7 +58,9 @@ function Main() {
     return (
         <Workspace
             left={<Tree />}
-            center={<p>Вкладки появятся здесь.</p>}
+            center={<TabContainer />}
+            initialWidths={widths}
+            onWidthsChange={setWidths}
             right={<SelectedObject />}
         />
     );
@@ -73,25 +83,37 @@ function Application() {
     );
 }
 
+function Session() {
+    const { logout } = useAuth();
+    const user = useCurrentUser();
+
+    if (!user) return null;
+
+    return (
+        <TabsProvider registry={tabRegistry} userId={user.id}>
+            <div className="app">
+                <header className="app-header">
+                    <h1>Nimrata</h1>
+                    <MainMenu registry={menuRegistry} role={user.role} />
+                    <button type="button" onClick={() => void logout()}>
+                        Выйти
+                    </button>
+                </header>
+                <main className="app-main">
+                    <Application />
+                </main>
+            </div>
+        </TabsProvider>
+    );
+}
+
 function Shell() {
-    const { status, login, logout } = useAuth();
+    const { status, login } = useAuth();
 
     if (status === 'loading') return null;
     if (status === 'anonymous') return <LoginScreen onLogin={login} />;
 
-    return (
-        <div className="app">
-            <header className="app-header">
-                <h1>Nimrata</h1>
-                <button type="button" onClick={() => void logout()}>
-                    Выйти
-                </button>
-            </header>
-            <main className="app-main">
-                <Application />
-            </main>
-        </div>
-    );
+    return <Session />;
 }
 
 function App() {

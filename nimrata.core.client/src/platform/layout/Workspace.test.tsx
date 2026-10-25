@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { Workspace } from './Workspace';
 
@@ -21,6 +21,24 @@ const leftHandle = () => screen.getByRole('separator', { name: 'Ширина д�
 const rightHandle = () => screen.getByRole('separator', { name: 'Ширина свойств' });
 
 describe('Workspace', () => {
+    it('сообщает о новых ширинах панелей после изменения', async () => {
+        const onWidthsChange = vi.fn();
+        render(
+            <Workspace
+                left={<p>дерево</p>}
+                center={<p>вкладки</p>}
+                right={<p>свойства</p>}
+                initialWidths={{ left: 300, right: 320 }}
+                onWidthsChange={onWidthsChange}
+            />,
+        );
+
+        leftHandle().focus();
+        await userEvent.setup().keyboard('{ArrowRight}');
+
+        expect(onWidthsChange).toHaveBeenLastCalledWith({ left: 320, right: 320 });
+    });
+
     it('показывает три панели: дерево, вкладки и свойства', () => {
         renderWorkspace();
 

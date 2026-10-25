@@ -24,6 +24,25 @@ export type { SelectionValue } from './selection/SelectionProvider';
 export { Tree } from './tree/Tree';
 export { Workspace } from './layout/Workspace';
 export type { WorkspaceProps, WorkspaceWidths } from './layout/Workspace';
+export {
+    menuRegistry,
+    tabRegistry,
+    createMenuRegistry,
+    createTabRegistry,
+} from './tabs/registries';
+export type {
+    MenuContext,
+    MenuItem,
+    MenuRegistry,
+    TabKind,
+    TabRegistry,
+    UserRole,
+} from './tabs/registries';
+export { TabsProvider, useTabs } from './tabs/TabsProvider';
+export { TabContainer } from './tabs/TabContainer';
+export { MainMenu } from './tabs/MainMenu';
+export { useCurrentUser } from './auth/useCurrentUser';
+export type { CurrentUser } from './auth/useCurrentUser';
 export { uuid7 } from './data/uuid7';
 export type {
     ActionDefinition,
