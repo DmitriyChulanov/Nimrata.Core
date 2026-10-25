@@ -44,6 +44,8 @@
 - Из файлов ветки убран UTF-8 BOM (`appsettings.Development.json`, `docker-compose.yml` и другие): `.editorconfig` требует `utf-8` без BOM.
 
 ### Изменено
+- Профиль запуска «Container (Dockerfile)»: строка подключения к Postgres на хосте (`host.docker.internal:5433`), чтобы отладка в контейнере не упиралась в `localhost` самого контейнера.
+- Dockerfile: первой стадией добавлен `base` (aspnet), `final` строится от неё; отладка в контейнере из Rider/VS собирает образ до `base` и больше не падает на alpine-стадии клиента (`exec ...JetBrains.Debugger.Worker: no such file or directory`).
 - Рефакторинг по соглашениям `csharp-dotnet`: идентификаторы переведены на латиницу, один публичный тип — один файл (`Auth/`, `Controllers/Requests`, `Controllers/Responses`, `Objects/`), `CancellationToken` пробрасывается от контроллеров до запросов, время берётся из `TimeProvider`, XML-комментарии без точки в конце.
 - SQL из контроллеров журнала, объектов и типов вынесен в сервисы `JournalService`, `ObjectsService`, `TypesService`; общие `Passwords`, `OpaqueTokens`, `Roles` и `GetUserId()` заменили дубли в сервисах и контроллерах.
 - Ошибки API отдаются как `ProblemDetails` (`application/problem+json`): сообщение для пользователя лежит в поле `detail` вместо прежнего `error`; параметры `skip`/`take` журнала проверяются атрибутами `[Range]`.

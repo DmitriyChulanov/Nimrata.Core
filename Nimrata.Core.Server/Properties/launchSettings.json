@@ -23,7 +23,8 @@
       "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
       "environmentVariables": {
         "ASPNETCORE_HTTPS_PORTS": "8081",
-        "ASPNETCORE_HTTP_PORTS": "8080"
+        "ASPNETCORE_HTTP_PORTS": "8080",
+        "ConnectionStrings__Default": "Host=host.docker.internal;Port=5433;Database=nimrata;Username=nimrata;Password=nimrata_dev"
       },
       "publishAllPorts": true,
       "useSSL": true

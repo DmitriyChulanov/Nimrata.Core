@@ -1,6 +1,12 @@
 # Сборка всего приложения одним образом: клиент (Vite) + сервер (ASP.NET Core).
 # Контекст сборки — корень репозитория: docker build -f Nimrata.Core.Server/Dockerfile .
 
+# Стадия 0: базовый рабочий образ. Должна идти первой и называться base: IDE (Rider/VS) в режиме отладки собирает образ только до неё.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+WORKDIR /app
+ENV ASPNETCORE_HTTP_PORTS=8080
+EXPOSE 8080
+
 # Стадия 1: собираем клиент.
 FROM node:22-alpine AS client
 WORKDIR /src/nimrata.core.client
@@ -22,10 +28,8 @@ RUN dotnet publish Nimrata.Core.Server/Nimrata.Core.Server.csproj -c Release -o 
     -p:SkipClientBuild=true -p:UseAppHost=false --no-restore
 
 # Стадия 3: рабочий образ.
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM base AS final
 WORKDIR /app
-ENV ASPNETCORE_HTTP_PORTS=8080
-EXPOSE 8080
 COPY --from=publish /app/publish .
 USER $APP_UID
 ENTRYPOINT ["dotnet", "Nimrata.Core.Server.dll"]
