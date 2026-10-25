@@ -34,17 +34,26 @@ if (!fs.existsSync(certFilePath) || !fs.existsSync(keyFilePath)) {
     }
 }
 
+const target = env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}` :
+    env.ASPNETCORE_URLS ? env.ASPNETCORE_URLS.split(';')[0] : 'https://localhost:7146';
+
 // https://vitejs.dev/config/
 export default defineConfig({
     plugins: [plugin()],
     resolve: {
         alias: {
+            '@platform': fileURLToPath(new URL('./src/platform', import.meta.url)),
+            '@tracker': fileURLToPath(new URL('./src/modules/tracker', import.meta.url)),
             '@': fileURLToPath(new URL('./src', import.meta.url))
         }
     },
     server: {
         proxy: {
-            // Новые API-маршруты добавлять сюда: '^/api': { target: 'https://localhost:7146', secure: false }
+            // Единый префикс API платформы: все серверные маршруты живут под /api.
+            '^/api': {
+                target,
+                secure: false
+            }
         },
         port: parseInt(env.DEV_SERVER_PORT || '61625'),
         https: {
@@ -53,4 +62,3 @@ export default defineConfig({
         }
     }
 })
-

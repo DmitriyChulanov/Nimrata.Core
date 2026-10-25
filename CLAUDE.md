@@ -19,7 +19,8 @@
 - Vite dev-сервер: https://localhost:61625 (HTTPS, сертификат из `dotnet dev-certs`)
 
 ## Соглашения
-- Новые API-маршруты нужно добавлять в `server.proxy` в `nimrata.core.client/vite.config.ts` (сейчас проксируется только `/weatherforecast`).
+- Все серверные маршруты API живут под единым префиксом `/api`; он проксируется одним правилом `^/api` в `server.proxy` (`nimrata.core.client/vite.config.ts`), новые маршруты отдельно в прокси добавлять не нужно. Клиент обращается к API через `createApiClient` (`@platform`).
+- Клиент разделён на `src/platform/` (алиас `@platform`) и `src/modules/tracker/` (алиас `@tracker`); `platform/` не импортирует из модулей (проверяет ESLint `no-restricted-imports`).
 - `WeatherForecast*` — демо-код шаблона, его можно удалять.
 - Изменения фиксируются в `CHANGELOG.md` соответствующего проекта.
 - Коммиты и комментарии — на русском.
