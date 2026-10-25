@@ -8,7 +8,7 @@ using Testcontainers.PostgreSql;
 namespace Nimrata.Core.Server.Tests;
 
 /// <summary>Тестовый стенд: сервер в памяти + настоящий Postgres в Testcontainers.</summary>
-public sealed class ServerFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public class ServerFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine").Build();
 
