@@ -60,6 +60,10 @@ export { MainMenu } from './tabs/MainMenu';
 export { useCurrentUser } from './auth/useCurrentUser';
 export type { CurrentUser } from './auth/useCurrentUser';
 export { uuid7 } from './data/uuid7';
+export { AutomationTab } from './automation/AutomationTab';
+export { registerAutomation } from './automation/registerAutomation';
+export { registerJournal } from './journal/registerJournal';
+export { JournalView } from './journal/JournalView';
 export type {
     ActionDefinition,
     ActionPlacement,

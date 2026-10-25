@@ -14,6 +14,8 @@ import {
     Workspace,
     createDataController,
     menuRegistry,
+    registerAutomation,
+    registerJournal,
     tabRegistry,
     useAuth,
     useApi,
@@ -23,6 +25,9 @@ import {
 } from '@platform';
 import { ensureStartStructure, registerTracker } from '@tracker/index';
 import { useEffect, useState } from 'react';
+
+registerAutomation(tabRegistry, menuRegistry);
+registerJournal(tabRegistry, menuRegistry);
 
 function Main() {
     const data = useData();
