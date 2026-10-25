@@ -193,10 +193,9 @@ describe('Трекер: заметки', () => {
             const withLink = childByName(notesId, 'Со ссылкой')!;
             await data.setProperty(withLink.id, 'link', 'https://example.test/a');
 
-            expect(data.getActions(without.id, 'propertyGrid')).toEqual([]);
-            expect(data.getActions(withLink.id, 'propertyGrid').map((a) => a.id)).toEqual([
-                'openExternalLink',
-            ]);
+            const ids = (id: string) => data.getActions(id, 'propertyGrid').map((a) => a.id);
+            expect(ids(without.id)).not.toContain('openExternalLink');
+            expect(ids(withLink.id)).toContain('openExternalLink');
         });
 
         it('открывает ссылку в новой вкладке без передачи opener', async () => {

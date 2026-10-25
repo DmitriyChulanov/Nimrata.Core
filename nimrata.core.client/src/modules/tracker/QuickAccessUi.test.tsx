@@ -1,0 +1,102 @@
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it } from 'vitest';
+
+import {
+    AutomationTab,
+    DataProvider,
+    PropertyGrid,
+    SelectionProvider,
+    Tree,
+    createDataController,
+} from '@platform';
+import type { DataController, TypeDefinition } from '@platform';
+import { createFakeApi } from '@platform/data/fakeApi';
+
+import manifest from './manifest.json';
+import { ensureStartStructure, registerTracker } from './tracker';
+
+const types = manifest.types.map((t) => ({
+    ...t,
+    module: manifest.module,
+    moduleVersion: manifest.version,
+})) as TypeDefinition[];
+
+async function setup() {
+    const data = createDataController({ api: createFakeApi(types, []) });
+    await data.load();
+    registerTracker(data);
+    await ensureStartStructure(data);
+    const root = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
+    await data.runAction(root.id, 'createNoteGroup', { name: 'Работа' });
+    const group = data.getChildren(root.id)[0];
+    await data.runAction(group.id, 'createNote', { title: 'Отчёт' });
+    const note = data.getChildren(group.id)[0];
+    return { data, group, note };
+}
+
+function mount(data: DataController) {
+    render(
+        <DataProvider controller={data}>
+            <SelectionProvider>
+                <Tree />
+                <AutomationTab />
+                <PropertyGrid />
+            </SelectionProvider>
+        </DataProvider>,
+    );
+}
+
+describe('Трекер: интерфейс быстрого доступа', () => {
+    it('записи не видны в основном дереве, а во вкладке «Автоматизация» сгруппированы под названием цели', async () => {
+        const { data, group, note } = await setup();
+        await data.runAction(group.id, 'addToQuickAccess');
+        await data.runAction(note.id, 'addToQuickAccess');
+        mount(data);
+
+        expect(screen.getByRole('group', { name: 'Работа' })).toBeInTheDocument();
+        expect(screen.getByRole('group', { name: 'Отчёт' })).toBeInTheDocument();
+        expect(screen.queryByRole('treeitem', { name: /Быстрый доступ/ })).toBeNull();
+    });
+
+    it('клик по записи выделяет цель в основном дереве и раскрывает путь к ней', async () => {
+        const { data, note } = await setup();
+        await data.runAction(note.id, 'addToQuickAccess');
+        mount(data);
+        expect(screen.queryByRole('treeitem', { name: 'Отчёт' })).toBeNull();
+
+        await userEvent.click(
+            within(screen.getByRole('group', { name: 'Отчёт' })).getByRole('button', {
+                name: 'Отчёт',
+            }),
+        );
+
+        expect(await screen.findByRole('treeitem', { name: 'Отчёт' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        expect(screen.getByRole('treeitem', { name: /Работа/ })).toBeInTheDocument();
+    });
+
+    it('«Добавить» из таблицы свойств создаёт запись, «Убрать» — удаляет', async () => {
+        const { data } = await setup();
+        mount(data);
+        await userEvent.click(
+            within(screen.getByRole('treeitem', { name: /Заметки/ })).getByRole('button', {
+                name: 'Развернуть',
+            }),
+        );
+        await userEvent.click(
+            within(screen.getByRole('treeitem', { name: /Работа/ })).getByRole('button', {
+                name: 'Развернуть',
+            }),
+        );
+        await userEvent.click(await screen.findByRole('treeitem', { name: 'Отчёт' }));
+
+        await userEvent.click(screen.getByRole('button', { name: 'Добавить' }));
+        expect(await screen.findByRole('group', { name: 'Отчёт' })).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Убрать' }));
+        expect(screen.queryByRole('group', { name: 'Отчёт' })).toBeNull();
+    });
+});

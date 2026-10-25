@@ -29,6 +29,11 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
     return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }
 
+/** Выделение, если `SelectionProvider` есть выше по дереву; иначе `null` (для необязательных переходов). */
+export function useOptionalSelection(): SelectionValue | null {
+    return useContext(SelectionContext);
+}
+
 export function useSelection(): SelectionValue {
     const value = useContext(SelectionContext);
     if (!value) throw new Error('SelectionProvider не найден в дереве компонентов.');
