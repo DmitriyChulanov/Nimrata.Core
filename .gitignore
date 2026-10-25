@@ -1,2 +1,14 @@
 ﻿/.idea
 /.vs
+
+# .NET
+bin/
+obj/
+*.user
+
+# Node
+node_modules/
+dist/
+
+# Claude Code
+.claude/settings.local.json
