@@ -9,6 +9,7 @@ export type { TypesContextValue, TypesStatus } from './types/TypesProvider';
 export { createDataController } from './data/DataController';
 export type {
     ActionContext,
+    ActionRegistrationOptions,
     ActionHandler,
     ChangeResult,
     ChangeScope,

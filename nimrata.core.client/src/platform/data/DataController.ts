@@ -102,6 +102,11 @@ export interface ActionContext {
 
 export type ActionHandler = (context: ActionContext) => void | Promise<void>;
 
+export interface ActionRegistrationOptions {
+    /** Условие доступности: действие показывается и запускается только для объектов, где оно истинно. */
+    available?: (object: DataObject) => boolean;
+}
+
 export interface DataControllerOptions {
     api: ApiClient;
     /** Генератор идентификаторов новых объектов (по умолчанию UUIDv7). */
@@ -160,7 +165,12 @@ export interface DataController {
         handler: HookHandler,
     ): () => void;
     /** Привязывает обработчик к действию `actionId` типа `typeId`. Возвращает функцию отписки. */
-    registerAction(typeId: string, actionId: string, handler: ActionHandler): () => void;
+    registerAction(
+        typeId: string,
+        actionId: string,
+        handler: ActionHandler,
+        options?: ActionRegistrationOptions,
+    ): () => void;
     /**
      * Действия объекта, у которых есть обработчик; с `placement` — только показываемые
      * в этом месте. Действие без обработчика не возвращается.
@@ -211,7 +221,10 @@ export function createDataController(options: DataControllerOptions): DataContro
     let snapshot: DataSnapshot = { status: 'idle', version: 0, error: null, needsReload: false };
     const listeners = new Set<() => void>();
     const hookEntries: HookEntry[] = [];
-    const actionHandlers = new Map<string, ActionHandler>();
+    const actionHandlers = new Map<
+        string,
+        { handler: ActionHandler; options?: ActionRegistrationOptions }
+    >();
 
     // Индекс «родитель → потомки по порядку»: строится по требованию, сбрасывается при любом
     // изменении модели (в том числе внутри набора, между его операциями).
@@ -574,8 +587,10 @@ export function createDataController(options: DataControllerOptions): DataContro
 
     function findAction(object: DataObject, actionId: string) {
         const definition = types.get(object.type)?.actions?.find((a) => a.id === actionId);
-        const handler = actionHandlers.get(actionKey(object.type, actionId));
-        return definition && handler ? { definition, handler } : undefined;
+        const entry = actionHandlers.get(actionKey(object.type, actionId));
+        if (!definition || !entry) return undefined;
+        if (entry.options?.available && !entry.options.available(object)) return undefined;
+        return { definition, handler: entry.handler };
     }
 
     return {
@@ -629,11 +644,12 @@ export function createDataController(options: DataControllerOptions): DataContro
         canRedo: () => history.canRedo(),
         perform: (run, opts) => execute((tx) => run(tx), opts),
         registerHook,
-        registerAction(typeId, actionId, handler) {
+        registerAction(typeId, actionId, handler, options) {
             const key = actionKey(typeId, actionId);
-            actionHandlers.set(key, handler);
+            const entry = { handler, options };
+            actionHandlers.set(key, entry);
             return () => {
-                if (actionHandlers.get(key) === handler) actionHandlers.delete(key);
+                if (actionHandlers.get(key) === entry) actionHandlers.delete(key);
             };
         },
         getActions(objectId, placement) {
@@ -641,7 +657,7 @@ export function createDataController(options: DataControllerOptions): DataContro
             if (!object) return [];
             return (types.get(object.type)?.actions ?? []).filter(
                 (a) =>
-                    actionHandlers.has(actionKey(object.type, a.id)) &&
+                    findAction(object, a.id) !== undefined &&
                     (placement === undefined || (a.placements ?? []).includes(placement)),
             );
         },
