@@ -21,4 +21,21 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Платформа не знает о модулях: импорт из modules/ и @tracker запрещён.
+    files: ['src/platform/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@tracker', '@tracker/*', '**/modules/**', '@/modules/**'],
+              message: 'platform/ не должна импортировать из modules/.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ])

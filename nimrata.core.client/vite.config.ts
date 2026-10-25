@@ -42,12 +42,15 @@ export default defineConfig({
     plugins: [plugin()],
     resolve: {
         alias: {
+            '@platform': fileURLToPath(new URL('./src/platform', import.meta.url)),
+            '@tracker': fileURLToPath(new URL('./src/modules/tracker', import.meta.url)),
             '@': fileURLToPath(new URL('./src', import.meta.url))
         }
     },
     server: {
         proxy: {
-            '^/weatherforecast': {
+            // Единый префикс API платформы: все серверные маршруты живут под /api.
+            '^/api': {
                 target,
                 secure: false
             }
