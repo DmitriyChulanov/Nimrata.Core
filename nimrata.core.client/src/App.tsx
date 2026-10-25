@@ -29,6 +29,7 @@ import {
     NotificationsBinding,
     RevealBinding,
     createRevealBridge,
+    ensureRepeats,
     ensureStartStructure,
     registerTracker,
 } from '@tracker/index';
@@ -74,7 +75,10 @@ function Application() {
 
     useEffect(() => {
         const unregister = registerTracker(controller, { reveal: revealBridge.reveal });
-        void controller.load().then(() => ensureStartStructure(controller));
+        void controller
+            .load()
+            .then(() => ensureStartStructure(controller))
+            .then(() => ensureRepeats(controller));
         return unregister;
     }, [controller]);
 

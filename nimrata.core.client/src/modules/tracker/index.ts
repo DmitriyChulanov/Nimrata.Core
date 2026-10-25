@@ -4,3 +4,4 @@ export { ensureStartStructure, noteName, registerTracker, taskDate } from './tra
 export { NotificationsBinding } from './NotificationsBinding';
 export { RevealBinding } from './RevealBinding';
 export { createRevealBridge } from './revealBridge';
+export { ensureRepeats } from './repeats';

@@ -18,7 +18,7 @@ const YEAR = 'Year';
 const COMPLETED = 'completed';
 
 /** Названия категорий задачи от внешней к внутренней. */
-function categoryChain(data: DataController, task: DataObject): string[] {
+export function categoryChain(data: DataController, task: DataObject): string[] {
     const names: string[] = [];
     for (let id = task.parent; id;) {
         const parent = data.getObject(id);
@@ -46,7 +46,7 @@ export function pruneEmptyCategories(
 }
 
 /** Корень «Текущие задачи» или «Завершённые задачи» рядом с задачей. */
-function findRoot(data: DataController, task: DataObject, type: string): string {
+export function findRoot(data: DataController, task: DataObject, type: string): string {
     const tasksRoot = ancestors(data, task).find((o) => o.type === 'TasksRoot');
     const roots = tasksRoot
         ? [tasksRoot]
