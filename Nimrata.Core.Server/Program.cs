@@ -7,6 +7,7 @@ using Nimrata.Core.Server;
 using Nimrata.Core.Server.Auth;
 using Nimrata.Core.Server.Data;
 using Nimrata.Core.Server.Modules;
+using Nimrata.Core.Server.Objects;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +25,7 @@ builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(
     ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings:Default.")));
 builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<AdminSeeder>();
+builder.Services.AddSingleton<ChangesetService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
