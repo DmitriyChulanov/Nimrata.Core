@@ -15,6 +15,7 @@ import {
     createDataController,
     menuRegistry,
     registerAutomation,
+    registerJournal,
     tabRegistry,
     useAuth,
     useApi,
@@ -25,6 +26,7 @@ import {
 import { useEffect, useState } from 'react';
 
 registerAutomation(tabRegistry, menuRegistry);
+registerJournal(tabRegistry, menuRegistry);
 
 function Main() {
     const data = useData();
