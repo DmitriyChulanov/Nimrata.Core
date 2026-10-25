@@ -1,0 +1,16 @@
+﻿# Postgres для разработки: docker compose up -d
+# Параметры совпадают с ConnectionStrings:Default в appsettings.Development.json.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: nimrata
+      POSTGRES_USER: nimrata
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nimrata_dev}
+    ports:
+      - "5433:5432"
+    volumes:
+      - nimrata-pgdata:/var/lib/postgresql/data
+
+volumes:
+  nimrata-pgdata:

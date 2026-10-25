@@ -12,11 +12,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.89" />
+    <PackageReference Include="dbup-postgresql" Version="7.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
     <PackageReference Include="Microsoft.AspNetCore.SpaProxy">
       <Version>10.*-*</Version>
     </PackageReference>
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.24.2-preview.1" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Migrations\*.sql" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,3 +33,4 @@
   </ItemGroup>
 
 </Project>
+
