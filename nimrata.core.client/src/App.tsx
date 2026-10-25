@@ -14,6 +14,7 @@ import {
     Workspace,
     createDataController,
     menuRegistry,
+    registerAutomation,
     tabRegistry,
     useAuth,
     useApi,
@@ -22,6 +23,8 @@ import {
     useTabs,
 } from '@platform';
 import { useEffect, useState } from 'react';
+
+registerAutomation(tabRegistry, menuRegistry);
 
 function Main() {
     const data = useData();
