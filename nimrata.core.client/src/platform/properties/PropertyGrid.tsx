@@ -1,10 +1,12 @@
 import { useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { useActionLauncher } from '../actions/useActionLauncher';
 import { useData } from '../data/DataProvider';
 import type { DataController } from '../data/DataController';
 import { useSelection } from '../selection/SelectionProvider';
 import type { PropertyDefinition } from '../types/types';
+import { ReferenceEditor } from './ReferenceEditor';
 import './PropertyGrid.css';
 
 const OTHER_CATEGORY = 'Прочее';
@@ -144,19 +146,18 @@ function PropertyEditor(props: EditorProps & { data: DataController }) {
                 </select>
             );
         case 'reference':
-            return <span className="property-grid-readonly">{referenceText(data, value)}</span>;
+            return (
+                <ReferenceEditor
+                    data={data}
+                    property={property}
+                    value={value}
+                    disabled={disabled}
+                    onCommit={onCommit}
+                />
+            );
         default:
             return <TextEditor {...props} />;
     }
-}
-
-/** Ссылка показывается названием целевого объекта (редактор ссылок — отдельный тикет). */
-function referenceText(data: DataController, value: unknown): string {
-    if (typeof value !== 'string' || value === '') return '—';
-    const target = data.getObject(value);
-    if (!target) return value;
-    const name = target.properties.name;
-    return typeof name === 'string' && name ? name : (data.getType(target.type)?.name ?? value);
 }
 
 function Row({
@@ -203,12 +204,15 @@ export function PropertyGrid() {
     const data = useData();
     const { selectedId } = useSelection();
     const [error, setError] = useState<string | null>(null);
+    const launcher = useActionLauncher();
 
     const object = selectedId ? data.getObject(selectedId) : undefined;
     if (!object) return <p>Объект не выбран.</p>;
 
     const type = data.getType(object.type);
     const groups = groupByCategory(type?.properties ?? []);
+    const actions = data.getActions(object.id, 'propertyGrid');
+    const shownError = error ?? launcher.error;
 
     async function commit(property: PropertyDefinition, value: unknown): Promise<boolean> {
         setError(null);
@@ -220,7 +224,24 @@ export function PropertyGrid() {
     return (
         <div className="property-grid">
             <h2>{type?.name ?? object.type}</h2>
-            {error && <p role="alert">{error}</p>}
+            {shownError && <p role="alert">{shownError}</p>}
+            {actions.length > 0 && (
+                <div role="toolbar" aria-label="Действия" className="property-grid-actions">
+                    {actions.map((action) => (
+                        <button
+                            key={action.id}
+                            type="button"
+                            onClick={() => {
+                                setError(null);
+                                void launcher.launch(object.id, action);
+                            }}
+                        >
+                            {action.name}
+                        </button>
+                    ))}
+                </div>
+            )}
+            {launcher.dialog}
             {groups.map(([category, properties]) => (
                 <section key={category} role="group" aria-label={category}>
                     <h3>{category}</h3>

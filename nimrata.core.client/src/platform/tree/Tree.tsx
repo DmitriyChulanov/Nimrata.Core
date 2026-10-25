@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
+import { useActionLauncher } from '../actions/useActionLauncher';
 import type { DataController, DataObject } from '../data/DataController';
 import { useData } from '../data/DataProvider';
 import { useSelection } from '../selection/SelectionProvider';
@@ -67,7 +68,7 @@ function flatten(data: DataController, expanded: ReadonlySet<string>): Row[] {
 /** Универсальное дерево: строится по типам и объектам `DataController`, не зная о модулях. */
 export function Tree() {
     const data = useData();
-    const { selectedId, select } = useSelection();
+    const { selectedId, select, revealRequest } = useSelection();
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
     const version = data.getSnapshot().version;
 
@@ -80,6 +81,22 @@ export function Tree() {
             if (!next.delete(id)) next.add(id);
             return next;
         });
+
+    // Переход к объекту (reveal): раскрыть родителей (подстройка состояния при рендере), затем прокрутить.
+    const [handledReveal, setHandledReveal] = useState(revealRequest?.seq ?? 0);
+    if (revealRequest && revealRequest.seq !== handledReveal) {
+        setHandledReveal(revealRequest.seq);
+        const ancestors: string[] = [];
+        for (
+            let parent = data.getObject(revealRequest.id)?.parent;
+            parent;
+            parent = data.getObject(parent)?.parent
+        ) {
+            ancestors.push(parent);
+        }
+        if (ancestors.length > 0) setExpanded((prev) => new Set([...prev, ...ancestors]));
+    }
+    const scrolledReveal = useRef(revealRequest?.seq ?? 0);
 
     // Виртуализация: рисуются только строки в окне прокрутки плюс небольшой запас.
     const containerRef = useRef<HTMLDivElement>(null);
@@ -96,12 +113,28 @@ export function Tree() {
         return () => observer.disconnect();
     }, []);
 
+    useEffect(() => {
+        if (!revealRequest || revealRequest.seq === scrolledReveal.current) return;
+        const index = rows.findIndex((r) => r.object.id === revealRequest.id);
+        if (index < 0) return;
+        scrolledReveal.current = revealRequest.seq;
+        const top = index * ROW_HEIGHT;
+        const element = containerRef.current;
+        if (
+            element &&
+            (top < element.scrollTop || top + ROW_HEIGHT > element.scrollTop + viewport)
+        ) {
+            element.scrollTop = top; // событие прокрутки обновит окно виртуализации
+        }
+    }, [revealRequest, rows, viewport]);
+
     const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
     const last = Math.min(rows.length, Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + OVERSCAN);
 
     const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const launcher = useActionLauncher();
 
     useEffect(() => {
         if (!menu) return;
@@ -171,11 +204,13 @@ export function Tree() {
 
     const menuObject = menu ? data.getObject(menu.id) : undefined;
     const creatable = menuObject ? creatableTypes(data, menuObject) : [];
+    const menuActions = menuObject ? data.getActions(menuObject.id, 'contextMenu') : [];
     const deletingObject = deleting ? data.getObject(deleting) : undefined;
 
     return (
         <>
-            {error && <p role="alert">{error}</p>}
+            {(error ?? launcher.error) && <p role="alert">{error ?? launcher.error}</p>}
+            {launcher.dialog}
             <div
                 ref={containerRef}
                 role="tree"
@@ -321,6 +356,20 @@ export function Tree() {
                                 onClick={() => void createChild(menuObject.id, type.id)}
                             >
                                 Создать: {type.name}
+                            </button>
+                        </li>
+                    ))}
+                    {menuActions.map((action) => (
+                        <li key={action.id} role="none">
+                            <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                    setError(null);
+                                    void launcher.launch(menuObject.id, action);
+                                }}
+                            >
+                                {action.name}
                             </button>
                         </li>
                     ))}

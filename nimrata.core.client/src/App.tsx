@@ -10,9 +10,12 @@ import {
     TabsProvider,
     Tree,
     TypesProvider,
+    UndoControls,
     Workspace,
     createDataController,
     menuRegistry,
+    registerAutomation,
+    registerJournal,
     registerUsersAdmin,
     tabRegistry,
     useAuth,
@@ -23,6 +26,8 @@ import {
 } from '@platform';
 import { useEffect, useState } from 'react';
 
+registerAutomation(tabRegistry, menuRegistry);
+registerJournal(tabRegistry, menuRegistry);
 registerUsersAdmin(tabRegistry, menuRegistry);
 
 function Main() {
@@ -64,6 +69,7 @@ function Application() {
     return (
         <DataProvider controller={controller}>
             <SelectionProvider>
+                <UndoControls registry={menuRegistry} />
                 <Main />
             </SelectionProvider>
         </DataProvider>

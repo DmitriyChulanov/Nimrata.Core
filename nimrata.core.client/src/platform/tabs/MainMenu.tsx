@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useTabs } from './TabsProvider';
 import type { MenuItem, MenuRegistry, UserRole } from './registries';
@@ -37,7 +37,18 @@ export interface MainMenuProps {
 export function MainMenu({ registry, role }: MainMenuProps) {
     const { openTab } = useTabs();
     const [openPath, setOpenPath] = useState<string[]>([]);
-    const nodes = buildTree(registry.listFor(role));
+    const [, setRevision] = useState(0);
+    const items = registry.listFor(role);
+    const nodes = buildTree(items);
+
+    // Меню перерисовывается при смене состава пунктов и при изменении их доступности.
+    useEffect(() => {
+        const rerender = () => setRevision((n) => n + 1);
+        const stops = [registry.subscribe(rerender)];
+        for (const item of items) if (item.subscribe) stops.push(item.subscribe(rerender));
+        return () => stops.forEach((stop) => stop());
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [registry, role, items.length]);
 
     const render = (list: MenuNode[], parents: string[]) =>
         list.map((node) => {
@@ -54,6 +65,8 @@ export function MainMenu({ registry, role }: MainMenuProps) {
                         role="menuitem"
                         aria-haspopup={node.children.length > 0 ? 'menu' : undefined}
                         aria-expanded={node.children.length > 0 ? expanded : undefined}
+                        aria-keyshortcuts={node.item?.shortcut}
+                        disabled={node.item?.enabled ? !node.item.enabled() : undefined}
                         onClick={() => {
                             if (node.children.length > 0) {
                                 setOpenPath(expanded ? parents : path);
@@ -64,6 +77,12 @@ export function MainMenu({ registry, role }: MainMenuProps) {
                         }}
                     >
                         {node.label}
+                        {node.item?.shortcut && (
+                            <span aria-hidden="true" className="menu-shortcut">
+                                {' '}
+                                {node.item.shortcut}
+                            </span>
+                        )}
                     </button>
                     {expanded && <ul role="menu">{render(node.children, path)}</ul>}
                 </li>
