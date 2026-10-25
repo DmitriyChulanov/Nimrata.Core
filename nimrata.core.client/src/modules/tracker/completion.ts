@@ -1,21 +1,10 @@
 import type { ChangeScope, DataController, DataObject } from '@platform';
 
-import {
-    CATEGORY,
-    TASK,
-    ancestors,
-    child,
-    create,
-    ensureCategory,
-    ensureDay,
-    pad,
-    parseIso,
-    taskDate,
-    taskOrder,
-} from './tasks';
-
-const YEAR = 'Year';
-const COMPLETED = 'completed';
+import { CATEGORY, COMPLETED, COMPLETED_TASKS_ROOT, CURRENT_TASKS_ROOT, TASK } from './constants';
+import { parseIso } from './dates';
+import { ensureCategory, ensureDay, ensureYear, findRoot } from './nodes';
+import { orThrow } from './results';
+import { taskDate, taskOrder } from './tasks';
 
 /** Названия категорий задачи от внешней к внутренней. */
 export function categoryChain(data: DataController, task: DataObject): string[] {
@@ -39,30 +28,16 @@ export function pruneEmptyCategories(
         const node = data.getObject(id);
         if (!node || node.type !== CATEGORY || data.getChildren(id).length > 0) return;
         const parent = node.parent;
-        const result = tx.remove(id);
-        if (!result.ok) throw new Error(result.error);
+        orThrow(tx.remove(id));
         id = parent;
     }
 }
 
-/** Корень «Текущие задачи» или «Завершённые задачи» рядом с задачей. */
-export function findRoot(data: DataController, task: DataObject, type: string): string {
-    const tasksRoot = ancestors(data, task).find((o) => o.type === 'TasksRoot');
-    const roots = tasksRoot
-        ? [tasksRoot]
-        : data.getChildren(null).filter((o) => o.type === 'TasksRoot');
-    const found = roots.flatMap((o) => data.getChildren(o.id)).find((o) => o.type === type);
-    if (!found) throw new Error('Не найдена группа задач для переноса.');
-    return found.id;
-}
-
-/** Находит или создаёт год внутри «Завершённых задач». */
-function ensureYear(data: DataController, tx: ChangeScope, rootId: string, year: number): string {
-    const date = `${pad(year, 4)}-01-01`;
-    return (
-        child(data, rootId, YEAR, (o) => o.properties.date === date)?.id ??
-        create(tx, rootId, YEAR, { date, name: String(year) }, year)
-    );
+/** Идентификатор корня «Текущие задачи» или «Завершённые задачи» рядом с задачей. */
+export function taskRootId(data: DataController, task: DataObject, type: string): string {
+    const root = findRoot(data, type, task);
+    if (!root) throw new Error('Не найдена группа задач для переноса.');
+    return root.id;
 }
 
 /** Переносит задачу в день `iso` внутри корня с той же цепочкой категорий; опустевшие убирает. */
@@ -76,7 +51,7 @@ function relocate(
     const ymd = parseIso(iso);
     if (!ymd) throw new Error('Дата должна быть в формате ГГГГ-ММ-ДД.');
 
-    const rootId = findRoot(data, task, archive ? 'CompletedTasksRoot' : 'CurrentTasksRoot');
+    const rootId = taskRootId(data, task, archive ? COMPLETED_TASKS_ROOT : CURRENT_TASKS_ROOT);
     const chain = categoryChain(data, task);
     const oldParent = task.parent;
 
@@ -84,8 +59,7 @@ function relocate(
     let container = ensureDay(data, tx, base, ymd);
     for (const name of chain) container = ensureCategory(data, tx, container, name);
 
-    const moved = tx.move(task.id, { parent: container, order: taskOrder(task) });
-    if (!moved.ok) throw new Error(moved.error);
+    orThrow(tx.move(task.id, { parent: container, order: taskOrder(task) }));
     pruneEmptyCategories(data, tx, oldParent);
 }
 
@@ -107,8 +81,7 @@ export function registerCompletion(data: DataController): () => void {
             ({ object, tx }) => {
                 const date = taskDate(data, object);
                 if (!date) throw new Error('У задачи не найден день.');
-                const status = tx.setProperty(object.id, 'status', COMPLETED);
-                if (!status.ok) throw new Error(status.error);
+                orThrow(tx.setProperty(object.id, 'status', COMPLETED));
                 relocate(data, tx, object, date, true);
             },
             { available: isPending },

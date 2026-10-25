@@ -175,3 +175,73 @@ describe('Регистрация вкладки «Автоматизация»',
         expect(screen.getByRole('group', { name: 'Импорт задач' })).toBeInTheDocument();
     });
 });
+
+describe('Вкладка «Автоматизация»: показ цели механизма (revealTarget)', () => {
+    const refType = (id: string, property: string, extra: object) => ({
+        id,
+        name: id,
+        module: 't',
+        moduleVersion: 1,
+        automation: true,
+        hiddenInTree: true,
+        properties: [
+            { id: 'name', name: 'Название', kind: 'string' },
+            { id: property, name: 'Цель', kind: 'reference', ...extra },
+        ],
+        actions: [{ id: 'run', name: 'Запустить', placements: ['automation'] }],
+    });
+    const refTypes = [
+        ...types,
+        refType('Shortcut', 'goal', { revealTarget: true }),
+        // Имя `target` само по себе ничего не значит: нужен признак в определении свойства.
+        refType('Plain2', 'target', {}),
+    ];
+    const refObjects = [
+        { id: 'p', type: 'Plain', parent: null, order: 0, properties: { name: 'Простой' } },
+        {
+            id: 's',
+            type: 'Shortcut',
+            parent: null,
+            order: 1,
+            properties: { name: 'Ярлык', goal: 'p' },
+        },
+        {
+            id: 'q',
+            type: 'Plain2',
+            parent: null,
+            order: 2,
+            properties: { name: 'Без признака', target: 'p' },
+        },
+    ];
+
+    async function setupRef() {
+        const data = createDataController({ api: createFakeApi(refTypes, refObjects) });
+        await data.load();
+        render(
+            <DataProvider controller={data}>
+                <SelectionProvider>
+                    <Tree />
+                    <AutomationTab />
+                </SelectionProvider>
+            </DataProvider>,
+        );
+    }
+
+    it('название механизма со свойством revealTarget выделяет цель в дереве', async () => {
+        await setupRef();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Ярлык' }));
+
+        expect(screen.getByRole('treeitem', { name: 'Простой' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+    });
+
+    it('ссылочное свойство без признака revealTarget (даже с именем target) названия кнопкой не делает', async () => {
+        await setupRef();
+
+        expect(screen.queryByRole('button', { name: 'Без признака' })).toBeNull();
+        expect(screen.getByRole('group', { name: 'Без признака' })).toBeInTheDocument();
+    });
+});

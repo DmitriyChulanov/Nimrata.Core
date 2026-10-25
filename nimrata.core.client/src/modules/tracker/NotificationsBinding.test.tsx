@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -30,7 +30,11 @@ function fakeBrowser(initial: NotificationPermission, answer: NotificationPermis
     return browser;
 }
 
-async function setup(browser: BrowserNotifications | null, now = () => new Date(2026, 2, 4, 9, 0)) {
+async function setup(
+    browser: BrowserNotifications | null,
+    now = () => new Date(2026, 2, 4, 9, 0),
+    userId?: string,
+) {
     const data = createDataController({ api: createFakeApi(types, []) });
     await data.load();
     registerTracker(data);
@@ -50,9 +54,10 @@ async function setup(browser: BrowserNotifications | null, now = () => new Date(
     await data.setProperty(task.id, 'time', '09:00');
     render(
         <DataProvider controller={data}>
-            <NotificationsBinding browser={browser} now={now} />
+            <NotificationsBinding browser={browser} now={now} userId={userId} />
         </DataProvider>,
     );
+    return data;
 }
 
 describe('Трекер: уведомления в интерфейсе', () => {
@@ -100,6 +105,26 @@ describe('Трекер: уведомления в интерфейсе', () => {
         await setup(browser);
 
         expect(browser.show).toHaveBeenCalledWith('09:00', 'Созвон');
+    });
+
+    it('с пользователем показанное запоминается: после перемонтирования (перезагрузки) не дублируется', async () => {
+        localStorage.clear();
+        const browser = fakeBrowser('granted', 'granted');
+        const data = await setup(browser, undefined, 'u1');
+        expect(browser.show).toHaveBeenCalledTimes(1);
+
+        cleanup();
+        render(
+            <DataProvider controller={data}>
+                <NotificationsBinding
+                    browser={browser}
+                    now={() => new Date(2026, 2, 4, 9, 5)}
+                    userId="u1"
+                />
+            </DataProvider>,
+        );
+
+        expect(browser.show).toHaveBeenCalledTimes(1);
     });
 
     it('без разрешения уведомление не показывается, приложение работает', async () => {

@@ -1,4 +1,4 @@
-﻿# Всё приложение одной командой: docker compose up --build
+# Всё приложение одной командой: docker compose up --build
 #   приложение -> http://localhost:8080, Mailpit (почта) -> http://localhost:8025
 # Только инфраструктура для разработки (приложение запускается из IDE/dotnet run):
 #   docker compose up -d postgres mailpit

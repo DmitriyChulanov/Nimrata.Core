@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { ApiClient } from '../api/apiClient';
-import { describeEntry, formatTime, journalPath } from './journal';
+import { describeEntry, formatTime, groupByChangeset, journalPath } from './journal';
 import type { JournalEntry, JournalPage, JournalResolver } from './journal';
 
 import './Journal.css';
@@ -112,26 +112,34 @@ export function JournalView({ api, selectedId, resolver }: JournalViewProps) {
                                 <th>Стало</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {current.entries.map((entry) => {
-                                const d = describeEntry(entry, resolver);
-                                return (
-                                    <tr key={entry.id}>
-                                        <td>{formatTime(entry.at)}</td>
-                                        <td>{entry.user}</td>
-                                        {all && (
-                                            <td>
-                                                {resolver.objectLabel(entry.objectId) ??
-                                                    'удалённый объект'}
-                                            </td>
-                                        )}
-                                        <td>{d.what}</td>
-                                        <td>{d.was}</td>
-                                        <td>{d.became}</td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
+                        {groupByChangeset(current.entries).map((group) => (
+                            <tbody key={group[0].changesetId} className="journal-group">
+                                {group.map((entry, index) => {
+                                    const d = describeEntry(entry, resolver);
+                                    return (
+                                        <tr key={entry.id}>
+                                            {index === 0 && (
+                                                <>
+                                                    <td rowSpan={group.length}>
+                                                        {formatTime(entry.at)}
+                                                    </td>
+                                                    <td rowSpan={group.length}>{entry.user}</td>
+                                                </>
+                                            )}
+                                            {all && (
+                                                <td>
+                                                    {resolver.objectLabel(entry.objectId) ??
+                                                        'удалённый объект'}
+                                                </td>
+                                            )}
+                                            <td>{d.what}</td>
+                                            <td>{d.was}</td>
+                                            <td>{d.became}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        ))}
                     </table>
                 )}
                 {current.entries.length < current.total && (

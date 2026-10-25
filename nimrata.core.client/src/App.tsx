@@ -33,6 +33,7 @@ import {
     ensureStartStructure,
     registerTracker,
 } from '@tracker/index';
+import type { DataController } from '@platform';
 import { useEffect, useState } from 'react';
 
 registerAutomation(tabRegistry, menuRegistry);
@@ -69,17 +70,37 @@ function Main() {
 
 const revealBridge = createRevealBridge();
 
-function Application() {
+/** Загрузка данных, стартовая структура и достройка повторов; ошибка любого шага не теряется. */
+async function prepareData(controller: DataController): Promise<string | null> {
+    await controller.load();
+    if (controller.getSnapshot().status !== 'ready') return null; // ошибку загрузки показывает Main
+    const start = await ensureStartStructure(controller);
+    if (!start.ok) return start.error;
+    const repeats = await ensureRepeats(controller);
+    return repeats.ok ? null : repeats.error;
+}
+
+function Application({ userId }: { userId: string }) {
     const api = useApi();
     const [controller] = useState(() => createDataController({ api }));
+    const [prepareError, setPrepareError] = useState<string | null>(null);
 
     useEffect(() => {
+        let cancelled = false;
         const unregister = registerTracker(controller, { reveal: revealBridge.reveal });
-        void controller
-            .load()
-            .then(() => ensureStartStructure(controller))
-            .then(() => ensureRepeats(controller));
-        return unregister;
+        prepareData(controller).then(
+            (error) => {
+                if (!cancelled) setPrepareError(error);
+            },
+            (error: unknown) => {
+                if (!cancelled)
+                    setPrepareError(error instanceof Error ? error.message : String(error));
+            },
+        );
+        return () => {
+            cancelled = true;
+            unregister();
+        };
     }, [controller]);
 
     return (
@@ -87,7 +108,8 @@ function Application() {
             <SelectionProvider>
                 <RevealBinding bridge={revealBridge} />
                 <UndoControls registry={menuRegistry} />
-                <NotificationsBinding />
+                <NotificationsBinding userId={userId} />
+                {prepareError && <p role="alert">{prepareError}</p>}
                 <Main />
             </SelectionProvider>
         </DataProvider>
@@ -111,7 +133,7 @@ function Session() {
                     </button>
                 </header>
                 <main className="app-main">
-                    <Application />
+                    <Application userId={user.id} />
                 </main>
             </div>
         </TabsProvider>

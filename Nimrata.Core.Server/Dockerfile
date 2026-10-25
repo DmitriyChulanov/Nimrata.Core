@@ -16,8 +16,8 @@ COPY Nimrata.Core.Server/Nimrata.Core.Server.csproj Nimrata.Core.Server/
 RUN dotnet restore Nimrata.Core.Server/Nimrata.Core.Server.csproj -p:SkipClientBuild=true
 COPY Nimrata.Core.Server/ Nimrata.Core.Server/
 COPY --from=client /src/nimrata.core.client/dist nimrata.core.client/dist
-# Манифест модуля читается сервером (Content в csproj ссылается на клиентскую часть).
-COPY nimrata.core.client/src/modules/tracker/manifest.json nimrata.core.client/src/modules/tracker/manifest.json
+# Манифесты модулей читаются сервером (Content в csproj ссылается на src/modules/*/manifest.json клиентской части).
+COPY nimrata.core.client/src/modules/ nimrata.core.client/src/modules/
 RUN dotnet publish Nimrata.Core.Server/Nimrata.Core.Server.csproj -c Release -o /app/publish \
     -p:SkipClientBuild=true -p:UseAppHost=false --no-restore
 

@@ -106,6 +106,17 @@ export function describeEntry(entry: JournalEntry, resolver: JournalResolver): E
     }
 }
 
+/** Записи одного набора изменений (одно действие пользователя) в порядке появления. */
+export function groupByChangeset(entries: JournalEntry[]): JournalEntry[][] {
+    const groups = new Map<string, JournalEntry[]>();
+    for (const entry of entries) {
+        const group = groups.get(entry.changesetId);
+        if (group) group.push(entry);
+        else groups.set(entry.changesetId, [entry]);
+    }
+    return [...groups.values()];
+}
+
 export function formatTime(iso: string): string {
     const date = new Date(iso);
     return Number.isNaN(date.getTime()) ? iso : date.toLocaleString('ru-RU');

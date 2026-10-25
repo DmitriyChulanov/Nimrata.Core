@@ -109,6 +109,52 @@ describe('JournalView', () => {
         expect(rows[2]).toHaveTextContent('Создан');
     });
 
+    it('записи одного набора изменений показываются группой: одно действие — одна группа', async () => {
+        const { api } = fakeJournalApi({
+            'journal?skip=0&take=50': {
+                total: 3,
+                items: [
+                    entry({ id: 3, changesetId: 'c2', operation: 'update', property: 'title' }),
+                    entry({ id: 2, changesetId: 'c1', operation: 'update', property: 'done' }),
+                    entry({ id: 1, changesetId: 'c1', operation: 'update', property: 'title' }),
+                ],
+            },
+        });
+        const user = userEvent.setup();
+        render(<JournalView api={api} selectedId={null} resolver={resolver} />);
+
+        await user.click(screen.getByLabelText('Все мои изменения'));
+
+        await screen.findAllByText('Название');
+        const groups = screen.getAllByRole('rowgroup').slice(1); // первая — шапка таблицы
+        expect(groups).toHaveLength(2);
+        expect(within(groups[0]).getAllByRole('row')).toHaveLength(1);
+        expect(within(groups[1]).getAllByRole('row')).toHaveLength(2);
+        // Время и автор показываются один раз на группу.
+        expect(within(groups[1]).getAllByText('me@example.test')).toHaveLength(1);
+    });
+
+    it('группа не разрывается при подгрузке следующей страницы', async () => {
+        const first = Array.from({ length: 50 }, (_, i) =>
+            entry({ id: 100 - i, changesetId: i < 49 ? `a${i}` : 'edge' }),
+        );
+        const { api } = fakeJournalApi({
+            'journal?objectId=t1&skip=0&take=50': { total: 51, items: first },
+            'journal?objectId=t1&skip=50&take=50': {
+                total: 51,
+                items: [entry({ id: 50, changesetId: 'edge', property: 'done' })],
+            },
+        });
+        const user = userEvent.setup();
+        render(<JournalView api={api} selectedId="t1" resolver={resolver} />);
+
+        await user.click(await screen.findByRole('button', { name: 'Показать ещё' }));
+
+        await waitFor(() => expect(screen.getAllByRole('rowgroup')).toHaveLength(1 + 50));
+        const groups = screen.getAllByRole('rowgroup').slice(1);
+        expect(within(groups[49]).getAllByRole('row')).toHaveLength(2);
+    });
+
     it('без выделения предлагает выбрать объект и не ходит на сервер', () => {
         const { api, get } = fakeJournalApi({});
 

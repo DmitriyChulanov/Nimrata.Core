@@ -193,6 +193,32 @@ describe('Трекер: категории', () => {
         expect(taskDate(data, findTask(data, 'Б'))).toBe('2026-03-09');
         expect(data.getChildren(month.id)).toHaveLength(2);
     });
+
+    it('на категории в архиве без даты создаёт задачу на сегодня в «Текущих задачах», а не в архиве', async () => {
+        const { data } = await start();
+        await createTask(data, current(data), {
+            title: 'Старая',
+            date: '2026-03-02',
+            category: 'Работа',
+        });
+        const old = findTask(data, 'Старая');
+        await data.runAction(old.id, 'complete');
+        const archived = data.getObject(findTask(data, 'Старая').parent!)!;
+        expect(archived.type).toBe('Category');
+
+        await createTask(data, archived, { title: 'Новая' });
+
+        const created = findTask(data, 'Новая');
+        expect(created.properties.status).toBeUndefined();
+        expect(taskDate(data, created)).toBe('2026-03-04');
+        const archiveRoot = data
+            .getChildren(null)
+            .flatMap((o) => data.getChildren(o.id))
+            .find((o) => o.type === 'CompletedTasksRoot')!;
+        const underArchive = (id: string | null): boolean =>
+            id !== null && (id === archiveRoot.id || underArchive(data.getObject(id)!.parent));
+        expect(underArchive(created.parent)).toBe(false);
+    });
 });
 
 describe('Трекер: дни, порядок, выходные', () => {

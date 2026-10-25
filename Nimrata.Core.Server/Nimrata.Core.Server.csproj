@@ -28,9 +28,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Манифест модуля лежит в клиентской части; сервер читает тот же файл при старте. -->
-    <Content Include="..\nimrata.core.client\src\modules\tracker\manifest.json"
-             Link="Modules\tracker\manifest.json"
+    <!-- Манифесты модулей лежат в клиентской части (src/modules/<модуль>/manifest.json); сервер читает те же файлы при старте. -->
+    <Content Include="..\nimrata.core.client\src\modules\*\manifest.json"
+             Link="Modules\%(RecursiveDir)manifest.json"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

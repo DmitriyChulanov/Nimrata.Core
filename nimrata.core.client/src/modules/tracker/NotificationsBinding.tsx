@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useData } from '@platform';
 
-import { browserNotifications, startNotificationService } from './notifications';
+import {
+    browserNotifications,
+    createLocalShownStore,
+    startNotificationService,
+} from './notifications';
 import type { BrowserNotifications } from './notifications';
 
 export interface NotificationsBindingProps {
@@ -10,6 +14,8 @@ export interface NotificationsBindingProps {
     browser?: BrowserNotifications | null;
     /** Часы; подменяются в тестах. */
     now?: () => Date;
+    /** Пользователь: показанные за день уведомления запоминаются по нему и переживают перезагрузку. */
+    userId?: string;
 }
 
 /**
@@ -17,12 +23,13 @@ export interface NotificationsBindingProps {
  * Пока решение о разрешении не принято, показывает кнопку: запрос идёт только по её нажатию
  * и один раз — после ответа (в том числе отказа) кнопка пропадает.
  */
-export function NotificationsBinding({ browser, now }: NotificationsBindingProps) {
+export function NotificationsBinding({ browser, now, userId }: NotificationsBindingProps) {
     const data = useData();
     const api = useMemo(
         () => (browser === undefined ? browserNotifications() : browser),
         [browser],
     );
+    const store = useMemo(() => (userId ? createLocalShownStore(userId) : undefined), [userId]);
     const [permission, setPermission] = useState(() => api?.permission());
 
     useEffect(() => {
@@ -30,11 +37,12 @@ export function NotificationsBinding({ browser, now }: NotificationsBindingProps
         return startNotificationService({
             data,
             now,
+            store,
             notify: (title, body) => {
                 if (api.permission() === 'granted') api.show(title, body);
             },
         });
-    }, [api, data, now]);
+    }, [api, data, now, store]);
 
     if (!api || permission !== 'default') return null;
 

@@ -1,12 +1,13 @@
 {
     "module": "tracker",
-    "version": 8,
+    "version": 9,
     "types": [
         {
             "id": "TasksRoot",
             "name": "Задачи",
             "sealed": true,
-            "allowedChildren": []
+            "allowedChildren": ["CurrentTasksRoot", "CompletedTasksRoot"],
+            "icon": "🗂"
         },
         {
             "id": "CurrentTasksRoot",
@@ -37,13 +38,15 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "icon": "📋"
         },
         {
             "id": "CompletedTasksRoot",
             "name": "Завершённые задачи",
             "sealed": true,
-            "allowedChildren": ["Year"]
+            "allowedChildren": ["Year"],
+            "icon": "✅"
         },
         {
             "id": "NotesRoot",
@@ -77,7 +80,8 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "icon": "🗒"
         },
         {
             "id": "NoteGroup",
@@ -128,7 +132,8 @@
                     "name": "Убрать",
                     "placements": ["propertyGrid", "contextMenu"]
                 }
-            ]
+            ],
+            "icon": "📁"
         },
         {
             "id": "QuickAccessEntry",
@@ -150,9 +155,11 @@
                     "name": "Цель",
                     "kind": "reference",
                     "category": "Основное",
-                    "targetTypes": ["Note", "NoteGroup"]
+                    "targetTypes": ["Note", "NoteGroup"],
+                    "revealTarget": true
                 }
-            ]
+            ],
+            "icon": "⭐"
         },
         {
             "id": "SelectTodayMechanism",
@@ -167,7 +174,8 @@
                     "name": "Выделить",
                     "placements": ["automation"]
                 }
-            ]
+            ],
+            "icon": "🎯"
         },
         {
             "id": "Note",
@@ -267,7 +275,8 @@
                     "equals": "completed",
                     "color": "green"
                 }
-            ]
+            ],
+            "icon": "📝"
         },
         {
             "id": "Year",
@@ -289,7 +298,8 @@
                     "category": "Основное",
                     "readOnly": true
                 }
-            ]
+            ],
+            "icon": "📅"
         },
         {
             "id": "Month",
@@ -336,7 +346,8 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "icon": "🗓"
         },
         {
             "id": "Day",
@@ -383,7 +394,8 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "icon": "📆"
         },
         {
             "id": "DayOff",
@@ -470,7 +482,8 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "icon": "🏷"
         },
         {
             "id": "Task",
@@ -633,7 +646,8 @@
                     "equals": "completed",
                     "color": "green"
                 }
-            ]
+            ],
+            "icon": "☑"
         }
     ]
 }

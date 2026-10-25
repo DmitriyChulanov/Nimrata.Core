@@ -1,4 +1,4 @@
-﻿import { ApiError } from '../api/apiClient';
+import { ApiError } from '../api/apiClient';
 import type { ApiClient } from '../api/apiClient';
 import type { ActionDefinition, ActionPlacement, TypeDefinition } from '../types/types';
 import { applyOperations, createUndoHistory, invertOperations, touchedIds } from './undoHistory';
