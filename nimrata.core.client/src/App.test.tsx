@@ -72,13 +72,15 @@ it('неверный пароль показывает сообщение и о�
 });
 
 it('выход возвращает на экран входа', async () => {
-    const fetchMock = vi.fn().mockImplementation((url: string) =>
-        Promise.resolve(
-            url === '/api/auth/logout'
-                ? new Response(null, { status: 204 })
-                : jsonResponse({ accessToken: 'tok' }),
-        ),
-    );
+    const fetchMock = vi
+        .fn()
+        .mockImplementation((url: string) =>
+            Promise.resolve(
+                url === '/api/auth/logout'
+                    ? new Response(null, { status: 204 })
+                    : jsonResponse({ accessToken: 'tok' }),
+            ),
+        );
     vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
     render(<App />);
@@ -87,4 +89,36 @@ it('выход возвращает на экран входа', async () => {
 
     await waitFor(() => expect(screen.getByLabelText('Пароль')).toBeInTheDocument());
     expect(fetchMock.mock.calls.some(([url]) => url === '/api/auth/logout')).toBe(true);
+});
+
+it('после входа показывает три панели; выделенный в дереве объект виден в панели свойств', async () => {
+    const types = [{ id: 'Note', name: 'Заметка', module: 't', moduleVersion: 1 }];
+    const objects = [
+        { id: 'n1', type: 'Note', parent: null, order: 0, properties: { name: 'Идея' } },
+    ];
+    vi.stubGlobal(
+        'fetch',
+        vi
+            .fn()
+            .mockImplementation((url: string) =>
+                Promise.resolve(
+                    url === '/api/types'
+                        ? jsonResponse(types)
+                        : url === '/api/objects'
+                          ? jsonResponse(objects)
+                          : jsonResponse({ accessToken: 'tok' }),
+                ),
+            ),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    const item = await screen.findByRole('treeitem', { name: 'Идея' });
+    expect(screen.getByRole('region', { name: 'Дерево' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Вкладки' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Свойства' })).toBeInTheDocument();
+
+    await user.click(item);
+
+    expect(screen.getByRole('region', { name: 'Свойства' })).toHaveTextContent('Идея');
 });

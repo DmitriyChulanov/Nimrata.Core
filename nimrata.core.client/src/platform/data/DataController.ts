@@ -85,15 +85,30 @@ export function createDataController(options: DataControllerOptions): DataContro
     let snapshot: DataSnapshot = { status: 'idle', version: 0, error: null, needsReload: false };
     const listeners = new Set<() => void>();
 
+    // Индекс «родитель → потомки по порядку»: строится по требованию, сбрасывается при публикации.
+    let childrenIndex: Map<string | null, DataObject[]> | null = null;
+
     function publish(patch: Partial<DataSnapshot>, model = true) {
         snapshot = { ...snapshot, ...patch, version: snapshot.version + (model ? 1 : 0) };
+        childrenIndex = null;
         for (const listener of [...listeners]) listener();
     }
 
     function getChildren(parent: string | null, exclude?: string): DataObject[] {
-        return [...objects.values()]
-            .filter((o) => o.parent === parent && o.id !== exclude)
-            .sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : 1));
+        if (!childrenIndex) {
+            const index = new Map<string | null, DataObject[]>();
+            for (const o of objects.values()) {
+                const list = index.get(o.parent);
+                if (list) list.push(o);
+                else index.set(o.parent, [o]);
+            }
+            for (const list of index.values()) {
+                list.sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : 1));
+            }
+            childrenIndex = index;
+        }
+        const list = childrenIndex.get(parent) ?? [];
+        return exclude === undefined ? [...list] : list.filter((o) => o.id !== exclude);
     }
 
     const newId = options.newId ?? uuid7;
@@ -194,10 +209,13 @@ export function createDataController(options: DataControllerOptions): DataContro
                     if (parent !== null && !objects.has(parent)) return 'Родитель не найден.';
                     const siblings = getChildren(parent);
                     const order =
-                        input.order ?? (siblings.length ? siblings[siblings.length - 1].order + 1 : 0);
+                        input.order ??
+                        (siblings.length ? siblings[siblings.length - 1].order + 1 : 0);
                     const properties = { ...input.properties };
                     return {
-                        operations: [{ op: 'create', id, type: input.type, parent, order, properties }],
+                        operations: [
+                            { op: 'create', id, type: input.type, parent, order, properties },
+                        ],
                         apply: () => {
                             objects.set(id, { id, type: input.type, parent, order, properties });
                         },
@@ -215,7 +233,9 @@ export function createDataController(options: DataControllerOptions): DataContro
                     const old = object.properties[property] ?? null;
                     const next = value ?? null;
                     return {
-                        operations: [{ op: 'update', id, changes: { [property]: { old, new: next } } }],
+                        operations: [
+                            { op: 'update', id, changes: { [property]: { old, new: next } } },
+                        ],
                         apply: () => {
                             const properties = { ...object.properties };
                             if (next === null) delete properties[property];
@@ -234,15 +254,22 @@ export function createDataController(options: DataControllerOptions): DataContro
                     const parent = to.parent === undefined ? object.parent : to.parent;
                     if (parent !== null) {
                         if (!objects.has(parent)) return 'Родитель не найден.';
-                        for (let p: string | null = parent; p !== null; p = objects.get(p)?.parent ?? null) {
-                            if (p === id) return 'Нельзя переместить объект в самого себя или в потомка.';
+                        for (
+                            let p: string | null = parent;
+                            p !== null;
+                            p = objects.get(p)?.parent ?? null
+                        ) {
+                            if (p === id)
+                                return 'Нельзя переместить объект в самого себя или в потомка.';
                         }
                     }
                     const operation: Record<string, unknown> = { op: 'move', id };
-                    if (parent !== object.parent) operation.parent = { old: object.parent, new: parent };
+                    if (parent !== object.parent)
+                        operation.parent = { old: object.parent, new: parent };
                     const order = to.order ?? object.order;
                     if (order !== object.order) operation.order = { old: object.order, new: order };
-                    if (!operation.parent && !operation.order) return 'Перемещение ничего не меняет.';
+                    if (!operation.parent && !operation.order)
+                        return 'Перемещение ничего не меняет.';
                     return {
                         operations: [operation],
                         apply: () => {
@@ -266,4 +293,3 @@ export function createDataController(options: DataControllerOptions): DataContro
         },
     };
 }
-
