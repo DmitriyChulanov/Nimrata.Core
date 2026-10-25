@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="nimrata.core.client/nimrata.core.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="Nimrata.Core.Server/Nimrata.Core.Server.csproj" />
+</Solution>
