@@ -1,0 +1,52 @@
+.main-menu,
+.main-menu ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.main-menu {
+    display: flex;
+    gap: 4px;
+}
+
+.main-menu li {
+    position: relative;
+}
+
+.main-menu ul[role='menu'] {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 10;
+    min-width: 160px;
+    background: Canvas;
+    border: 1px solid #8886;
+}
+
+.main-menu ul[role='menu'] button {
+    width: 100%;
+    text-align: left;
+}
+
+.tabs {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.tabs-strip {
+    display: flex;
+    flex: none;
+    border-bottom: 1px solid #8886;
+}
+
+.tabs-item[data-selected='true'] {
+    background: #4a90d933;
+}
+
+.tabs-panel {
+    flex: 1 1 auto;
+    overflow: auto;
+    padding: 8px;
+}
