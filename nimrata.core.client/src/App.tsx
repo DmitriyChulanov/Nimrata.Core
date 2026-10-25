@@ -14,6 +14,7 @@ import {
     Workspace,
     createDataController,
     menuRegistry,
+    registerAutomation,
     registerJournal,
     tabRegistry,
     useAuth,
@@ -24,6 +25,7 @@ import {
 } from '@platform';
 import { useEffect, useState } from 'react';
 
+registerAutomation(tabRegistry, menuRegistry);
 registerJournal(tabRegistry, menuRegistry);
 
 function Main() {
