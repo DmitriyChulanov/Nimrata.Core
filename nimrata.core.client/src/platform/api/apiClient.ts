@@ -36,9 +36,14 @@ async function readErrorMessage(response: Response): Promise<string> {
     try {
         const body: unknown = await response.json();
         if (body && typeof body === 'object') {
-            const { title, message } = body as { title?: unknown; message?: unknown };
+            const { title, message, error } = body as {
+                title?: unknown;
+                message?: unknown;
+                error?: unknown;
+            };
             if (typeof title === 'string' && title) return title;
             if (typeof message === 'string' && message) return message;
+            if (typeof error === 'string' && error) return error;
         }
     } catch {
         // Тело не JSON — используем сообщение по умолчанию.
