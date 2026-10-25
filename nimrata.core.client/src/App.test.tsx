@@ -211,3 +211,29 @@ it('участник не видит меню «Администрировани
     await screen.findByRole('region', { name: 'Вкладки' });
     expect(screen.queryByRole('menuitem', { name: 'Администрирование' })).not.toBeInTheDocument();
 });
+
+it('переход по ссылке из письма открывает форму нового пароля с токеном из адреса', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    window.history.pushState({}, '', '/reset-password?token=abc');
+    const user = userEvent.setup();
+    try {
+        render(<App />);
+
+        await user.type(await screen.findByLabelText('Новый пароль'), 'new-password-1');
+        await user.type(screen.getByLabelText('Повторите пароль'), 'new-password-1');
+        fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+        await user.click(screen.getByRole('button', { name: 'Сменить пароль' }));
+        await user.click(await screen.findByRole('button', { name: 'Перейти ко входу' }));
+
+        expect(await screen.findByRole('button', { name: 'Войти' })).toBeInTheDocument();
+        expect(window.location.pathname).toBe('/');
+        const вызов = fetchMock.mock.calls.find(([url]) => url === '/api/auth/reset-password');
+        expect(JSON.parse(String((вызов![1] as RequestInit).body))).toEqual({
+            token: 'abc',
+            password: 'new-password-1',
+        });
+    } finally {
+        window.history.pushState({}, '', '/');
+    }
+});
