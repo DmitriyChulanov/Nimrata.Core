@@ -12,6 +12,9 @@ public sealed class ServerFactory : WebApplicationFactory<Program>, IAsyncLifeti
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine").Build();
 
+    public const string AdminEmail = "admin@example.test";
+    public const string AdminPassword = "test-admin-password";
+
     public string ConnectionString => _postgres.GetConnectionString();
 
     async Task IAsyncLifetime.InitializeAsync() => await _postgres.StartAsync();
@@ -26,6 +29,9 @@ public sealed class ServerFactory : WebApplicationFactory<Program>, IAsyncLifeti
             конфигурация.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Default"] = ConnectionString,
+                ["Jwt:Key"] = "тестовый-ключ-подписи-не-для-продакшена-0123456789",
+                ["Admin:Email"] = AdminEmail,
+                ["Admin:Password"] = AdminPassword,
             }));
 }
 
