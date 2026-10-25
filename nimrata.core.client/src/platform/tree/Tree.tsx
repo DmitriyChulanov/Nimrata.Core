@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import type { DataController, DataObject } from '../data/DataController';
 import { useData } from '../data/DataProvider';
 import { useSelection } from '../selection/SelectionProvider';
 import type { TypeDefinition } from '../types/types';
+import { planMove, positionInRow } from './planMove';
+import type { DropPosition } from './planMove';
 import { colorPresentation, resolveRuleColor } from './colorRules';
 import './ruleColors.css';
 
@@ -129,6 +132,43 @@ export function Tree() {
         else if (selectedId !== null && !data.getObject(selectedId)) select(null);
     };
 
+    // Перенос перетаскиванием: тянем строку, цель и положение берём из позиции указателя.
+    const [drag, setDrag] = useState<{
+        id: string;
+        target: string | null;
+        position: DropPosition;
+        valid: boolean;
+    } | null>(null);
+    const siblingsOf = (parent: string | null) =>
+        visibleChildren(data, parent).map((c) => c.object);
+
+    const moveTo = async (id: string, target: string, position: DropPosition) => {
+        const plan = planMove(data, siblingsOf, id, target, position);
+        if (!plan.ok) return;
+        setError(null);
+        const result = await data.move(id, { parent: plan.parent, order: plan.order });
+        if (!result.ok) setError(result.error);
+        else if (plan.parent !== null) setExpanded((prev) => new Set(prev).add(plan.parent!));
+    };
+
+    /** Alt+стрелки: то же, что перетаскивание, — порядок среди соседей, вложение и вынос. */
+    const onMoveKey = (e: ReactKeyboardEvent, object: DataObject) => {
+        if (!e.altKey) return;
+        const siblings = siblingsOf(object.parent);
+        const index = siblings.findIndex((s) => s.id === object.id);
+        const steps: Record<string, [DataObject | null | undefined, DropPosition]> = {
+            ArrowUp: [siblings[index - 1], 'before'],
+            ArrowDown: [siblings[index + 1], 'after'],
+            ArrowRight: [siblings[index - 1], 'inside'],
+            ArrowLeft: [object.parent === null ? null : data.getObject(object.parent), 'after'],
+        };
+        const step = steps[e.key];
+        if (!step) return;
+        e.preventDefault();
+        const [target, position] = step;
+        if (target) void moveTo(object.id, target.id, position);
+    };
+
     const menuObject = menu ? data.getObject(menu.id) : undefined;
     const creatable = menuObject ? creatableTypes(data, menuObject) : [];
     const deletingObject = deleting ? data.getObject(deleting) : undefined;
@@ -172,6 +212,70 @@ export function Tree() {
                                     right: 0,
                                     paddingLeft: `${(level - 1) * 16}px`,
                                 }}
+                                draggable
+                                tabIndex={
+                                    selectedId === object.id ||
+                                    (selectedId === null && first + i === 0)
+                                        ? 0
+                                        : -1
+                                }
+                                onKeyDown={(e) => onMoveKey(e, object)}
+                                aria-disabled={
+                                    drag?.target === object.id && !drag.valid ? true : undefined
+                                }
+                                data-drop={
+                                    drag?.target === object.id && drag.valid
+                                        ? drag.position
+                                        : undefined
+                                }
+                                onDragStart={(e) => {
+                                    e.dataTransfer?.setData('text/plain', object.id);
+                                    setDrag({
+                                        id: object.id,
+                                        target: null,
+                                        position: 'inside',
+                                        valid: false,
+                                    });
+                                }}
+                                onDragOver={(e) => {
+                                    if (!drag) return;
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const position = positionInRow(
+                                        e.clientY - rect.top,
+                                        ROW_HEIGHT,
+                                    );
+                                    const valid = planMove(
+                                        data,
+                                        siblingsOf,
+                                        drag.id,
+                                        object.id,
+                                        position,
+                                    ).ok;
+                                    if (valid) e.preventDefault();
+                                    if (e.dataTransfer) {
+                                        e.dataTransfer.dropEffect = valid ? 'move' : 'none';
+                                    }
+                                    if (
+                                        drag.target !== object.id ||
+                                        drag.position !== position ||
+                                        drag.valid !== valid
+                                    ) {
+                                        setDrag({ ...drag, target: object.id, position, valid });
+                                    }
+                                }}
+                                onDrop={(e) => {
+                                    if (!drag) return;
+                                    e.preventDefault();
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const position = positionInRow(
+                                        e.clientY - rect.top,
+                                        ROW_HEIGHT,
+                                    );
+                                    const id = drag.id;
+                                    setDrag(null);
+                                    void moveTo(id, object.id, position);
+                                }}
+                                onDragEnd={() => setDrag(null)}
                                 onClick={() => select(object.id)}
                                 onContextMenu={(e) => {
                                     e.preventDefault();
