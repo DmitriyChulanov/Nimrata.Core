@@ -348,7 +348,9 @@ export function createDataController(options: DataControllerOptions): DataContro
                     properties,
                 });
 
-                const failed = runHooks(scope, tx, 'create', 'after', { object: snapshotOf(object) });
+                const failed = runHooks(scope, tx, 'create', 'after', {
+                    object: snapshotOf(object),
+                });
                 return failed !== null ? refuse(scope, failed) : { ok: true, id };
             },
 

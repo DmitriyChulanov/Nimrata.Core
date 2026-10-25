@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useActionLauncher } from '../actions/useActionLauncher';
 import type { DataController, DataObject } from '../data/DataController';
 import { useData } from '../data/DataProvider';
 import { useSelection } from '../selection/SelectionProvider';
@@ -99,6 +100,7 @@ export function Tree() {
     const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const launcher = useActionLauncher();
 
     useEffect(() => {
         if (!menu) return;
@@ -131,11 +133,13 @@ export function Tree() {
 
     const menuObject = menu ? data.getObject(menu.id) : undefined;
     const creatable = menuObject ? creatableTypes(data, menuObject) : [];
+    const menuActions = menuObject ? data.getActions(menuObject.id, 'contextMenu') : [];
     const deletingObject = deleting ? data.getObject(deleting) : undefined;
 
     return (
         <>
-            {error && <p role="alert">{error}</p>}
+            {(error ?? launcher.error) && <p role="alert">{error ?? launcher.error}</p>}
+            {launcher.dialog}
             <div
                 ref={containerRef}
                 role="tree"
@@ -217,6 +221,20 @@ export function Tree() {
                                 onClick={() => void createChild(menuObject.id, type.id)}
                             >
                                 Создать: {type.name}
+                            </button>
+                        </li>
+                    ))}
+                    {menuActions.map((action) => (
+                        <li key={action.id} role="none">
+                            <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                    setError(null);
+                                    void launcher.launch(menuObject.id, action);
+                                }}
+                            >
+                                {action.name}
                             </button>
                         </li>
                     ))}
