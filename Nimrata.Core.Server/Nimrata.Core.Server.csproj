@@ -12,17 +12,48 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.89" />
+    <PackageReference Include="dbup-postgresql" Version="7.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
     <PackageReference Include="Microsoft.AspNetCore.SpaProxy">
       <Version>10.*-*</Version>
     </PackageReference>
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.24.2-preview.1" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Migrations\*.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Манифесты модулей лежат в клиентской части (src/modules/<модуль>/manifest.json); сервер читает те же файлы при старте. -->
+    <Content Include="..\nimrata.core.client\src\modules\*\manifest.json"
+             Link="Modules\%(RecursiveDir)manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- SkipClientBuild=true: клиент уже собран снаружи (Docker-стадия client), dist лежит в $(SpaRoot)\dist. -->
+  <ItemGroup Condition="'$(SkipClientBuild)' != 'true'">
     <ProjectReference Include="..\nimrata.core.client\nimrata.core.client.esproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>
 
+  <!-- Публикация: собираем клиент (npm ci + npm run build) и кладём dist в wwwroot опубликованного приложения. -->
+  <Target Name="BuildClientForPublish" BeforeTargets="ComputeResolvedFilesToPublishList">
+    <Exec Condition="'$(SkipClientBuild)' != 'true'" Command="npm ci" WorkingDirectory="$(SpaRoot)" />
+    <Exec Condition="'$(SkipClientBuild)' != 'true'" Command="npm run build" WorkingDirectory="$(SpaRoot)" />
+    <ItemGroup>
+      <ClientDist Include="$(SpaRoot)\dist\**\*" />
+      <ResolvedFileToPublish Include="@(ClientDist)">
+        <RelativePath>wwwroot\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
 </Project>
+

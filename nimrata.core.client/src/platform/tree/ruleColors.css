@@ -1,0 +1,44 @@
+/* Цвета узлов дерева по цветовым правилам: оттенки подобраны для читаемости на светлом и тёмном фоне. */
+[data-rule-color] {
+    --rule-red: #c62828;
+    --rule-orange: #b85c00;
+    --rule-yellow: #8a6d00;
+    --rule-green: #2e7d32;
+    --rule-blue: #1565c0;
+    --rule-purple: #7b1fa2;
+    --rule-gray: #616161;
+}
+
+@media (prefers-color-scheme: dark) {
+    [data-rule-color] {
+        --rule-red: #ff8a80;
+        --rule-orange: #ffb74d;
+        --rule-yellow: #ffe082;
+        --rule-green: #81c784;
+        --rule-blue: #90caf9;
+        --rule-purple: #ce93d8;
+        --rule-gray: #bdbdbd;
+    }
+}
+
+[data-rule-color='red'] {
+    color: var(--rule-red);
+}
+[data-rule-color='orange'] {
+    color: var(--rule-orange);
+}
+[data-rule-color='yellow'] {
+    color: var(--rule-yellow);
+}
+[data-rule-color='green'] {
+    color: var(--rule-green);
+}
+[data-rule-color='blue'] {
+    color: var(--rule-blue);
+}
+[data-rule-color='purple'] {
+    color: var(--rule-purple);
+}
+[data-rule-color='gray'] {
+    color: var(--rule-gray);
+}

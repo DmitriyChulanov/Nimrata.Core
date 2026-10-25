@@ -1,58 +1,180 @@
-﻿import { useEffect, useState } from 'react';
-import './App.css';
+﻿import './App.css';
+import {
+    AuthProvider,
+    DataProvider,
+    LoginScreen,
+    MainMenu,
+    PropertyGrid,
+    ResetPasswordScreen,
+    SelectionProvider,
+    TabContainer,
+    TabsProvider,
+    Tree,
+    TypesProvider,
+    UndoControls,
+    Workspace,
+    createDataController,
+    menuRegistry,
+    registerAutomation,
+    registerJournal,
+    registerUsersAdmin,
+    tabRegistry,
+    useAuth,
+    useApi,
+    useCurrentUser,
+    useData,
+    useTabs,
+} from '@platform';
+import {
+    NotificationsBinding,
+    RevealBinding,
+    createRevealBridge,
+    ensureRepeats,
+    ensureStartStructure,
+    registerTracker,
+} from '@tracker/index';
+import type { DataController } from '@platform';
+import { useEffect, useState } from 'react';
 
-interface Forecast {
-    date: string;
-    temperatureC: number;
-    temperatureF: number;
-    summary: string;
+registerAutomation(tabRegistry, menuRegistry);
+registerJournal(tabRegistry, menuRegistry);
+registerUsersAdmin(tabRegistry, menuRegistry);
+
+function Main() {
+    const data = useData();
+    const { widths, setWidths } = useTabs();
+    const { status, error } = data.getSnapshot();
+
+    if (status === 'error') {
+        return (
+            <div>
+                <p role="alert">{error}</p>
+                <button type="button" onClick={() => void data.load()}>
+                    Повторить
+                </button>
+            </div>
+        );
+    }
+    if (status !== 'ready') return <p>Загрузка…</p>;
+
+    return (
+        <Workspace
+            left={<Tree />}
+            center={<TabContainer />}
+            initialWidths={widths}
+            onWidthsChange={setWidths}
+            right={<PropertyGrid />}
+        />
+    );
+}
+
+const revealBridge = createRevealBridge();
+
+/** Загрузка данных, стартовая структура и достройка повторов; ошибка любого шага не теряется. */
+async function prepareData(controller: DataController): Promise<string | null> {
+    await controller.load();
+    if (controller.getSnapshot().status !== 'ready') return null; // ошибку загрузки показывает Main
+    const start = await ensureStartStructure(controller);
+    if (!start.ok) return start.error;
+    const repeats = await ensureRepeats(controller);
+    return repeats.ok ? null : repeats.error;
+}
+
+function Application({ userId }: { userId: string }) {
+    const api = useApi();
+    const [controller] = useState(() => createDataController({ api }));
+    const [prepareError, setPrepareError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        const unregister = registerTracker(controller, { reveal: revealBridge.reveal });
+        prepareData(controller).then(
+            (error) => {
+                if (!cancelled) setPrepareError(error);
+            },
+            (error: unknown) => {
+                if (!cancelled)
+                    setPrepareError(error instanceof Error ? error.message : String(error));
+            },
+        );
+        return () => {
+            cancelled = true;
+            unregister();
+        };
+    }, [controller]);
+
+    return (
+        <DataProvider controller={controller}>
+            <SelectionProvider>
+                <RevealBinding bridge={revealBridge} />
+                <UndoControls registry={menuRegistry} />
+                <NotificationsBinding userId={userId} />
+                {prepareError && <p role="alert">{prepareError}</p>}
+                <Main />
+            </SelectionProvider>
+        </DataProvider>
+    );
+}
+
+function Session() {
+    const { logout } = useAuth();
+    const user = useCurrentUser();
+
+    if (!user) return null;
+
+    return (
+        <TabsProvider registry={tabRegistry} userId={user.id}>
+            <div className="app">
+                <header className="app-header">
+                    <h1>Nimrata</h1>
+                    <MainMenu registry={menuRegistry} role={user.role} />
+                    <button type="button" onClick={() => void logout()}>
+                        Выйти
+                    </button>
+                </header>
+                <main className="app-main">
+                    <Application userId={user.id} />
+                </main>
+            </div>
+        </TabsProvider>
+    );
+}
+
+/** Токен из ссылки письма (`/reset-password?token=…`); null, если открыт обычный адрес. */
+function readResetToken(): string | null {
+    if (window.location.pathname !== '/reset-password') return null;
+    return new URLSearchParams(window.location.search).get('token') ?? '';
+}
+
+function Shell() {
+    const { status, login } = useAuth();
+    const [resetToken, setResetToken] = useState(readResetToken);
+
+    if (resetToken !== null) {
+        return (
+            <ResetPasswordScreen
+                token={resetToken}
+                onDone={() => {
+                    window.history.replaceState({}, '', '/');
+                    setResetToken(null);
+                }}
+            />
+        );
+    }
+    if (status === 'loading') return null;
+    if (status === 'anonymous') return <LoginScreen onLogin={login} />;
+
+    return <Session />;
 }
 
 function App() {
-    const [forecasts, setForecasts] = useState<Forecast[]>();
-
-    useEffect(() => {
-        populateWeatherData();
-    }, []);
-
-    const contents = forecasts === undefined
-        ? <p><em>Loading... Please refresh once the ASP.NET backend has started. See <a href="https://aka.ms/jspsintegrationreact">https://aka.ms/jspsintegrationreact</a> for more details.</em></p>
-        : <table className="table table-striped" aria-labelledby="tableLabel">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Temp. (C)</th>
-                    <th>Temp. (F)</th>
-                    <th>Summary</th>
-                </tr>
-            </thead>
-            <tbody>
-                {forecasts.map(forecast =>
-                    <tr key={forecast.date}>
-                        <td>{forecast.date}</td>
-                        <td>{forecast.temperatureC}</td>
-                        <td>{forecast.temperatureF}</td>
-                        <td>{forecast.summary}</td>
-                    </tr>
-                )}
-            </tbody>
-        </table>;
-
     return (
-        <div>
-            <h1 id="tableLabel">Weather forecast</h1>
-            <p>This component demonstrates fetching data from the server.</p>
-            {contents}
-        </div>
+        <AuthProvider>
+            <TypesProvider>
+                <Shell />
+            </TypesProvider>
+        </AuthProvider>
     );
-
-    async function populateWeatherData() {
-        const response = await fetch('weatherforecast');
-        if (response.ok) {
-            const data = await response.json();
-            setForecasts(data);
-        }
-    }
 }
 
 export default App;
