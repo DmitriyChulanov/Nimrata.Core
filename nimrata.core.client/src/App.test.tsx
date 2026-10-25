@@ -2,6 +2,8 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 
+import { menuRegistry, tabRegistry } from '@platform';
+
 import App from './App';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -131,4 +133,44 @@ it('после входа показывает три панели; выделе
     expect(
         within(screen.getByRole('region', { name: 'Свойства' })).getByLabelText('Название'),
     ).toHaveValue('Идея');
+});
+
+it('зарегистрированные в платформе вкладка и пункт меню работают без модулей; роль скрывает пункты', async () => {
+    tabRegistry.register({
+        id: 'app-test',
+        title: 'Проверка',
+        component: () => <p>Экран проверки</p>,
+    });
+    menuRegistry.register({
+        path: ['Вид', 'Проверка'],
+        run: (c) => c.openTab('app-test'),
+    });
+    menuRegistry.register({
+        path: ['Вид', 'Только админ'],
+        role: 'admin',
+        run: () => {},
+    });
+    vi.stubGlobal(
+        'fetch',
+        vi
+            .fn()
+            .mockImplementation((url: string) =>
+                Promise.resolve(
+                    url === '/api/types' || url === '/api/objects'
+                        ? jsonResponse([])
+                        : url === '/api/auth/me'
+                          ? jsonResponse({ id: 'u1', email: 'a@b.test', isAdmin: false })
+                          : jsonResponse({ accessToken: 'tok' }),
+                ),
+            ),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('menuitem', { name: 'Вид' }));
+    expect(screen.queryByRole('menuitem', { name: 'Только админ' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('menuitem', { name: 'Проверка' }));
+
+    expect(screen.getByText('Экран проверки')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Проверка/ })).toBeInTheDocument();
 });
