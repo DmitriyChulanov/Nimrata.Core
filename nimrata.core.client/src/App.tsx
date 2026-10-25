@@ -26,6 +26,7 @@ import {
     useTabs,
 } from '@platform';
 import {
+    NotificationsBinding,
     RevealBinding,
     createRevealBridge,
     ensureStartStructure,
@@ -82,6 +83,7 @@ function Application() {
             <SelectionProvider>
                 <RevealBinding bridge={revealBridge} />
                 <UndoControls registry={menuRegistry} />
+                <NotificationsBinding />
                 <Main />
             </SelectionProvider>
         </DataProvider>
