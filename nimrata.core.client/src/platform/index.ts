@@ -22,6 +22,7 @@ export { DataProvider, useData } from './data/DataProvider';
 export { SelectionProvider, useSelection } from './selection/SelectionProvider';
 export type { SelectionValue } from './selection/SelectionProvider';
 export { Tree } from './tree/Tree';
+export { PropertyGrid } from './properties/PropertyGrid';
 export { Workspace } from './layout/Workspace';
 export type { WorkspaceProps, WorkspaceWidths } from './layout/Workspace';
 export { uuid7 } from './data/uuid7';

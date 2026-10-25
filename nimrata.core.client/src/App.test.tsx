@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -92,7 +92,15 @@ it('выход возвращает на экран входа', async () => {
 });
 
 it('после входа показывает три панели; выделенный в дереве объект виден в панели свойств', async () => {
-    const types = [{ id: 'Note', name: 'Заметка', module: 't', moduleVersion: 1 }];
+    const types = [
+        {
+            id: 'Note',
+            name: 'Заметка',
+            module: 't',
+            moduleVersion: 1,
+            properties: [{ id: 'name', name: 'Название', kind: 'string' }],
+        },
+    ];
     const objects = [
         { id: 'n1', type: 'Note', parent: null, order: 0, properties: { name: 'Идея' } },
     ];
@@ -120,5 +128,7 @@ it('после входа показывает три панели; выделе
 
     await user.click(item);
 
-    expect(screen.getByRole('region', { name: 'Свойства' })).toHaveTextContent('Идея');
+    expect(
+        within(screen.getByRole('region', { name: 'Свойства' })).getByLabelText('Название'),
+    ).toHaveValue('Идея');
 });
