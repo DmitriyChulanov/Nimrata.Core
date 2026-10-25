@@ -10,6 +10,7 @@ import {
     TabsProvider,
     Tree,
     TypesProvider,
+    UndoControls,
     Workspace,
     createDataController,
     menuRegistry,
@@ -64,6 +65,7 @@ function Application() {
     return (
         <DataProvider controller={controller}>
             <SelectionProvider>
+                <UndoControls registry={menuRegistry} />
                 <Main />
             </SelectionProvider>
         </DataProvider>
