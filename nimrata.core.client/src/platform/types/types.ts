@@ -15,6 +15,8 @@ export interface PropertyDefinition {
     kind: PropertyKind;
     category?: string;
     readOnly?: boolean;
+    /** Обязательный параметр действия: диалог не отправит пустое значение. */
+    required?: boolean;
     default?: unknown;
     /** Значения перечисления (для `kind: 'enum'`). */
     values?: EnumValue[];
