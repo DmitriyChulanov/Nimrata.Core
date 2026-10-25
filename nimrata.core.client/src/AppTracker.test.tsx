@@ -51,6 +51,7 @@ it('при входе с уже созданными корнями дублей
     const fetchMock = stubApi([
         { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
         { id: 'n', type: 'NotesRoot', parent: null, order: 1, properties: {} },
+        { id: 's', type: 'SelectTodayMechanism', parent: null, order: 2, properties: {} },
     ]);
     render(<App />);
 

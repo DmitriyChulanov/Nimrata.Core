@@ -2,6 +2,7 @@ import { TASK, createTaskAction, syncTask } from './tasks';
 import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
 import { registerQuickAccess } from './quickAccess';
+import { SELECT_TODAY, needsSelectToday, registerSelectToday } from './selectToday';
 
 /** Заметка: свойства `title` (вводит пользователь) и `name` (вычисляется, видно в дереве). */
 const NOTE = 'Note';
@@ -146,7 +147,7 @@ export function registerTracker(data: DataController, options: TrackerOptions = 
         );
     }
 
-    disposers.push(registerQuickAccess(data));
+    disposers.push(registerQuickAccess(data), registerSelectToday(data, options.reveal));
 
     return () => disposers.forEach((dispose) => dispose());
 }
@@ -160,7 +161,8 @@ export async function ensureStartStructure(data: DataController): Promise<Change
     const roots = data.getChildren(null);
     const needTasks = !roots.some((o) => o.type === 'TasksRoot');
     const needNotes = !roots.some((o) => o.type === 'NotesRoot');
-    if (!needTasks && !needNotes) return { ok: true };
+    const needSelectToday = needsSelectToday(data);
+    if (!needTasks && !needNotes && !needSelectToday) return { ok: true };
 
     return data.perform((tx) => {
         const make = (type: string, parent: string | null) => {
@@ -174,5 +176,6 @@ export async function ensureStartStructure(data: DataController): Promise<Change
             make('CompletedTasksRoot', tasks);
         }
         if (needNotes) make('NotesRoot', null);
+        if (needSelectToday) make(SELECT_TODAY, null);
     });
 }

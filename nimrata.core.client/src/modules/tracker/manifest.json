@@ -1,6 +1,6 @@
 {
     "module": "tracker",
-    "version": 5,
+    "version": 7,
     "types": [
         {
             "id": "TasksRoot",
@@ -151,6 +151,21 @@
                     "kind": "reference",
                     "category": "Основное",
                     "targetTypes": ["Note", "NoteGroup"]
+                }
+            ]
+        },
+        {
+            "id": "SelectTodayMechanism",
+            "name": "Выделить текущий день",
+            "sealed": true,
+            "hiddenInTree": true,
+            "automation": true,
+            "allowedChildren": [],
+            "actions": [
+                {
+                    "id": "selectToday",
+                    "name": "Выделить",
+                    "placements": ["automation"]
                 }
             ]
         },

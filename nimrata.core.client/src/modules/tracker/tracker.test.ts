@@ -39,7 +39,7 @@ describe('Трекер: стартовая структура', () => {
                 .getChildren(null)
                 .map((o) => o.type)
                 .sort(),
-        ).toEqual(['NotesRoot', 'TasksRoot']);
+        ).toEqual(['NotesRoot', 'SelectTodayMechanism', 'TasksRoot']);
         const tasks = byType(data, 'TasksRoot');
         expect(data.getChildren(tasks.id).map((o) => o.type)).toEqual([
             'CurrentTasksRoot',
@@ -62,7 +62,7 @@ describe('Трекер: стартовая структура', () => {
 
         expect(result.ok).toBe(true);
         expect(api.changesets).toHaveLength(1);
-        expect(data.getChildren(null)).toHaveLength(2);
+        expect(data.getChildren(null)).toHaveLength(3);
     });
 
     it('при отказе сервера возвращает причину и не оставляет частичной структуры', async () => {
@@ -245,6 +245,6 @@ describe('Трекер: изоляция пользователей', () => {
         expect(first.data.getChildren(null).filter((o) => o.type === 'NotesRoot')).toHaveLength(1);
         expect(first.data.getObject('r1')).toBeDefined();
         expect(second.data.getObject('r1')).toBeUndefined();
-        expect(second.data.getChildren(null)).toHaveLength(2);
+        expect(second.data.getChildren(null)).toHaveLength(3);
     });
 });
