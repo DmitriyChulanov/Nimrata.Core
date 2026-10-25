@@ -64,7 +64,7 @@ function flatten(data: DataController, expanded: ReadonlySet<string>): Row[] {
 /** Универсальное дерево: строится по типам и объектам `DataController`, не зная о модулях. */
 export function Tree() {
     const data = useData();
-    const { selectedId, select } = useSelection();
+    const { selectedId, select, revealRequest } = useSelection();
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
     const version = data.getSnapshot().version;
 
@@ -77,6 +77,22 @@ export function Tree() {
             if (!next.delete(id)) next.add(id);
             return next;
         });
+
+    // Переход к объекту (reveal): раскрыть родителей (подстройка состояния при рендере), затем прокрутить.
+    const [handledReveal, setHandledReveal] = useState(revealRequest?.seq ?? 0);
+    if (revealRequest && revealRequest.seq !== handledReveal) {
+        setHandledReveal(revealRequest.seq);
+        const ancestors: string[] = [];
+        for (
+            let parent = data.getObject(revealRequest.id)?.parent;
+            parent;
+            parent = data.getObject(parent)?.parent
+        ) {
+            ancestors.push(parent);
+        }
+        if (ancestors.length > 0) setExpanded((prev) => new Set([...prev, ...ancestors]));
+    }
+    const scrolledReveal = useRef(revealRequest?.seq ?? 0);
 
     // Виртуализация: рисуются только строки в окне прокрутки плюс небольшой запас.
     const containerRef = useRef<HTMLDivElement>(null);
@@ -92,6 +108,21 @@ export function Tree() {
         observer.observe(element);
         return () => observer.disconnect();
     }, []);
+
+    useEffect(() => {
+        if (!revealRequest || revealRequest.seq === scrolledReveal.current) return;
+        const index = rows.findIndex((r) => r.object.id === revealRequest.id);
+        if (index < 0) return;
+        scrolledReveal.current = revealRequest.seq;
+        const top = index * ROW_HEIGHT;
+        const element = containerRef.current;
+        if (
+            element &&
+            (top < element.scrollTop || top + ROW_HEIGHT > element.scrollTop + viewport)
+        ) {
+            element.scrollTop = top; // событие прокрутки обновит окно виртуализации
+        }
+    }, [revealRequest, rows, viewport]);
 
     const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
     const last = Math.min(rows.length, Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + OVERSCAN);
