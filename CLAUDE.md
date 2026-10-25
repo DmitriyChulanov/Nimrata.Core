@@ -32,3 +32,17 @@
 - Для структурных вопросов (кто вызывает, зависимости, архитектура) использовать граф `codebase-memory-mcp`: `search_graph`, `trace_path`, `get_architecture`. Проект в индексе: `C-Repositories-Nimrata.Core`.
 - `Grep`/`Glob` — для поиска литералов, текста и конфигов, а также если файла нет в индексе.
 - После крупных изменений структуры переиндексировать: `index_repository` с `repo_path` = корень репозитория.
+
+## Agent skills
+
+### Issue tracker
+
+Задачи и спецификации — локальные markdown-файлы в `.scratch/`. См. `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Стандартные метки: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. См. `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: один `GLOSSARY.md` и `docs/adr/` в корне. См. `docs/agents/domain.md`.
