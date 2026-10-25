@@ -1,14 +1,13 @@
 .users-tab {
-    padding: 8px;
     overflow: auto;
 }
 
 .users-tab__form {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-2);
     align-items: flex-end;
-    margin-bottom: 12px;
+    margin-bottom: var(--space-3);
 }
 
 .users-tab__form label {
@@ -16,16 +15,16 @@
     flex-direction: column;
     gap: 2px;
     font-size: 0.85em;
+    color: var(--text-muted);
 }
 
 .users-tab__table {
     width: 100%;
-    border-collapse: collapse;
 }
 
 .users-tab__table th,
 .users-tab__table td {
+    padding: var(--space-1) var(--space-2);
     text-align: left;
-    padding: 4px 8px;
-    border-bottom: 1px solid #8884;
+    border-bottom: 1px solid var(--border);
 }

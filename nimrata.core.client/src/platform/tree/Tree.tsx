@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
 import { useData } from '@platform/data/useData';
+import { ChevronIcon } from '@platform/icons/Icons';
 import { useSelection } from '@platform/selection/useSelection';
 
 import { planMove, positionInRow } from './planMove';
@@ -330,7 +331,7 @@ export function Tree() {
                                             toggle(object.id);
                                         }}
                                     >
-                                        {isOpen ? '▾' : '▸'}
+                                        <ChevronIcon open={isOpen} />
                                     </button>
                                 ) : (
                                     <span aria-hidden="true" />

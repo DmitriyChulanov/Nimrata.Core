@@ -41,7 +41,7 @@ export function ResetPasswordScreen({ token, onDone }: ResetPasswordScreenProps)
 
     if (done) {
         return (
-            <main>
+            <main className="auth-card">
                 <h1>Новый пароль</h1>
                 <p role="status">Пароль изменён. Теперь можно войти с новым паролем.</p>
                 <button type="button" onClick={onDone}>
@@ -52,7 +52,7 @@ export function ResetPasswordScreen({ token, onDone }: ResetPasswordScreenProps)
     }
 
     return (
-        <main>
+        <main className="auth-card">
             <h1>Новый пароль</h1>
             <form onSubmit={(event) => void submit(event)}>
                 <p>

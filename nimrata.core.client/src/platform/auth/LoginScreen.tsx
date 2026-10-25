@@ -36,7 +36,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     if (forgot) return <ForgotPasswordForm onBack={() => setForgot(false)} />;
 
     return (
-        <main>
+        <main className="auth-card">
             <h1>Вход в Nimrata</h1>
             <form onSubmit={(event) => void submit(event)}>
                 <p>

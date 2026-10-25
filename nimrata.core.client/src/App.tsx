@@ -4,6 +4,7 @@ import {
     AuthProvider,
     DataProvider,
     LoginScreen,
+    LogoutIcon,
     MainMenu,
     PropertyGrid,
     ResetPasswordScreen,
@@ -18,6 +19,7 @@ import {
     menuRegistry,
     registerAutomation,
     registerJournal,
+    registerTheme,
     registerUsersAdmin,
     tabRegistry,
     useAuth,
@@ -42,6 +44,7 @@ import type { DataController } from '@platform';
 registerAutomation(tabRegistry, menuRegistry);
 registerJournal(tabRegistry, menuRegistry);
 registerUsersAdmin(tabRegistry, menuRegistry);
+registerTheme(menuRegistry);
 
 function Main() {
     const data = useData();
@@ -131,7 +134,8 @@ function Session() {
                 <header className="app-header">
                     <h1>Nimrata</h1>
                     <MainMenu registry={menuRegistry} role={user.role} />
-                    <button type="button" onClick={() => void logout()}>
+                    <button type="button" className="app-logout" onClick={() => void logout()}>
+                        <LogoutIcon />
                         Выйти
                     </button>
                 </header>

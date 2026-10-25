@@ -1,0 +1,66 @@
+/* Дизайн-токены платформы: светлая тема по умолчанию, тёмная включается атрибутом data-theme="dark" на <html>. */
+:root {
+    --font: Inter, system-ui, 'Segoe UI', Roboto, sans-serif;
+    --mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+
+    --radius: 6px;
+    --radius-lg: 10px;
+
+    --bg: #ffffff;
+    --bg-sidebar: #f7f7f9;
+    --bg-hover: #efeff3;
+    --bg-input: #ffffff;
+    --border: #e3e3e9;
+    --border-strong: #cfcfd8;
+    --text: #1d1d27;
+    --text-muted: #6c6c7a;
+    --accent: #5b5bd6;
+    --accent-hover: #4a4ac4;
+    --accent-contrast: #ffffff;
+    --accent-bg: rgba(91, 91, 214, 0.12);
+    --danger: #d13438;
+    --shadow: 0 8px 24px rgba(20, 20, 40, 0.12), 0 2px 6px rgba(20, 20, 40, 0.06);
+
+    --rule-red: #c62828;
+    --rule-orange: #b85c00;
+    --rule-yellow: #8a6d00;
+    --rule-green: #2e7d32;
+    --rule-blue: #1565c0;
+    --rule-purple: #7b1fa2;
+    --rule-gray: #616161;
+
+    color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+    --bg: #16171d;
+    --bg-sidebar: #1b1c23;
+    --bg-hover: #262833;
+    --bg-input: #1f2029;
+    --border: #2b2d38;
+    --border-strong: #3a3d4c;
+    --text: #e8e8ee;
+    --text-muted: #9a9aab;
+    --accent: #8b8bf0;
+    --accent-hover: #a0a0f5;
+    --accent-contrast: #101018;
+    --accent-bg: rgba(139, 139, 240, 0.18);
+    --danger: #ff7a7f;
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+
+    --rule-red: #ff8a80;
+    --rule-orange: #ffb74d;
+    --rule-yellow: #ffe082;
+    --rule-green: #81c784;
+    --rule-blue: #90caf9;
+    --rule-purple: #ce93d8;
+    --rule-gray: #bdbdbd;
+
+    color-scheme: dark;
+}

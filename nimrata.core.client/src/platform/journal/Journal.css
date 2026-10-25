@@ -1,32 +1,28 @@
 .journal {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 8px;
-    overflow: auto;
+    gap: var(--space-2);
     height: 100%;
-    box-sizing: border-box;
+    overflow: auto;
 }
 
 .journal-hint {
-    color: var(--text, inherit);
-    opacity: 0.7;
+    color: var(--text-muted);
 }
 
 .journal-table {
-    border-collapse: collapse;
     width: 100%;
     font-size: 13px;
 }
 
 .journal-table th,
 .journal-table td {
+    padding: var(--space-1) var(--space-2);
     text-align: left;
-    padding: 4px 8px;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.3);
     vertical-align: top;
+    border-bottom: 1px solid var(--border);
 }
 
 .journal-group + .journal-group td {
-    border-top: 2px solid rgba(128, 128, 128, 0.5);
+    border-top: 2px solid var(--border-strong);
 }

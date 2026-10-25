@@ -1,26 +1,4 @@
-/* Цвета узлов дерева по цветовым правилам: оттенки подобраны для читаемости на светлом и тёмном фоне. */
-[data-rule-color] {
-    --rule-red: #c62828;
-    --rule-orange: #b85c00;
-    --rule-yellow: #8a6d00;
-    --rule-green: #2e7d32;
-    --rule-blue: #1565c0;
-    --rule-purple: #7b1fa2;
-    --rule-gray: #616161;
-}
-
-@media (prefers-color-scheme: dark) {
-    [data-rule-color] {
-        --rule-red: #ff8a80;
-        --rule-orange: #ffb74d;
-        --rule-yellow: #ffe082;
-        --rule-green: #81c784;
-        --rule-blue: #90caf9;
-        --rule-purple: #ce93d8;
-        --rule-gray: #bdbdbd;
-    }
-}
-
+/* Цвета узлов дерева по цветовым правилам; оттенки --rule-* заданы для обеих тем в tokens.css. */
 [data-rule-color='red'] {
     color: var(--rule-red);
 }

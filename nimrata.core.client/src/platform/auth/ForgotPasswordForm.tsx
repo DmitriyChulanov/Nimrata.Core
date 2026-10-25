@@ -30,7 +30,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
     }
 
     return (
-        <main>
+        <main className="auth-card">
             <h1>Восстановление пароля</h1>
             {sent ? (
                 <p role="status">

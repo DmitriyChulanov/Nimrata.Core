@@ -1,20 +1,27 @@
 .property-grid {
-    padding: 0 0.75rem 1rem;
+    padding: 0 var(--space-3) var(--space-4);
 }
 
 .property-grid h3 {
-    margin: 1rem 0 0.25rem;
-    font-size: 0.85rem;
+    margin: var(--space-4) 0 var(--space-1);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
-    opacity: 0.7;
+    color: var(--text-muted);
 }
 
 .property-grid-row {
     display: grid;
     grid-template-columns: minmax(6rem, 35%) 1fr;
-    gap: 0.5rem;
+    gap: var(--space-2);
     align-items: start;
-    padding: 0.2rem 0;
+    padding: var(--space-1) 0;
+}
+
+.property-grid-label {
+    padding-top: var(--space-1);
+    color: var(--text-muted);
 }
 
 .property-grid-row input[type='text'],
@@ -23,11 +30,17 @@
 .property-grid-row textarea,
 .property-grid-row select {
     width: 100%;
-    box-sizing: border-box;
 }
 
 .property-grid-row input[type='checkbox'] {
     justify-self: start;
+}
+
+.property-grid-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding-top: var(--space-3);
 }
 
 .property-grid-readonly {
@@ -37,7 +50,7 @@
 .property-grid-reference {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem;
+    gap: var(--space-1);
     align-items: center;
 }
 
@@ -52,8 +65,10 @@
 
 .property-grid-reference [role='dialog'] {
     flex-basis: 100%;
-    border: 1px solid currentColor;
-    padding: 0.5rem;
+    padding: var(--space-2);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
 }
 
 .property-grid-reference [role='treeitem'] {
@@ -61,7 +76,7 @@
 }
 
 .property-grid-reference [role='treeitem'][aria-selected='true'] {
-    font-weight: bold;
+    font-weight: 600;
 }
 
 .property-grid-reference [role='treeitem'][aria-disabled='true'] {
