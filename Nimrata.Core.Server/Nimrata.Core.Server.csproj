@@ -27,11 +27,25 @@
     <EmbeddedResource Include="Migrations\*.sql" />
   </ItemGroup>
 
-  <ItemGroup>
+  <!-- SkipClientBuild=true: клиент уже собран снаружи (Docker-стадия client), dist лежит в $(SpaRoot)\dist. -->
+  <ItemGroup Condition="'$(SkipClientBuild)' != 'true'">
     <ProjectReference Include="..\nimrata.core.client\nimrata.core.client.esproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>
+
+  <!-- Публикация: собираем клиент (npm ci + npm run build) и кладём dist в wwwroot опубликованного приложения. -->
+  <Target Name="BuildClientForPublish" BeforeTargets="ComputeResolvedFilesToPublishList">
+    <Exec Condition="'$(SkipClientBuild)' != 'true'" Command="npm ci" WorkingDirectory="$(SpaRoot)" />
+    <Exec Condition="'$(SkipClientBuild)' != 'true'" Command="npm run build" WorkingDirectory="$(SpaRoot)" />
+    <ItemGroup>
+      <ClientDist Include="$(SpaRoot)\dist\**\*" />
+      <ResolvedFileToPublish Include="@(ClientDist)">
+        <RelativePath>wwwroot\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 
 </Project>
 

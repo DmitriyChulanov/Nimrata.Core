@@ -53,7 +53,10 @@ Startup.ApplyMigrations(connectionString);
 app.Services.GetRequiredService<AdminSeeder>().Выполнить().GetAwaiter().GetResult();
 
 app.UseDefaultFiles();
-app.MapStaticAssets().AllowAnonymous();
+// Собранный клиент лежит в wwwroot (кладётся при публикации); раздаём его с диска, без манифеста статических ресурсов.
+// UseRouting вызывается явно после статики: иначе fallback-маршрут выбирается раньше и перекрывает файлы.
+app.UseStaticFiles();
+app.UseRouting();
 
 if (app.Environment.IsDevelopment())
 {
@@ -74,7 +77,8 @@ app.MapGet("/health", async () =>
     return Results.Ok(new { status = "ok" });
 }).AllowAnonymous();
 
-app.MapFallbackToFile("/index.html").AllowAnonymous();
+// Неизвестные маршруты отдают клиентское приложение (клиентская маршрутизация), кроме /api: там остаётся 404.
+app.MapFallbackToFile("{*path:regex(^(?!api(/|$)).*$)}", "index.html").AllowAnonymous();
 
 app.Run();
 

@@ -16,5 +16,9 @@
 - Первый администратор создаётся при старте из `Admin:Email` / `Admin:Password` (user-secrets или `Admin__Email`/`Admin__Password`), повторный запуск дубль не создаёт. Ключ подписи — `Jwt:Key` (user-secrets или `Jwt__Key`); в `appsettings.Development.json` лежат только dev-значения.
 - Интеграционные тесты HTTP API входа (`AuthTests`).
 
+- Единый деплой: сервер раздаёт собранный клиент из `wwwroot` (`UseStaticFiles`) и отдаёт `index.html` для неизвестных маршрутов вне `/api`; `dotnet publish` собирает клиент (`npm ci`, `npm run build`) и включает его в `wwwroot` (`-p:SkipClientBuild=true` — использовать готовый `dist`). Тесты SPA-хостинга (`SpaHostingTests`).
+- `Dockerfile` собирает приложение целиком (node-стадия, публикация, runtime); `docker-compose.yml` поднимает приложение, Postgres (с healthcheck) и Mailpit одной командой; `.env.example`, `docs/configuration.md` с перечнем настроек.
+- Итог пилота: вход по e-mail и паролю с refresh-токенами и первым администратором, Postgres + DbUp-миграции, единый деплой одним образом. Остальной объём пилота (объекты и журнал, UI платформы, модуль Трекер) фиксируется в записях соответствующих тикетов.
+
 ### Удалено
 - Демо-код шаблона `WeatherForecast*` и его тест; прокси `/weatherforecast` в Vite.
