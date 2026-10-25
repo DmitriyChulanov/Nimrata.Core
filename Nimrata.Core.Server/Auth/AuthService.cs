@@ -51,6 +51,8 @@ public sealed class AuthService(NpgsqlDataSource данные, IOptions<JwtOptio
         return добавлено > 0;
     }
 
+    public static string ХешПароля(string пароль) => Хешер.HashPassword(new object(), пароль);
+
     public async Task<AuthResult?> Войти(string email, string пароль)
     {
         await using var соединение = await данные.OpenConnectionAsync();

@@ -174,3 +174,40 @@ it('зарегистрированные в платформе вкладка и
     expect(screen.getByText('Экран проверки')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Проверка/ })).toBeInTheDocument();
 });
+
+function stubSession(isAdmin: boolean) {
+    vi.stubGlobal(
+        'fetch',
+        vi
+            .fn()
+            .mockImplementation((url: string) =>
+                Promise.resolve(
+                    url === '/api/types' || url === '/api/objects' || url === '/api/admin/users'
+                        ? jsonResponse([])
+                        : url === '/api/auth/me'
+                          ? jsonResponse({ id: 'u1', email: 'a@b.test', isAdmin })
+                          : jsonResponse({ accessToken: 'tok' }),
+                ),
+            ),
+    );
+}
+
+it('администратор открывает вкладку «Пользователи» из меню «Администрирование»', async () => {
+    stubSession(true);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('menuitem', { name: 'Администрирование' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Пользователи' }));
+
+    expect(screen.getByRole('tab', { name: /Пользователи/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Создать' })).toBeInTheDocument();
+});
+
+it('участник не видит меню «Администрирование»', async () => {
+    stubSession(false);
+    render(<App />);
+
+    await screen.findByRole('region', { name: 'Вкладки' });
+    expect(screen.queryByRole('menuitem', { name: 'Администрирование' })).not.toBeInTheDocument();
+});

@@ -13,6 +13,7 @@ import {
     Workspace,
     createDataController,
     menuRegistry,
+    registerUsersAdmin,
     tabRegistry,
     useAuth,
     useApi,
@@ -21,6 +22,8 @@ import {
     useTabs,
 } from '@platform';
 import { useEffect, useState } from 'react';
+
+registerUsersAdmin(tabRegistry, menuRegistry);
 
 function Main() {
     const data = useData();
