@@ -5,6 +5,7 @@ import {
     LoginScreen,
     MainMenu,
     PropertyGrid,
+    ResetPasswordScreen,
     SelectionProvider,
     TabContainer,
     TabsProvider,
@@ -113,9 +114,27 @@ function Session() {
     );
 }
 
+/** Токен из ссылки письма (`/reset-password?token=…`); null, если открыт обычный адрес. */
+function readResetToken(): string | null {
+    if (window.location.pathname !== '/reset-password') return null;
+    return new URLSearchParams(window.location.search).get('token') ?? '';
+}
+
 function Shell() {
     const { status, login } = useAuth();
+    const [resetToken, setResetToken] = useState(readResetToken);
 
+    if (resetToken !== null) {
+        return (
+            <ResetPasswordScreen
+                token={resetToken}
+                onDone={() => {
+                    window.history.replaceState({}, '', '/');
+                    setResetToken(null);
+                }}
+            />
+        );
+    }
     if (status === 'loading') return null;
     if (status === 'anonymous') return <LoginScreen onLogin={login} />;
 
