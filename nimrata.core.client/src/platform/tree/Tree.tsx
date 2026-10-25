@@ -4,6 +4,8 @@ import type { DataController, DataObject } from '../data/DataController';
 import { useData } from '../data/DataProvider';
 import { useSelection } from '../selection/SelectionProvider';
 import type { TypeDefinition } from '../types/types';
+import { colorPresentation, resolveRuleColor } from './colorRules';
+import './ruleColors.css';
 
 const ROW_HEIGHT = 24;
 const OVERSCAN = 5;
@@ -144,6 +146,12 @@ export function Tree() {
                 <div style={{ height: rows.length * ROW_HEIGHT, position: 'relative' }}>
                     {rows.slice(first, last).map(({ object, title, level, hasChildren }, i) => {
                         const isOpen = expanded.has(object.id);
+                        const { paletteColor, cssColor } = colorPresentation(
+                            resolveRuleColor(
+                                data.getType(object.type)?.colorRules,
+                                object.properties,
+                            ),
+                        );
                         return (
                             <div
                                 key={object.id}
@@ -154,7 +162,9 @@ export function Tree() {
                                 aria-setsize={rows.length}
                                 aria-selected={selectedId === object.id}
                                 aria-expanded={hasChildren ? isOpen : undefined}
+                                data-rule-color={paletteColor}
                                 style={{
+                                    color: cssColor,
                                     position: 'absolute',
                                     top: (first + i) * ROW_HEIGHT,
                                     height: ROW_HEIGHT,
