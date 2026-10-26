@@ -1,6 +1,6 @@
 {
     "module": "tracker",
-    "version": 9,
+    "version": 10,
     "types": [
         {
             "id": "TasksRoot",
@@ -175,7 +175,7 @@
                     "placements": ["automation"]
                 }
             ],
-            "icon": "target"
+            "icon": "crosshair"
         },
         {
             "id": "Note",
@@ -395,7 +395,7 @@
                     ]
                 }
             ],
-            "icon": "calendar"
+            "icon": "calendar-1"
         },
         {
             "id": "DayOff",
