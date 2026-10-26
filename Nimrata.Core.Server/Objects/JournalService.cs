@@ -8,10 +8,15 @@ namespace Nimrata.Core.Server.Objects;
 /// </summary>
 public sealed class JournalService(NpgsqlDataSource dataSource)
 {
-    private const string Filter = "c.user_id = @userId and (@objectId::uuid is null or e.object_id = @objectId::uuid)";
+    // Записи типов отключённых расширений скрыты; запись с неопределённым типом (NULL или тип вне таблицы) видна всегда
+    private const string Filter = """
+        c.user_id = @userId and (@objectId::uuid is null or e.object_id = @objectId::uuid)
+        and is_extension_enabled(@userId, t.extension_id)
+        """;
 
     /// <summary>
-    /// Записи журнала пользователя от новых к старым: все или по одному объекту; чужие записи не возвращаются
+    /// Записи журнала пользователя от новых к старым: все или по одному объекту; чужие записи не возвращаются,
+    /// записи отключённых расширений скрыты (общее число считается по тому же фильтру)
     /// </summary>
     public async Task<JournalPage> ReadAsync(
         Guid userId, Guid? objectId, int skip, int take, CancellationToken cancellationToken = default)
@@ -21,7 +26,9 @@ public sealed class JournalService(NpgsqlDataSource dataSource)
 
         var total = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
             $"""
-            select count(*) from changeset_entries e join changesets c on c.id = e.changeset_id
+            select count(*) from changeset_entries e
+            join changesets c on c.id = e.changeset_id
+            left join types t on t.id = e.type_id
             where {Filter}
             """,
             parameters,
@@ -34,6 +41,7 @@ public sealed class JournalService(NpgsqlDataSource dataSource)
             from changeset_entries e
             join changesets c on c.id = e.changeset_id
             join users u on u.id = c.user_id
+            left join types t on t.id = e.type_id
             where {Filter}
             order by c.created_at desc, e.id desc
             offset @skip limit @take

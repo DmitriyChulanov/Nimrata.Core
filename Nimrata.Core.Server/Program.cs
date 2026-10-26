@@ -36,6 +36,7 @@ builder.Services.AddSingleton<ChangesetService>();
 builder.Services.AddSingleton<ObjectsService>();
 builder.Services.AddSingleton<JournalService>();
 builder.Services.AddSingleton<TypesService>();
+builder.Services.AddSingleton<ExtensionsService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)

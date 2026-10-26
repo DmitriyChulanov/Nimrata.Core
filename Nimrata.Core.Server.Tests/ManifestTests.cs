@@ -42,7 +42,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
     /// <param name="types">JSON типов</param>
     /// <returns>JSON манифеста</returns>
     private static string Manifest(int version, params string[] types) =>
-        $$"""{ "extension": "demo", "version": {{version}}, "types": [ {{string.Join(",", types)}} ] }""";
+        $$"""{ "extension": "demo", "version": {{version}}, "name": "Демо", "description": "Тестовое расширение", "icon": "star", "defaultEnabled": true, "types": [ {{string.Join(",", types)}} ] }""";
 
     /// <summary>
     /// Каталог расширений с одним манифестом
@@ -264,5 +264,53 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
 
         Assert.Contains(substring, error.ToString());
         Assert.Contains("manifest.json", error.ToString());
+    }
+
+    /// <summary>
+    /// Проверяет, что тип одного расширения нельзя вложить в тип другого, и запуск останавливается
+    /// </summary>
+    [Fact]
+    public void Startup_AllowedChildrenFromOtherExtension_FailsWithClearError()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "nimrata-extensions-" + Guid.NewGuid().ToString("N"));
+        _directories.Add(directory);
+        Directory.CreateDirectory(Path.Combine(directory, "one"));
+        Directory.CreateDirectory(Path.Combine(directory, "two"));
+        const string metadata = """ "name": "Расширение", "description": "Описание", "icon": "star", "defaultEnabled": true """;
+        File.WriteAllText(Path.Combine(directory, "one", "manifest.json"),
+            $$"""{ "extension": "one", "version": 1, {{metadata}}, "types": [ { "id": "A", "name": "A", "allowedChildren": ["B"] } ] }""");
+        File.WriteAllText(Path.Combine(directory, "two", "manifest.json"),
+            $$"""{ "extension": "two", "version": 1, {{metadata}}, "types": [ { "id": "B", "name": "B" } ] }""");
+        using var server = Server(NewDatabase(factory.ConnectionString), directory);
+
+        var error = Assert.ThrowsAny<Exception>(() => server.CreateClient());
+
+        Assert.Contains("другому расширению", error.ToString());
+        Assert.Contains("one", error.ToString());
+    }
+
+    /// <summary>
+    /// Проверяет, что метаданные расширения обновляются вместе с новой версией манифеста
+    /// </summary>
+    [Fact]
+    public async Task Startup_NewManifestVersion_UpdatesExtensionMetadata()
+    {
+        var database = NewDatabase(factory.ConnectionString);
+        var directory = ExtensionsDirectory(Manifest(1, TypeJson("A")));
+        using (var first = Server(database, directory))
+        {
+            using var serverClient = first.CreateClient();
+            await FetchTypes(serverClient);
+        }
+        File.WriteAllText(Path.Combine(directory, "demo", "manifest.json"),
+            Manifest(2, TypeJson("A")).Replace("\"Демо\"", "\"Новое название\""));
+
+        using var second = Server(database, directory);
+        using var client = second.CreateClient();
+        await FetchTypes(client);
+
+        await using var connection = new NpgsqlConnection(database);
+        Assert.Equal("Новое название", await connection.ExecuteScalarAsync<string>("select name from extensions where id = 'demo'"));
+        Assert.Equal(1, await connection.ExecuteScalarAsync<long>("select count(*) from extensions"));
     }
 }

@@ -41,13 +41,20 @@ public static class ManifestLoader
                 throw new InvalidOperationException($"Манифест {file}: некорректный JSON ({e.Message}).", e);
             }
 
-            var errors = ManifestValidator.Validate(root);
+            manifests.Add((file, root));
+        }
+
+        var typeOwners = CollectTypeOwners(manifests.Select(m => m.Root));
+        foreach (var (file, root) in manifests)
+        {
+            var own = ExtensionOf(root);
+            var others = typeOwners.Where(t => t.Value != own).ToDictionary(t => t.Key, t => t.Value);
+            var errors = ManifestValidator.Validate(root, others);
             if (errors.Count > 0)
             {
                 throw new InvalidOperationException(
                     $"Манифест {file} невалиден:{Environment.NewLine}  " + string.Join(Environment.NewLine + "  ", errors));
             }
-            manifests.Add((file, root));
         }
 
         using var connection = new NpgsqlConnection(connectionString);
@@ -60,6 +67,40 @@ public static class ManifestLoader
         transaction.Commit();
     }
 
+    /// <summary>
+    /// Идентификатор расширения манифеста или <c>null</c>, если поле не заполнено (ошибку даст валидатор)
+    /// </summary>
+    private static string? ExtensionOf(JsonElement root) =>
+        root.ValueKind == JsonValueKind.Object && root.TryGetProperty("extension", out var extension)
+            && extension.ValueKind == JsonValueKind.String
+                ? extension.GetString()
+                : null;
+
+    /// <summary>
+    /// Собирает соответствие «идентификатор типа — расширение» по всем манифестам; невалидные части пропускаются
+    /// </summary>
+    private static Dictionary<string, string> CollectTypeOwners(IEnumerable<JsonElement> roots)
+    {
+        var owners = new Dictionary<string, string>();
+        foreach (var root in roots)
+        {
+            if (ExtensionOf(root) is not { } extension
+                || !root.TryGetProperty("types", out var types) || types.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+            foreach (var type in types.EnumerateArray())
+            {
+                if (type.ValueKind == JsonValueKind.Object && type.TryGetProperty("id", out var id)
+                    && id.ValueKind == JsonValueKind.String)
+                {
+                    owners.TryAdd(id.GetString()!, extension);
+                }
+            }
+        }
+        return owners;
+    }
+
     private static void Sync(NpgsqlConnection connection, NpgsqlTransaction transaction, string file, JsonElement root)
     {
         var extensionId = root.GetProperty("extension").GetString()!;
@@ -68,6 +109,25 @@ public static class ManifestLoader
         var currentVersion = connection.ExecuteScalar<int?>(
             "select max(extension_version) from types where extension_id = @extensionId", new { extensionId }, transaction);
         if (currentVersion >= version) return;
+
+        connection.Execute("""
+            insert into extensions (id, name, description, icon, default_enabled)
+            values (@extensionId, @name, @description, @icon, @defaultEnabled)
+            on conflict (id) do update
+                set name = excluded.name,
+                    description = excluded.description,
+                    icon = excluded.icon,
+                    default_enabled = excluded.default_enabled
+            """,
+            new
+            {
+                extensionId,
+                name = root.GetProperty("name").GetString(),
+                description = root.GetProperty("description").GetString(),
+                icon = root.GetProperty("icon").GetString(),
+                defaultEnabled = root.GetProperty("defaultEnabled").GetBoolean(),
+            },
+            transaction);
 
         foreach (var type in root.GetProperty("types").EnumerateArray())
         {

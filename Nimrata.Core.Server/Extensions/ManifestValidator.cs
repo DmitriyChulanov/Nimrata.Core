@@ -20,8 +20,11 @@ public static class ManifestValidator
     /// Проверяет корень манифеста
     /// </summary>
     /// <param name="root">Разобранный JSON манифеста</param>
+    /// <param name="otherExtensionTypes">
+    /// Типы других расширений (идентификатор типа и расширение): ссылка на них в <c>allowedChildren</c> запрещена
+    /// </param>
     /// <returns>Ошибки с путями вида <c>$.types[0].id</c>; пустой список, если манифест валиден</returns>
-    public static List<string> Validate(JsonElement root)
+    public static List<string> Validate(JsonElement root, IReadOnlyDictionary<string, string>? otherExtensionTypes = null)
     {
         var errors = new List<string>();
         if (root.ValueKind != JsonValueKind.Object)
@@ -31,6 +34,14 @@ public static class ManifestValidator
         }
 
         RequireString(root, "extension", "$", errors);
+        RequireString(root, "name", "$", errors);
+        RequireString(root, "description", "$", errors);
+        RequireString(root, "icon", "$", errors);
+        if (!root.TryGetProperty("defaultEnabled", out var defaultEnabled)
+            || defaultEnabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+        {
+            errors.Add("$.defaultEnabled: нужно логическое значение");
+        }
         if (!root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number
             || !version.TryGetInt32(out var intVersion) || intVersion < 1)
         {
@@ -56,12 +67,13 @@ public static class ManifestValidator
         var n = 0;
         foreach (var type in types.EnumerateArray())
         {
-            ValidateType(type, $"$.types[{n++}]", typeIds, errors);
+            ValidateType(type, $"$.types[{n++}]", typeIds, otherExtensionTypes, errors);
         }
         return errors;
     }
 
-    private static void ValidateType(JsonElement type, string path, HashSet<string> typeIds, List<string> errors)
+    private static void ValidateType(JsonElement type, string path, HashSet<string> typeIds,
+        IReadOnlyDictionary<string, string>? otherExtensionTypes, List<string> errors)
     {
         if (type.ValueKind != JsonValueKind.Object)
         {
@@ -70,7 +82,7 @@ public static class ManifestValidator
         }
         RequireString(type, "id", path, errors);
         RequireString(type, "name", path, errors);
-        foreach (var flag in new[] { "abstract", "sealed", "hiddenInTree", "automation" })
+        foreach (var flag in new[] { "abstract", "sealed", "hiddenInTree", "automation", "singleton" })
         {
             if (type.TryGetProperty(flag, out var flagValue) && flagValue.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
                 errors.Add($"{path}.{flag}: нужно логическое значение");
@@ -84,8 +96,15 @@ public static class ManifestValidator
             else
                 foreach (var child in children.EnumerateArray())
                 {
-                    if (child.ValueKind != JsonValueKind.String || !typeIds.Contains(child.GetString()!))
+                    if (child.ValueKind == JsonValueKind.String && !typeIds.Contains(child.GetString()!)
+                        && otherExtensionTypes is not null && otherExtensionTypes.TryGetValue(child.GetString()!, out var owner))
+                    {
+                        errors.Add($"{path}.allowedChildren: тип \"{child}\" принадлежит другому расширению \"{owner}\"");
+                    }
+                    else if (child.ValueKind != JsonValueKind.String || !typeIds.Contains(child.GetString()!))
+                    {
                         errors.Add($"{path}.allowedChildren: неизвестный тип \"{child}\"");
+                    }
                 }
         }
 

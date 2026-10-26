@@ -10,7 +10,7 @@ namespace Nimrata.Core.Server.Objects;
 /// </summary>
 public sealed class ChangesetService(NpgsqlDataSource dataSource)
 {
-    private sealed record TypeRow(string Id, JsonElement Definition);
+    private sealed record TypeRow(string Id, string? ExtensionId, JsonElement Definition);
 
     /// <summary>
     /// Применяет набор целиком или отклоняет его
@@ -34,10 +34,16 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         var typeRows = await connection.QueryAsync<TypeRow>(new CommandDefinition(
-            "select id as Id, definition as Definition from types",
+            "select id as Id, extension_id as ExtensionId, definition as Definition from types",
             transaction: transaction,
             cancellationToken: cancellationToken));
-        var types = typeRows.ToDictionary(row => row.Id, row => new TypeDescriptor(row.Id, row.Definition));
+        var types = typeRows.ToDictionary(row => row.Id, row => new TypeDescriptor(row.Id, row.ExtensionId, row.Definition));
+
+        var disabledExtensions = (await connection.QueryAsync<string>(new CommandDefinition(
+            "select id from extensions where not is_extension_enabled(@userId, id)",
+            new { userId },
+            transaction,
+            cancellationToken: cancellationToken))).ToHashSet();
 
         var changesetId = await connection.ExecuteScalarAsync<Guid>(new CommandDefinition(
             "insert into changesets (user_id) values (@userId) returning id",
@@ -45,7 +51,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
             transaction,
             cancellationToken: cancellationToken));
 
-        var context = new ChangesetContext(connection, transaction, userId, changesetId, types, cancellationToken);
+        var context = new ChangesetContext(connection, transaction, userId, changesetId, types, disabledExtensions, cancellationToken);
         var number = 0;
         foreach (var operation in operations.EnumerateArray())
         {
@@ -56,7 +62,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
             }
             catch (ChangesetRejectedException rejection)
             {
-                throw new ChangesetRejectedException($"Операция {number}: {rejection.Message}", rejection.Conflict);
+                throw new ChangesetRejectedException($"Операция {number}: {rejection.Message}", rejection.Conflict, rejection.Code);
             }
             catch (Exception exception) when (exception is InvalidOperationException or FormatException or KeyNotFoundException)
             {
@@ -108,6 +114,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         {
             throw new ChangesetRejectedException($"тип \"{typeName}\" абстрактный, создавать объекты такого типа нельзя.");
         }
+        EnsureEnabled(context, type);
 
         if (await context.ScalarAsync<bool>("select exists (select 1 from objects where id = @id)", new { id }))
         {
@@ -119,7 +126,13 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         {
             var parentRow = await ReadOwnObjectAsync(context, parent.Value)
                 ?? throw new ChangesetRejectedException($"родитель {parent} не найден.");
+            EnsureEnabled(context, context.Types[parentRow.Type]);
             EnsureParentAllowsChild(context, typeName, parentRow.Type);
+        }
+
+        if (type.IsSingleton)
+        {
+            await EnsureSingletonAsync(context, type, parent);
         }
 
         var order = operation.TryGetProperty("order", out var orderElement) && orderElement.ValueKind == JsonValueKind.Number
@@ -156,7 +169,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
             ["order"] = order,
             ["properties"] = properties.DeepClone(),
         };
-        await WriteJournalAsync(context, id, "create", property: null, old: null, @new: created, snapshot: null);
+        await WriteJournalAsync(context, id, typeName, "create", property: null, old: null, @new: created, snapshot: null);
     }
 
     private static async Task UpdateAsync(ChangesetContext context, JsonElement operation)
@@ -201,7 +214,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
                 properties[name] = JsonNode.Parse(newValue.GetRawText());
             }
             await WriteJournalAsync(
-                context, target.Id, "update", name,
+                context, target.Id, target.Type, "update", name,
                 old: current.ValueKind == JsonValueKind.Undefined ? null : JsonNode.Parse(current.GetRawText()),
                 @new: newValue.ValueKind == JsonValueKind.Null ? null : JsonNode.Parse(newValue.GetRawText()),
                 snapshot: null);
@@ -239,7 +252,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
             "update objects set parent_id = @parent, sort_order = @order where id = @id",
             new { id = target.Id, parent, order });
         await WriteJournalAsync(
-            context, target.Id, "move", property: null,
+            context, target.Id, target.Type, "move", property: null,
             old: new JsonObject { ["parent"] = target.Parent, ["order"] = target.Order },
             @new: new JsonObject { ["parent"] = parent, ["order"] = order },
             snapshot: null);
@@ -274,6 +287,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         }
         var parentRow = await ReadOwnObjectAsync(context, parent)
             ?? throw new ChangesetRejectedException($"родитель {parent} не найден.");
+        EnsureEnabled(context, context.Types[parentRow.Type]);
         EnsureParentAllowsChild(context, target.Type, parentRow.Type);
         return parent;
     }
@@ -317,7 +331,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
             ["properties"] = JsonNode.Parse(target.Properties.GetRawText()),
         };
         await context.ExecuteAsync("delete from objects where id = @id", new { id = target.Id });
-        await WriteJournalAsync(context, target.Id, "delete", property: null, old: null, @new: null, snapshot);
+        await WriteJournalAsync(context, target.Id, target.Type, "delete", property: null, old: null, @new: null, snapshot);
     }
 
     /// <summary>
@@ -326,7 +340,48 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
     private static async Task<ObjectRecord> ReadTargetAsync(ChangesetContext context, JsonElement operation)
     {
         var id = ReadGuid(operation, "id") ?? throw new ChangesetRejectedException("не указан идентификатор объекта (id).");
-        return await ReadOwnObjectAsync(context, id) ?? throw new ChangesetRejectedException($"объект {id} не найден.");
+        var target = await ReadOwnObjectAsync(context, id)
+            ?? throw new ChangesetRejectedException($"объект {id} не найден.");
+        EnsureEnabled(context, context.Types[target.Type]);
+        return target;
+    }
+
+    /// <summary>
+    /// Запись в объекты типа отключённого расширения отклоняется
+    /// </summary>
+    private static void EnsureEnabled(ChangesetContext context, TypeDescriptor type)
+    {
+        if (type.ExtensionId is { } extensionId && context.DisabledExtensions.Contains(extensionId))
+        {
+            throw new ChangesetRejectedException(
+                $"Расширение отключено ({extensionId}): тип \"{type.Id}\" недоступен для записи.",
+                code: RejectionCodes.ExtensionDisabled);
+        }
+    }
+
+    /// <summary>
+    /// Второй объект типа <c>singleton</c> у того же родителя и владельца отклоняется
+    /// </summary>
+    private static async Task EnsureSingletonAsync(ChangesetContext context, TypeDescriptor type, Guid? parent)
+    {
+        // Блокировка до конца транзакции: два одновременных набора не создадут дубликат
+        await context.ExecuteAsync(
+            "select pg_advisory_xact_lock(hashtextextended(@key, 0))",
+            new { key = $"singleton:{context.UserId}:{type.Id}:{parent}" });
+        var exists = await context.ScalarAsync<bool>(
+            """
+            select exists (
+                select 1 from objects
+                where owner_id = @userId and type_id = @typeId and parent_id is not distinct from @parent)
+            """,
+            new { context.UserId, typeId = type.Id, parent });
+        if (exists)
+        {
+            throw new ChangesetRejectedException(
+                $"объект типа \"{type.Id}\" уже есть у этого родителя, второй создать нельзя.",
+                conflict: true,
+                code: RejectionCodes.SingletonExists);
+        }
     }
 
     /// <summary>
@@ -443,18 +498,19 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
     }
 
     private static Task WriteJournalAsync(
-        ChangesetContext context, Guid objectId, string operation, string? property,
+        ChangesetContext context, Guid objectId, string typeId, string operation, string? property,
         JsonNode? old, JsonNode? @new, JsonNode? snapshot) =>
         context.ExecuteAsync(
             """
-            insert into changeset_entries (changeset_id, seq, object_id, operation, property, old_value, new_value, snapshot)
-            values (@changesetId, @seq, @objectId, @operation, @property, @old, @new, @snapshot)
+            insert into changeset_entries (changeset_id, seq, object_id, type_id, operation, property, old_value, new_value, snapshot)
+            values (@changesetId, @seq, @objectId, @typeId, @operation, @property, @old, @new, @snapshot)
             """,
             new
             {
                 changesetId = context.ChangesetId,
                 seq = context.NextEntrySequence(),
                 objectId,
+                typeId,
                 operation,
                 property,
                 old = ToJsonElement(old),
@@ -474,6 +530,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         Guid userId,
         Guid changesetId,
         IReadOnlyDictionary<string, TypeDescriptor> types,
+        IReadOnlySet<string> disabledExtensions,
         CancellationToken cancellationToken)
     {
         private int entrySequence;
@@ -481,6 +538,11 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         public Guid UserId { get; } = userId;
         public Guid ChangesetId { get; } = changesetId;
         public IReadOnlyDictionary<string, TypeDescriptor> Types { get; } = types;
+
+        /// <summary>
+        /// Расширения, отключённые у пользователя: запись в их типы запрещена
+        /// </summary>
+        public IReadOnlySet<string> DisabledExtensions { get; } = disabledExtensions;
 
         /// <summary>
         /// Сквозной номер записи журнала внутри набора (одна операция может дать несколько записей)
@@ -507,11 +569,14 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
     /// </summary>
     private sealed class TypeDescriptor
     {
-        public TypeDescriptor(string id, JsonElement definition)
+        public TypeDescriptor(string id, string? extensionId, JsonElement definition)
         {
             Id = id;
+            ExtensionId = extensionId;
             IsAbstract = definition.TryGetProperty("abstract", out var abstractElement)
                 && abstractElement.ValueKind == JsonValueKind.True;
+            IsSingleton = definition.TryGetProperty("singleton", out var singletonElement)
+                && singletonElement.ValueKind == JsonValueKind.True;
             if (definition.TryGetProperty("allowedChildren", out var children) && children.ValueKind == JsonValueKind.Array)
             {
                 AllowedChildren = children.EnumerateArray().Select(child => child.GetString() ?? "").ToHashSet();
@@ -534,7 +599,18 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         }
 
         public string Id { get; }
+
+        /// <summary>
+        /// Расширение, объявившее тип; <c>null</c> — тип платформы
+        /// </summary>
+        public string? ExtensionId { get; }
+
         public bool IsAbstract { get; }
+
+        /// <summary>
+        /// У одного родителя и владельца допускается не больше одного объекта типа
+        /// </summary>
+        public bool IsSingleton { get; }
 
         /// <summary>
         /// <c>null</c>: ограничений нет (список allowedChildren в манифесте не задан)

@@ -28,7 +28,10 @@ public sealed class ObjectsController(ObjectsService objectsService, ChangesetSe
     /// </summary>
     /// <param name="body">Набор изменений в JSON</param>
     /// <param name="cancellationToken">Токен отмены запроса</param>
-    /// <returns>Идентификатор применённого набора, 409 при конфликте или 422 при отклонении</returns>
+    /// <returns>
+    /// Идентификатор применённого набора, 409 при конфликте или 422 при отклонении; у отказов, которые клиент
+    /// различает, в теле есть поле <c>code</c> (<see cref="RejectionCodes"/>)
+    /// </returns>
     [HttpPost("api/changesets")]
     [ProducesResponseType<ChangesetResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
@@ -43,11 +46,15 @@ public sealed class ObjectsController(ObjectsService objectsService, ChangesetSe
         }
         catch (ChangesetRejectedException rejection)
         {
-            return Problem(
-                detail: rejection.Message,
-                statusCode: rejection.Conflict
-                    ? StatusCodes.Status409Conflict
-                    : StatusCodes.Status422UnprocessableEntity);
+            var statusCode = rejection.Conflict
+                ? StatusCodes.Status409Conflict
+                : StatusCodes.Status422UnprocessableEntity;
+            var problem = ProblemDetailsFactory.CreateProblemDetails(HttpContext, statusCode, detail: rejection.Message);
+            if (rejection.Code is not null)
+            {
+                problem.Extensions["code"] = rejection.Code;
+            }
+            return new ObjectResult(problem) { StatusCode = statusCode };
         }
     }
 }

@@ -70,7 +70,7 @@ public sealed class ManifestValidatorTests
     /// <param name="property">JSON свойства</param>
     /// <returns>JSON манифеста</returns>
     private static string WithType(string property) =>
-        $$"""{ "extension": "demo", "version": 1, "types": [ { "id": "A", "name": "A", "properties": [ {{property}} ] } ] }""";
+        $$"""{ "extension": "demo", "version": 1, "name": "Демо", "description": "Описание", "icon": "star", "defaultEnabled": true, "types": [ { "id": "A", "name": "A", "properties": [ {{property}} ] } ] }""";
 
     /// <summary>
     /// Проверяет, что цель показа допустима для свойства-ссылки
@@ -96,5 +96,145 @@ public sealed class ManifestValidatorTests
         var errors = Validate(WithType(property));
 
         Assert.Contains(errors, error => error.Contains("revealTarget") && error.Contains(substring));
+    }
+
+    /// <summary>
+    /// Формирует манифест с заданными метаданными расширения и одним типом
+    /// </summary>
+    /// <param name="metadata">JSON полей метаданных (без внешних фигурных скобок)</param>
+    /// <param name="type">JSON типа</param>
+    /// <returns>JSON манифеста</returns>
+    private static string WithMetadata(string metadata, string type = """{ "id": "A", "name": "A" }""") =>
+        $$"""{ "extension": "demo", "version": 1, {{metadata}}, "types": [ {{type}} ] }""";
+
+    /// <summary>
+    /// Проверяет, что манифест с полными метаданными проходит проверку
+    /// </summary>
+    [Fact]
+    public void Metadata_Complete_IsAccepted()
+    {
+        var errors = Validate(WithMetadata(
+            """ "name": "Демо", "description": "Описание", "icon": "star", "defaultEnabled": false """));
+
+        Assert.Empty(errors);
+    }
+
+    /// <summary>
+    /// Проверяет, что каждое поле метаданных расширения обязательно и имеет нужный вид
+    /// </summary>
+    /// <param name="metadata">JSON полей метаданных</param>
+    /// <param name="field">Поле, на которое ожидается ошибка</param>
+    [Theory]
+    [InlineData(""" "description": "Описание", "icon": "star", "defaultEnabled": true """, "name")]
+    [InlineData(""" "name": "", "description": "Описание", "icon": "star", "defaultEnabled": true """, "name")]
+    [InlineData(""" "name": "Демо", "icon": "star", "defaultEnabled": true """, "description")]
+    [InlineData(""" "name": "Демо", "description": "Описание", "defaultEnabled": true """, "icon")]
+    [InlineData(""" "name": "Демо", "description": "Описание", "icon": "  ", "defaultEnabled": true """, "icon")]
+    [InlineData(""" "name": "Демо", "description": "Описание", "icon": "star" """, "defaultEnabled")]
+    [InlineData(""" "name": "Демо", "description": "Описание", "icon": "star", "defaultEnabled": "да" """, "defaultEnabled")]
+    public void Metadata_MissingOrInvalid_IsRejected(string metadata, string field)
+    {
+        var errors = Validate(WithMetadata(metadata));
+
+        Assert.Contains(errors, error => error.StartsWith($"$.{field}:"));
+    }
+
+    /// <summary>
+    /// Проверяет, что singleton должен быть логическим значением
+    /// </summary>
+    [Fact]
+    public void Singleton_NotBoolean_IsRejected()
+    {
+        var errors = Validate(WithMetadata(
+            """ "name": "Демо", "description": "Описание", "icon": "star", "defaultEnabled": true """,
+            """{ "id": "A", "name": "A", "singleton": "да" }"""));
+
+        Assert.Contains(errors, error => error.Contains("singleton") && error.Contains("логическое"));
+    }
+
+    /// <summary>
+    /// Проверяет, что singleton принимается как логическое значение
+    /// </summary>
+    [Fact]
+    public void Singleton_Boolean_IsAccepted()
+    {
+        var errors = Validate(WithMetadata(
+            """ "name": "Демо", "description": "Описание", "icon": "star", "defaultEnabled": true """,
+            """{ "id": "A", "name": "A", "singleton": true }"""));
+
+        Assert.Empty(errors);
+    }
+
+    /// <summary>
+    /// Проверяет, что тип расширения не может допускать потомком тип другого расширения
+    /// </summary>
+    [Fact]
+    public void AllowedChildren_TypeOfOtherExtension_IsRejected()
+    {
+        using var document = JsonDocument.Parse(WithMetadata(
+            """ "name": "Демо", "description": "Описание", "icon": "star", "defaultEnabled": true """,
+            """{ "id": "A", "name": "A", "allowedChildren": ["Foreign"] }"""));
+        var others = new Dictionary<string, string> { ["Foreign"] = "other" };
+
+        var errors = ManifestValidator.Validate(document.RootElement, others);
+
+        Assert.Contains(errors, error => error.Contains("allowedChildren") && error.Contains("другому расширению")
+            && error.Contains("other"));
+    }
+
+    /// <summary>
+    /// Проверяет, что потомки из того же расширения при наличии чужих типов в каталоге допустимы
+    /// </summary>
+    [Fact]
+    public void AllowedChildren_TypeOfSameExtension_IsAcceptedWithOtherExtensionsKnown()
+    {
+        using var document = JsonDocument.Parse(WithMetadata(
+            """ "name": "Демо", "description": "Описание", "icon": "star", "defaultEnabled": true """,
+            """{ "id": "A", "name": "A", "allowedChildren": ["A"] }"""));
+        var others = new Dictionary<string, string> { ["Foreign"] = "other" };
+
+        var errors = ManifestValidator.Validate(document.RootElement, others);
+
+        Assert.Empty(errors);
+    }
+
+    /// <summary>
+    /// Проверяет, что манифесты tasks и notes объявляют singleton на автосоздаваемых типах
+    /// </summary>
+    /// <param name="extension">Идентификатор расширения</param>
+    /// <param name="singletons">Типы, которые должны быть singleton</param>
+    [Theory]
+    [InlineData("tasks", "TasksRoot,CurrentTasksRoot,CompletedTasksRoot,SelectTodayMechanism")]
+    [InlineData("notes", "NotesRoot")]
+    public void ExtensionManifest_AutoCreatedTypesAreSingleton(string extension, string singletons)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(ManifestPath(extension)));
+
+        var actual = document.RootElement.GetProperty("types").EnumerateArray()
+            .Where(type => type.TryGetProperty("singleton", out var flag) && flag.GetBoolean())
+            .Select(type => type.GetProperty("id").GetString()!)
+            .Order()
+            .ToArray();
+
+        Assert.Equal(singletons.Split(',').Order().ToArray(), actual);
+    }
+
+    /// <summary>
+    /// Проверяет, что у манифестов tasks и notes заданы метаданные для каталога
+    /// </summary>
+    /// <param name="extension">Идентификатор расширения</param>
+    /// <param name="name">Ожидаемое название</param>
+    [Theory]
+    [InlineData("tasks", "Трекер задач")]
+    [InlineData("notes", "Трекер заметок")]
+    public void ExtensionManifest_HasCatalogMetadata(string extension, string name)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(ManifestPath(extension)));
+        var root = document.RootElement;
+
+        Assert.Equal(name, root.GetProperty("name").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("description").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("icon").GetString()));
+        Assert.True(root.GetProperty("defaultEnabled").GetBoolean());
     }
 }

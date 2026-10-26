@@ -2,6 +2,8 @@
 
 ## Не выпущено
 
+- Манифесты `tasks` и `notes` повышены до версии 13: метаданные расширения (`name`, `description`, `icon`, `defaultEnabled`) и признак `singleton` у `TasksRoot`, `CurrentTasksRoot`, `CompletedTasksRoot`, `SelectTodayMechanism`, `NotesRoot`; в `TypeDefinition` добавлено необязательное поле `singleton`. Использует серверная часть подключений расширений.
+
 - Разделение Трекера на два независимых расширения: `extensions/tasks` («Трекер задач», алиас `@tasks`, манифест v12) и `extensions/notes` («Трекер заметок», алиас `@notes`, манифест v12); алиас `@tracker` удалён. ESLint запрещает расширениям импортировать друг друга. Общее вынесено в `@platform`: `safeUrl`, действия внешней и внутренней ссылки, `RevealBinding`/`createRevealBridge`, `createNode`, `orThrow`, `cancelIfFailed`.
 - Клиентский дескриптор расширения `ExtensionDescriptor` (`register(data, options)` возвращает отписку, идемпотентный `ensureStart`, необязательные компоненты-привязки, например уведомления Трекера задач) и реестр `extensionRegistry` в платформе; `App` перебирает расширения из реестра и конкретных не знает (встроенные перечислены в `src/extensions/index.ts`). Первый вход создаёт стартовую структуру каждого расширения отдельным набором изменений.
 - Переименование «модуль» → «расширение» без смены поведения: `src/modules/` → `src/extensions/` (алиас `@tracker` прежний), поля типа `module`/`moduleVersion` → `extension`/`extensionVersion`, ключ `extension` в манифесте Трекера, lint-правило `no-restricted-imports` и конфигурации Vite/Vitest/tsconfig обновлены.

@@ -18,7 +18,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 {
     private const string Manifest = """
         {
-          "extension": "demo", "version": 1,
+          "extension": "demo", "version": 1, "name": "Демо", "description": "Тестовое расширение", "icon": "star", "defaultEnabled": true,
           "types": [
             { "id": "Folder", "name": "Папка", "allowedChildren": ["Item", "Folder"] },
             { "id": "Item", "name": "Элемент", "sealed": true, "allowedChildren": [],
