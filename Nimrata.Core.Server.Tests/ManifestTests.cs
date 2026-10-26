@@ -124,10 +124,10 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
     }
 
     /// <summary>
-    /// Проверяет, что манифест Трекера по умолчанию даёт типы заметки и группы заметок
+    /// Проверяет, что манифест Трекера заметок по умолчанию даёт типы заметки и группы заметок
     /// </summary>
     [Fact]
-    public async Task Types_DefaultTrackerManifest_ReturnsNoteAndNoteGroup()
+    public async Task Types_DefaultManifests_ReturnNoteAndNoteGroupFromNotes()
     {
         using var client = factory.CreateClient();
 
@@ -137,7 +137,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         Assert.Contains("Note", ids);
         Assert.Contains("NoteGroup", ids);
         var note = types.Single(type => GetId(type) == "Note");
-        Assert.Equal("tracker", note.GetProperty("extension").GetString());
+        Assert.Equal("notes", note.GetProperty("extension").GetString());
         Assert.Contains(note.GetProperty("properties").EnumerateArray(),
             property => property.GetProperty("id").GetString() == "priority" && property.GetProperty("kind").GetString() == "enum");
     }

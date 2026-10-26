@@ -9,7 +9,8 @@ export default defineConfig({
     resolve: {
         alias: {
             '@platform': fileURLToPath(new URL('./src/platform', import.meta.url)),
-            '@tracker': fileURLToPath(new URL('./src/extensions/tracker', import.meta.url)),
+            '@tasks': fileURLToPath(new URL('./src/extensions/tasks', import.meta.url)),
+            '@notes': fileURLToPath(new URL('./src/extensions/notes', import.meta.url)),
             '@': fileURLToPath(new URL('./src', import.meta.url)),
         },
     },

@@ -4,7 +4,7 @@ Nimrata — веб-платформа автоматизации (ASP.NET Core .
 
 ## Структура
 - `Nimrata.Core.Server/` — бэкенд (Web API под `/api`, `Controllers/`, `Auth/`, `Data/`, SQL-миграции `Migrations/`, OpenAPI в Development). В продакшене раздаёт собранный клиент из `wwwroot`.
-- `nimrata.core.client/` — фронтенд (Vite). `src/platform/` (`@platform`) — общие компоненты и API-клиент платформы; `src/extensions/` (например `tracker`, `@tracker`) — расширения; `@` → `src`.
+- `nimrata.core.client/` — фронтенд (Vite). `src/platform/` (`@platform`) — общие компоненты и API-клиент платформы; `src/extensions/` (`tasks` — `@tasks`, `notes` — `@notes`) — расширения; `@` → `src`.
 - `Nimrata.Core.Server.Tests/` — тесты бэкенда (xUnit, Testcontainers/Postgres).
 - `Nimrata.Core.slnx` — solution со всеми проектами.
 - `docker-compose.yml`, `Nimrata.Core.Server/Dockerfile` — запуск целиком (приложение + Postgres + Mailpit).
@@ -23,7 +23,7 @@ Nimrata — веб-платформа автоматизации (ASP.NET Core .
 
 ## Соглашения
 - Все серверные маршруты API живут под единым префиксом `/api`; он проксируется одним правилом `^/api` в `server.proxy` (`nimrata.core.client/vite.config.ts`), новые маршруты отдельно в прокси добавлять не нужно. Клиент обращается к API через `createApiClient` (`@platform`).
-- Клиент разделён на `src/platform/` (алиас `@platform`) и `src/extensions/tracker/` (алиас `@tracker`); `platform/` не импортирует из расширений (проверяет ESLint `no-restricted-imports`).
+- Клиент разделён на `src/platform/` (алиас `@platform`) и `src/extensions/tasks/`, `src/extensions/notes/` (алиасы `@tasks`, `@notes`); `platform/` не импортирует из расширений, а расширения друг из друга (проверяет ESLint `no-restricted-imports`); расширение описывается клиентским дескриптором (`ExtensionDescriptor`) в реестре `extensionRegistry`, `App` расширений по именам не знает.
 - Неизвестные маршруты вне `/api` сервер отдаёт как клиентское приложение (SPA-fallback); опечатка в `/api/...` даёт не-успешный ответ, а не `index.html`.
 - Секреты (`Jwt:Key`, пароли) не кладём в репозиторий: user-secrets или переменные окружения/`.env` (шаблон — `.env.example`).
 - Оформление интерфейса: значения цветов и размеров только токенами из `tokens.css`, элементы из UI-кита `platform/ui/`, иконки по имени из реестра; подробности в `docs/design-system.md`.

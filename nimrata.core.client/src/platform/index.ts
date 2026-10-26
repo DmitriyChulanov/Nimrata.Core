@@ -70,6 +70,19 @@ export type { CurrentUser } from './auth/useCurrentUser';
 export { UsersTab } from './users/UsersTab';
 export { registerUsersAdmin, USERS_TAB_ID } from './users/registerUsersAdmin';
 export { uuid7 } from './data/uuid7';
+export { cancelIfFailed, createNode, orThrow } from './extensionApi/changes';
+export { registerOpenExternalLink, registerOpenInternalLink } from './extensionApi/links';
+export { createExtensionRegistry, extensionRegistry } from './extensionApi/registry';
+export type {
+    ExtensionBindingProps,
+    ExtensionDescriptor,
+    ExtensionOptions,
+    ExtensionRegistry,
+} from './extensionApi/registry';
+export { RevealBinding } from './extensionApi/RevealBinding';
+export { createRevealBridge } from './extensionApi/revealBridge';
+export type { RevealBridge } from './extensionApi/revealBridge';
+export { safeUrl } from './extensionApi/safeUrl';
 export { AutomationTab } from './automation/AutomationTab';
 export { registerAutomation } from './automation/registerAutomation';
 export { registerJournal } from './journal/registerJournal';

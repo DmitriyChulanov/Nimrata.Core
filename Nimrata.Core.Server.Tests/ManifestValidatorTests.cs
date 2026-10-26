@@ -9,17 +9,18 @@ namespace Nimrata.Core.Server.Tests;
 public sealed class ManifestValidatorTests
 {
     /// <summary>
-    /// Находит манифест Трекера в репозитории
+    /// Находит манифест расширения в репозитории
     /// </summary>
+    /// <param name="extension">Идентификатор расширения</param>
     /// <returns>Путь к файлу</returns>
-    private static string TrackerManifestPath()
+    private static string ManifestPath(string extension)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            var path = Path.Combine(directory.FullName, "nimrata.core.client", "src", "extensions", "tracker", "manifest.json");
+            var path = Path.Combine(directory.FullName, "nimrata.core.client", "src", "extensions", extension, "manifest.json");
             if (File.Exists(path)) return path;
         }
-        throw new FileNotFoundException("Манифест Трекера не найден выше каталога тестов.");
+        throw new FileNotFoundException($"Манифест расширения {extension} не найден выше каталога тестов.");
     }
 
     /// <summary>
@@ -34,12 +35,15 @@ public sealed class ManifestValidatorTests
     }
 
     /// <summary>
-    /// Проверяет, что манифест Трекера проходит валидацию
+    /// Проверяет, что манифест расширения проходит валидацию
     /// </summary>
-    [Fact]
-    public void TrackerManifest_IsValid()
+    /// <param name="extension">Идентификатор расширения</param>
+    [Theory]
+    [InlineData("tasks")]
+    [InlineData("notes")]
+    public void ExtensionManifest_IsValid(string extension)
     {
-        var errors = Validate(File.ReadAllText(TrackerManifestPath()));
+        var errors = Validate(File.ReadAllText(ManifestPath(extension)));
 
         Assert.Empty(errors);
     }
@@ -48,9 +52,9 @@ public sealed class ManifestValidatorTests
     /// Проверяет, что корни задач допускают текущие и выполненные
     /// </summary>
     [Fact]
-    public void TrackerManifest_TaskRootsAllowCurrentAndCompleted()
+    public void TasksManifest_TaskRootsAllowCurrentAndCompleted()
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(TrackerManifestPath()));
+        using var document = JsonDocument.Parse(File.ReadAllText(ManifestPath("tasks")));
         var root = document.RootElement.GetProperty("types").EnumerateArray()
             .Single(type => type.GetProperty("id").GetString() == "TasksRoot");
 

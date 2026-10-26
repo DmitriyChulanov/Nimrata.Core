@@ -7,6 +7,7 @@ import {
     LoginScreen,
     MainMenu,
     PropertyGrid,
+    RevealBinding,
     ResetPasswordScreen,
     SelectionProvider,
     TabContainer,
@@ -16,6 +17,8 @@ import {
     UndoControls,
     Workspace,
     createDataController,
+    createRevealBridge,
+    extensionRegistry,
     menuRegistry,
     registerAutomation,
     registerJournal,
@@ -28,14 +31,8 @@ import {
     useData,
     useTabs,
 } from '@platform';
-import {
-    NotificationsBinding,
-    RevealBinding,
-    createRevealBridge,
-    ensureRepeats,
-    ensureStartStructure,
-    registerTracker,
-} from '@tracker/index';
+
+import '@/extensions';
 
 import './App.css';
 
@@ -78,24 +75,25 @@ function Main() {
 }
 
 /**
- * Мост между логикой Трекера и выделением узла в дереве
+ * Мост между логикой расширений и выделением узла в дереве
  */
 const revealBridge = createRevealBridge();
 
 /**
- * Загрузка данных, стартовая структура и достройка повторов; ошибка любого шага не теряется
+ * Загрузка данных и стартовая структура каждого расширения; ошибка любого шага не теряется
  */
 async function prepareData(controller: DataController): Promise<string | null> {
     await controller.load();
     if (controller.getSnapshot().status !== 'ready') return null; // ошибку загрузки показывает Main
-    const start = await ensureStartStructure(controller);
-    if (!start.ok) return start.error;
-    const repeats = await ensureRepeats(controller);
-    return repeats.ok ? null : repeats.error;
+    for (const extension of extensionRegistry.list()) {
+        const start = await extension.ensureStart(controller);
+        if (!start.ok) return start.error;
+    }
+    return null;
 }
 
 /**
- * Контекст данных пользователя: контроллер, подключение Трекера, подготовка данных и основной экран
+ * Контекст данных пользователя: контроллер, подключение расширений, подготовка данных и основной экран
  *
  * @param props - идентификатор вошедшего пользователя
  * @returns основной экран внутри провайдеров данных и выделения
@@ -107,7 +105,9 @@ function Application({ userId }: { userId: string }) {
 
     useEffect(() => {
         let cancelled = false;
-        const unregister = registerTracker(controller, { reveal: revealBridge.reveal });
+        const unregisters = extensionRegistry
+            .list()
+            .map((extension) => extension.register(controller, { reveal: revealBridge.reveal }));
         prepareData(controller).then(
             (error) => {
                 if (!cancelled) setPrepareError(error);
@@ -119,7 +119,7 @@ function Application({ userId }: { userId: string }) {
         );
         return () => {
             cancelled = true;
-            unregister();
+            unregisters.forEach((unregister) => unregister());
         };
     }, [controller]);
 
@@ -128,7 +128,13 @@ function Application({ userId }: { userId: string }) {
             <SelectionProvider>
                 <RevealBinding bridge={revealBridge} />
                 <UndoControls registry={menuRegistry} />
-                <NotificationsBinding userId={userId} />
+                {extensionRegistry
+                    .list()
+                    .flatMap((extension) =>
+                        (extension.bindings ?? []).map((Binding, index) => (
+                            <Binding key={`${extension.id}:${index}`} userId={userId} />
+                        )),
+                    )}
                 {prepareError && <p role="alert">{prepareError}</p>}
                 <Main />
             </SelectionProvider>

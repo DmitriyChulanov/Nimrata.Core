@@ -3,6 +3,7 @@
 ## Не выпущено
 
 ### Изменено
+- Расширение `tracker` разделено на `tasks` («Трекер задач») и `notes` («Трекер заметок»): два манифеста версии 12 (`src/extensions/tasks` и `src/extensions/notes`), миграция `0020_split_tracker_extension.sql` переназначает владельца типов (`NotesRoot`, `NoteGroup`, `Note`, `QuickAccessEntry` — `notes`, остальных — `tasks`) до загрузки манифестов; идентификаторы типов и объектов не меняются. Тест миграции на базе с данными `tracker` (`TrackerSplitMigrationTests`), проверка обоих манифестов валидатором.
 - Переименование «модуль» → «расширение» без смены поведения: поле манифеста `module` → `extension`, поля API типов `module`/`moduleVersion` → `extension`/`extensionVersion`, каталог `Modules/` → `Extensions/` (пространство имён `Nimrata.Core.Server.Extensions`, настройка `Extensions:Path`); миграция `0019_types_extension_columns.sql` переименовывает колонки `types.module_id` → `extension_id`, `module_version` → `extension_version` и индекс.
 - Рефакторинг по соглашению csharp-dotnet: XML-комментарии в многострочной форме с `param`/`returns` у членов контроллеров, настроек и тестов, кириллица убрана из идентификаторов.
 

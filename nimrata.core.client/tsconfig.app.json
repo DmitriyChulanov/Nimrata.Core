@@ -17,7 +17,8 @@
     "paths": {
       "@platform": ["./src/platform/index.ts"],
       "@platform/*": ["./src/platform/*"],
-      "@tracker/*": ["./src/extensions/tracker/*"],
+      "@tasks/*": ["./src/extensions/tasks/*"],
+      "@notes/*": ["./src/extensions/notes/*"],
       "@/*": ["./src/*"]
     },
     "jsx": "react-jsx",

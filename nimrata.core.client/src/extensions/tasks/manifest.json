@@ -1,0 +1,449 @@
+{
+    "extension": "tasks",
+    "version": 12,
+    "types": [
+        {
+            "id": "TasksRoot",
+            "name": "Задачи",
+            "sealed": true,
+            "allowedChildren": ["CurrentTasksRoot", "CompletedTasksRoot"],
+            "icon": "list-checks",
+            "iconColor": "blue"
+        },
+        {
+            "id": "CurrentTasksRoot",
+            "name": "Текущие задачи",
+            "sealed": true,
+            "allowedChildren": ["Month"],
+            "actions": [
+                {
+                    "id": "createTask",
+                    "name": "Создать задачу",
+                    "placements": ["contextMenu"],
+                    "parameters": [
+                        {
+                            "id": "title",
+                            "name": "Название",
+                            "kind": "string",
+                            "required": true
+                        },
+                        {
+                            "id": "date",
+                            "name": "Дата",
+                            "kind": "date"
+                        },
+                        {
+                            "id": "category",
+                            "name": "Категория",
+                            "kind": "string"
+                        }
+                    ]
+                }
+            ],
+            "icon": "list-todo",
+            "iconColor": "blue"
+        },
+        {
+            "id": "CompletedTasksRoot",
+            "name": "Завершённые задачи",
+            "sealed": true,
+            "allowedChildren": ["Year"],
+            "icon": "circle-check",
+            "iconColor": "green"
+        },
+        {
+            "id": "SelectTodayMechanism",
+            "name": "Выделить текущий день",
+            "sealed": true,
+            "hiddenInTree": true,
+            "automation": true,
+            "allowedChildren": [],
+            "actions": [
+                {
+                    "id": "selectToday",
+                    "name": "Выделить",
+                    "placements": ["automation"]
+                }
+            ],
+            "icon": "crosshair",
+            "iconColor": "gray"
+        },
+        {
+            "id": "Year",
+            "name": "Год",
+            "sealed": true,
+            "allowedChildren": ["Month"],
+            "properties": [
+                {
+                    "id": "name",
+                    "name": "Имя",
+                    "kind": "string",
+                    "category": "Основное",
+                    "readOnly": true
+                },
+                {
+                    "id": "date",
+                    "name": "Дата",
+                    "kind": "date",
+                    "category": "Основное",
+                    "readOnly": true
+                }
+            ],
+            "icon": "calendar-range",
+            "iconColor": "orange"
+        },
+        {
+            "id": "Month",
+            "name": "Месяц",
+            "sealed": true,
+            "allowedChildren": ["Day", "DayOff"],
+            "properties": [
+                {
+                    "id": "name",
+                    "name": "Имя",
+                    "kind": "string",
+                    "category": "Основное",
+                    "readOnly": true
+                },
+                {
+                    "id": "date",
+                    "name": "Дата",
+                    "kind": "date",
+                    "category": "Основное",
+                    "readOnly": true
+                }
+            ],
+            "actions": [
+                {
+                    "id": "createTask",
+                    "name": "Создать задачу",
+                    "placements": ["contextMenu"],
+                    "parameters": [
+                        {
+                            "id": "title",
+                            "name": "Название",
+                            "kind": "string",
+                            "required": true
+                        },
+                        {
+                            "id": "date",
+                            "name": "Дата",
+                            "kind": "date"
+                        },
+                        {
+                            "id": "category",
+                            "name": "Категория",
+                            "kind": "string"
+                        }
+                    ]
+                }
+            ],
+            "icon": "calendar-days",
+            "iconColor": "orange"
+        },
+        {
+            "id": "Day",
+            "name": "День",
+            "sealed": true,
+            "allowedChildren": ["Task", "Category"],
+            "properties": [
+                {
+                    "id": "name",
+                    "name": "Имя",
+                    "kind": "string",
+                    "category": "Основное",
+                    "readOnly": true
+                },
+                {
+                    "id": "date",
+                    "name": "Дата",
+                    "kind": "date",
+                    "category": "Основное",
+                    "readOnly": true
+                }
+            ],
+            "actions": [
+                {
+                    "id": "createTask",
+                    "name": "Создать задачу",
+                    "placements": ["contextMenu"],
+                    "parameters": [
+                        {
+                            "id": "title",
+                            "name": "Название",
+                            "kind": "string",
+                            "required": true
+                        },
+                        {
+                            "id": "date",
+                            "name": "Дата",
+                            "kind": "date"
+                        },
+                        {
+                            "id": "category",
+                            "name": "Категория",
+                            "kind": "string"
+                        }
+                    ]
+                }
+            ],
+            "icon": "calendar-1",
+            "iconColor": "orange"
+        },
+        {
+            "id": "DayOff",
+            "name": "День-выходной",
+            "sealed": true,
+            "allowedChildren": ["Task", "Category"],
+            "properties": [
+                {
+                    "id": "name",
+                    "name": "Имя",
+                    "kind": "string",
+                    "category": "Основное",
+                    "readOnly": true
+                },
+                {
+                    "id": "date",
+                    "name": "Дата",
+                    "kind": "date",
+                    "category": "Основное",
+                    "readOnly": true
+                }
+            ],
+            "actions": [
+                {
+                    "id": "createTask",
+                    "name": "Создать задачу",
+                    "placements": ["contextMenu"],
+                    "parameters": [
+                        {
+                            "id": "title",
+                            "name": "Название",
+                            "kind": "string",
+                            "required": true
+                        },
+                        {
+                            "id": "date",
+                            "name": "Дата",
+                            "kind": "date"
+                        },
+                        {
+                            "id": "category",
+                            "name": "Категория",
+                            "kind": "string"
+                        }
+                    ]
+                }
+            ],
+            "icon": "palmtree",
+            "iconColor": "green"
+        },
+        {
+            "id": "Category",
+            "name": "Категория",
+            "sealed": true,
+            "allowedChildren": ["Task", "Category"],
+            "properties": [
+                {
+                    "id": "name",
+                    "name": "Название",
+                    "kind": "string",
+                    "category": "Основное"
+                }
+            ],
+            "actions": [
+                {
+                    "id": "createTask",
+                    "name": "Создать задачу",
+                    "placements": ["contextMenu"],
+                    "parameters": [
+                        {
+                            "id": "title",
+                            "name": "Название",
+                            "kind": "string",
+                            "required": true
+                        },
+                        {
+                            "id": "date",
+                            "name": "Дата",
+                            "kind": "date"
+                        },
+                        {
+                            "id": "category",
+                            "name": "Категория",
+                            "kind": "string"
+                        }
+                    ]
+                }
+            ],
+            "icon": "tag",
+            "iconColor": "gray"
+        },
+        {
+            "id": "Task",
+            "name": "Задача",
+            "sealed": true,
+            "allowedChildren": [],
+            "properties": [
+                {
+                    "id": "title",
+                    "name": "Название",
+                    "kind": "string",
+                    "category": "Основное"
+                },
+                {
+                    "id": "name",
+                    "name": "Имя",
+                    "kind": "string",
+                    "category": "Основное",
+                    "readOnly": true
+                },
+                {
+                    "id": "time",
+                    "name": "Время",
+                    "kind": "time",
+                    "category": "Основное"
+                },
+                {
+                    "id": "comment",
+                    "name": "Комментарий",
+                    "kind": "text",
+                    "category": "Основное"
+                },
+                {
+                    "id": "priority",
+                    "name": "Приоритет",
+                    "kind": "enum",
+                    "category": "Основное",
+                    "default": "low",
+                    "values": [
+                        {
+                            "value": "low",
+                            "name": "Низкий"
+                        },
+                        {
+                            "value": "medium",
+                            "name": "Средний"
+                        },
+                        {
+                            "value": "high",
+                            "name": "Высокий"
+                        }
+                    ]
+                },
+                {
+                    "id": "status",
+                    "name": "Статус",
+                    "kind": "enum",
+                    "category": "Основное",
+                    "values": [
+                        {
+                            "value": "completed",
+                            "name": "Завершена"
+                        }
+                    ]
+                },
+                {
+                    "id": "notifyBefore",
+                    "name": "Уведомить за (мин)",
+                    "kind": "integer",
+                    "category": "Уведомления"
+                },
+                {
+                    "id": "link",
+                    "name": "Внешняя ссылка",
+                    "kind": "string",
+                    "category": "Ссылки"
+                },
+                {
+                    "id": "internalLink",
+                    "name": "Внутренняя ссылка",
+                    "kind": "reference",
+                    "category": "Ссылки"
+                },
+                {
+                    "id": "repeat",
+                    "name": "Повтор",
+                    "kind": "enum",
+                    "category": "Повтор",
+                    "default": "none",
+                    "values": [
+                        {
+                            "value": "none",
+                            "name": "Нет"
+                        },
+                        {
+                            "value": "weekdays",
+                            "name": "Каждый будний день"
+                        },
+                        {
+                            "value": "weekly",
+                            "name": "Каждую неделю"
+                        },
+                        {
+                            "value": "monthly",
+                            "name": "Каждый месяц"
+                        }
+                    ]
+                },
+                {
+                    "id": "repeatId",
+                    "name": "Идентификатор повтора",
+                    "kind": "string",
+                    "category": "Повтор",
+                    "hidden": true
+                }
+            ],
+            "actions": [
+                {
+                    "id": "openExternalLink",
+                    "name": "Перейти по внешней ссылке",
+                    "placements": ["propertyGrid", "contextMenu"]
+                },
+                {
+                    "id": "openInternalLink",
+                    "name": "Перейти по внутренней ссылке",
+                    "placements": ["propertyGrid", "contextMenu"]
+                },
+                {
+                    "id": "complete",
+                    "name": "Завершить",
+                    "placements": ["propertyGrid", "contextMenu"]
+                },
+                {
+                    "id": "postpone",
+                    "name": "Отложить",
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "parameters": [
+                        {
+                            "id": "date",
+                            "name": "Дата",
+                            "kind": "date",
+                            "required": true
+                        }
+                    ]
+                }
+            ],
+            "colorRules": [
+                {
+                    "property": "priority",
+                    "equals": "medium",
+                    "color": "orange"
+                },
+                {
+                    "property": "priority",
+                    "equals": "high",
+                    "color": "red"
+                },
+                {
+                    "property": "status",
+                    "equals": "completed",
+                    "color": "green"
+                }
+            ],
+            "icon": "square-check-big",
+            "iconColor": "blue"
+        }
+    ]
+}
