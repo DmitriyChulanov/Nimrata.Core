@@ -4,7 +4,7 @@
 
 **Blocked by:** 02
 
-**Status:** needs-triage
+**Status:** resolved
 
 - [x] Таблица подключений «пользователь × расширение × включено» с каскадным удалением по пользователю; нет записи — состояние по `defaultEnabled`
 - [x] Метаданные расширения (название, описание, иконка из реестра, `defaultEnabled`) в манифесте и в `ManifestValidator`; `GET /api/extensions` и `PUT /api/extensions/{id}/connection` (пользователь меняет только свои)
@@ -15,3 +15,21 @@
 - [x] `singleton` в манифесте на `TasksRoot`, `CurrentTasksRoot`, `CompletedTasksRoot`, `NotesRoot`, `SelectTodayMechanism`; второй объект у того же родителя и владельца отклоняется
 - [x] Тесты Testcontainers на каждый пункт, включая набор изменений, затрагивающий оба расширения
 - [x] Запись в `CHANGELOG.md` сервера
+
+## Answer
+
+Реализовано на ветке `integration/extensions` (коммит 42c389c). Build, 169 тестов бэкенда, 478 тестов клиента и lint проходят. Миграции проверены только на синтетической БД, не на копии реальной. Манифесты `tasks` и `notes` теперь версии 13.
+
+### Контракт API для тикета 04
+
+- `GET /api/extensions` → `[{ id, name, description, icon, defaultEnabled, connected }]`, по названию; `connected` — действующее состояние пользователя; `icon` — имя из реестра иконок клиента.
+- `PUT /api/extensions/{id}/connection`, тело `{ "connected": bool }` → 200 с обновлённым элементом каталога; неизвестное расширение 404, тело без `connected` 400.
+- `POST /api/changesets`, отказы в ProblemDetails с полем `code`: `extension_disabled` (422, запись в тип отключённого расширения) и `singleton_exists` (409, второй singleton у того же родителя и владельца). `ensureStart` считает «уже есть» только `code == "singleton_exists"`; прочие 409 без `code` — конфликт «было», нужна перезагрузка данных.
+- `GET /api/types`: у типа поле `singleton: true`, где задано.
+- `GET /api/objects` и `GET /api/journal`: форма прежняя, без данных отключённых расширений.
+
+### Известные ограничения
+
+- Расширение, манифест которого убрали с диска, остаётся в таблице `extensions` и в каталоге (не чистится намеренно: удаление сбросило бы `defaultEnabled`).
+- Запись свойства-ссылки на объект отключённого расширения не запрещена (ссылки остаются данными).
+- В `CHANGELOG.md` сервера в «Не выпущено» два раздела «Добавлено»; не объединены.
