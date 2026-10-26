@@ -1,6 +1,6 @@
 # Nimrata.Core
 
-Nimrata — веб-платформа автоматизации (ASP.NET Core .NET 10 + React 19 + Vite + TypeScript + Postgres) и её первый модуль Трекер. Термины — в `GLOSSARY.md`; ключевое решение — бизнес-логика модулей на клиенте, см. `docs/adr/0001-client-side-business-logic.md`. Настройки и развёртывание — `docs/configuration.md`.
+Nimrata — веб-платформа автоматизации (ASP.NET Core .NET 10 + React 19 + Vite + TypeScript + Postgres) и её первый модуль Трекер. Термины — в `GLOSSARY.md`; ключевое решение — бизнес-логика модулей на клиенте, см. `docs/adr/0001-client-side-business-logic.md`. Настройки и развёртывание — `docs/configuration.md`. Правила оформления интерфейса (токены, UI-кит, иконки) — `docs/design-system.md`; читать перед любыми правками UI.
 
 ## Структура
 - `Nimrata.Core.Server/` — бэкенд (Web API под `/api`, `Controllers/`, `Auth/`, `Data/`, SQL-миграции `Migrations/`, OpenAPI в Development). В продакшене раздаёт собранный клиент из `wwwroot`.
@@ -26,11 +26,13 @@ Nimrata — веб-платформа автоматизации (ASP.NET Core .
 - Клиент разделён на `src/platform/` (алиас `@platform`) и `src/modules/tracker/` (алиас `@tracker`); `platform/` не импортирует из модулей (проверяет ESLint `no-restricted-imports`).
 - Неизвестные маршруты вне `/api` сервер отдаёт как клиентское приложение (SPA-fallback); опечатка в `/api/...` даёт не-успешный ответ, а не `index.html`.
 - Секреты (`Jwt:Key`, пароли) не кладём в репозиторий: user-secrets или переменные окружения/`.env` (шаблон — `.env.example`).
+- Оформление интерфейса: значения цветов и размеров только токенами из `tokens.css`, элементы из UI-кита `platform/ui/`, иконки по имени из реестра; подробности в `docs/design-system.md`.
 - Изменения фиксируются в `CHANGELOG.md` соответствующего проекта.
 - Коммиты и комментарии — на русском.
 
 ## Проверка изменений
 - После правок запускать `dotnet test Nimrata.Core.slnx`, а для клиента `npm test` и `npm run lint`; новая логика покрывается тестами.
+- Для UI-правок: проверить обе темы, видимый фокус и контраст AA; после включения stylelint — запускать его вместе с `npm run lint`.
 - Стиль задаёт `.editorconfig` (C#) и `nimrata.core.client/.prettierrc.json` (клиент). Хук `.claude/hooks/format.mjs` сам форматирует изменённые `.cs`, `.ts`, `.tsx`, `.css`, `.json`.
 
 ## Навигация по коду
