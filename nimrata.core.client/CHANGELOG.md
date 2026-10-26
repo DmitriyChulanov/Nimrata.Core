@@ -2,6 +2,11 @@
 
 ## Не выпущено
 
+- Подключение и отключение расширений без перезагрузки страницы: `ExtensionsProvider`/`useExtensions` (`@platform`, `platform/extensionCatalog/`) загружают каталог `GET /api/extensions`, регистрируют только подключённые расширения реестра и рисуют их компоненты-привязки (пока «Трекер задач» отключён, нет его хуков, действий, повторов и уведомлений); `setConnected(id, connected)` (`PUT /api/extensions/{id}/connection`) снимает или регистрирует `register`, перезагружает данные (Undo/Redo очищаются), сбрасывает выделение недоступного объекта и вызывает `ensureStart` включаемого расширения. `App` расширений не перечисляет и берёт их из `extensionRegistry`.
+- `ensureStart` расширений идемпотентен и устойчив к гонке (`ensureCreated`): отказ сервера `singleton_exists` считается «уже есть» (данные перезагружаются), прочий 409 без `code` перезагружает данные и повторяет попытку один раз; отказ запуска одного расширения не блокирует второе.
+- `ApiError.code` (машинный код отказа из тела ответа) и поля `status`/`code` в отказе `ChangeResult`.
+- `fakeApi` умеет каталог расширений и подключения (`createFakeApi(types, objects, { extensions })`): скрывает объекты отключённых расширений, сохраняет принятые наборы, отказывает `extension_disabled` и `singleton_exists`; `rejectNext(status, message, code?)`. Тесты переключения, гонки и `App` переведены на него.
+
 - Манифесты `tasks` и `notes` повышены до версии 13: метаданные расширения (`name`, `description`, `icon`, `defaultEnabled`) и признак `singleton` у `TasksRoot`, `CurrentTasksRoot`, `CompletedTasksRoot`, `SelectTodayMechanism`, `NotesRoot`; в `TypeDefinition` добавлено необязательное поле `singleton`. Использует серверная часть подключений расширений.
 
 - Разделение Трекера на два независимых расширения: `extensions/tasks` («Трекер задач», алиас `@tasks`, манифест v12) и `extensions/notes` («Трекер заметок», алиас `@notes`, манифест v12); алиас `@tracker` удалён. ESLint запрещает расширениям импортировать друг друга. Общее вынесено в `@platform`: `safeUrl`, действия внешней и внутренней ссылки, `RevealBinding`/`createRevealBridge`, `createNode`, `orThrow`, `cancelIfFailed`.
