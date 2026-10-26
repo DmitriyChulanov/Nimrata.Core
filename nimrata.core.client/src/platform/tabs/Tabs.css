@@ -31,8 +31,9 @@
 }
 
 .menu-shortcut {
+    margin-left: var(--space-2);
     color: var(--text-muted);
-    font-size: 0.85em;
+    font-size: var(--text-xs);
 }
 
 .tabs {
@@ -52,20 +53,29 @@
 .tabs-item {
     display: inline-flex;
     align-items: center;
+    gap: var(--space-0);
     border-bottom: 2px solid transparent;
     color: var(--text-muted);
 }
 
-.tabs-item button {
-    background: none;
-    border-color: transparent;
+.tabs-item .tabs-tab {
+    min-height: var(--control-height);
+    padding: 0 var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
     color: inherit;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition:
+        background-color var(--transition),
+        color var(--transition);
 }
 
-.tabs-item button[aria-label^='Закрыть'] {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--space-1);
+.tabs-item .tabs-tab:hover {
+    color: var(--text);
+    background: var(--bg-hover);
 }
 
 .tabs-item[data-selected='true'] {

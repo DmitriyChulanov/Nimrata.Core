@@ -1,4 +1,4 @@
-import { Icon } from '@platform/icons/Icon';
+import { IconButton } from '@platform/ui';
 
 import { useTabs } from './useTabs';
 import './Tabs.css';
@@ -22,18 +22,18 @@ export function TabContainer() {
                             <button
                                 type="button"
                                 role="tab"
+                                className="tabs-tab"
                                 aria-selected={selected}
                                 onClick={() => activate(tab.id)}
                             >
                                 {title}
                             </button>
-                            <button
-                                type="button"
-                                aria-label={`Закрыть вкладку ${title}`}
+                            <IconButton
+                                icon="x"
+                                iconSize="sm"
+                                label={`Закрыть вкладку ${title}`}
                                 onClick={() => closeTab(tab.id)}
-                            >
-                                <Icon name="x" size="sm" />
-                            </button>
+                            />
                         </span>
                     );
                 })}

@@ -22,7 +22,6 @@ const LEGACY_FILES = [
     'src/App.css',
     'src/platform/journal/Journal.css',
     'src/platform/properties/PropertyGrid.css',
-    'src/platform/tabs/Tabs.css',
     'src/platform/users/UsersTab.css',
 ];
 
