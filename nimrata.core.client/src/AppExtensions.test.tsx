@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -208,4 +208,33 @@ it('extensions_disconnectAndReconnect_hidesAndRestoresTreeWithoutDuplicates', as
     expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     expect(screen.getAllByRole('treeitem', { name: /Заметки/ })).toHaveLength(1);
     expect(api.changesets).toHaveLength(sent);
+});
+
+/**
+ * Проверяет сквозной путь: Редактор расширений отключает оба расширения, рабочая область остаётся
+ * (вкладка не пересоздаётся), показывается подсказка, а подключение возвращает дерево
+ */
+it('extensions_editorDisconnectAll_keepsTabShowsEmptyHintAndReconnectRestoresTree', async () => {
+    stubServer([]);
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole('treeitem', { name: /Заметки/ });
+    await user.click(screen.getByRole('menuitem', { name: 'Вид' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Расширения' }));
+
+    const tasks = within(await screen.findByRole('group', { name: 'Трекер задач' }));
+    await user.click(tasks.getByRole('switch', { name: 'Подключено' }));
+    await waitFor(() =>
+        expect(screen.queryByRole('treeitem', { name: /Задачи/ })).not.toBeInTheDocument(),
+    );
+    const notes = within(screen.getByRole('group', { name: 'Трекер заметок' }));
+    await waitFor(() => expect(notes.getByRole('switch')).toBeEnabled());
+    await user.click(notes.getByRole('switch', { name: 'Подключено' }));
+
+    expect(await screen.findByText(/Вид → Расширения/)).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Расширения' })).toBeInTheDocument();
+
+    await waitFor(() => expect(notes.getByRole('switch')).toBeEnabled());
+    await user.click(notes.getByRole('switch', { name: 'Подключено' }));
+    expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
 });

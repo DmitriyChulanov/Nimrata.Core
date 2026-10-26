@@ -27,6 +27,8 @@
     --icon-md: 16px;
     --icon-lg: 20px;
     --icon-stroke: 1.5;
+    --switch-width: 32px;
+    --switch-height: 18px;
 
     --transition: 120ms ease;
     --focus-ring: 2px solid var(--accent);

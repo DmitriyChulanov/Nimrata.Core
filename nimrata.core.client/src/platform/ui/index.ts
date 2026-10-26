@@ -10,5 +10,7 @@ export { Menu } from './Menu';
 export type { MenuEntry, MenuProps } from './Menu';
 export { Select } from './Select';
 export type { SelectOption, SelectProps } from './Select';
+export { Switch } from './Switch';
+export type { SwitchProps } from './Switch';
 export { TextArea, TextField } from './TextField';
 export type { TextAreaProps, TextFieldProps } from './TextField';

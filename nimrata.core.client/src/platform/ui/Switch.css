@@ -1,0 +1,61 @@
+/* Переключатель: скрытый флажок, дорожка и бегунок рисуются через токены. */
+.switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--control-height);
+    font-size: var(--text-sm);
+    cursor: pointer;
+}
+
+.switch:has(.switch-input:disabled) {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Сам input остаётся в дереве доступности и получает фокус, но не виден */
+.switch-input {
+    position: absolute;
+    width: var(--switch-width);
+    height: var(--switch-height);
+    margin: 0;
+    opacity: 0;
+    cursor: inherit;
+}
+
+.switch-track {
+    position: relative;
+    flex: none;
+    width: var(--switch-width);
+    height: var(--switch-height);
+    background: var(--border-control);
+    border-radius: var(--switch-height);
+    transition: background var(--transition);
+}
+
+.switch-track::after {
+    content: '';
+    position: absolute;
+    top: var(--space-0);
+    left: var(--space-0);
+    width: calc(var(--switch-height) - 2 * var(--space-0));
+    height: calc(var(--switch-height) - 2 * var(--space-0));
+    background: var(--bg);
+    border-radius: 50%;
+    transition: transform var(--transition);
+}
+
+.switch-input:checked + .switch-track {
+    background: var(--accent);
+}
+
+.switch-input:checked + .switch-track::after {
+    background: var(--accent-contrast);
+    transform: translateX(calc(var(--switch-width) - var(--switch-height)));
+}
+
+.switch-input:focus-visible + .switch-track {
+    outline: var(--focus-ring);
+    outline-offset: var(--space-0);
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import {
     AuthProvider,
@@ -7,6 +7,7 @@ import {
     ExtensionsProvider,
     LoginScreen,
     MainMenu,
+    NoExtensionsNotice,
     PropertyGrid,
     RevealBinding,
     ResetPasswordScreen,
@@ -22,6 +23,7 @@ import {
     extensionRegistry,
     menuRegistry,
     registerAutomation,
+    registerExtensionsEditor,
     registerJournal,
     registerTheme,
     registerUsersAdmin,
@@ -39,6 +41,7 @@ import './App.css';
 
 registerAutomation(tabRegistry, menuRegistry);
 registerJournal(tabRegistry, menuRegistry);
+registerExtensionsEditor(tabRegistry, menuRegistry);
 registerUsersAdmin(tabRegistry, menuRegistry);
 registerTheme(menuRegistry);
 
@@ -51,6 +54,7 @@ function Main() {
     const data = useData();
     const { widths, setWidths } = useTabs();
     const { status, error } = data.getSnapshot();
+    const everReady = useRef(false);
 
     if (status === 'error') {
         return (
@@ -60,11 +64,18 @@ function Main() {
             </div>
         );
     }
-    if (status !== 'ready') return <p>Загрузка…</p>;
+    // Повторная загрузка (смена подключения расширения) не заменяет рабочую область индикатором:
+    // иначе вкладки пересоздаются, а состояние Редактора расширений (ошибка карточки) теряется
+    if (status === 'ready') everReady.current = true;
+    if (status !== 'ready' && !everReady.current) return <p>Загрузка…</p>;
 
     return (
         <Workspace
-            left={<Tree />}
+            left={
+                <NoExtensionsNotice>
+                    <Tree />
+                </NoExtensionsNotice>
+            }
             center={<TabContainer />}
             initialWidths={widths}
             onWidthsChange={setWidths}

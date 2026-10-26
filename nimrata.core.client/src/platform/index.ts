@@ -83,6 +83,9 @@ export type {
 } from './extensionApi/registry';
 export { ExtensionsProvider } from './extensionCatalog/ExtensionsProvider';
 export type { ExtensionsProviderProps } from './extensionCatalog/ExtensionsProvider';
+export { registerExtensionsEditor } from './extensionCatalog/registerExtensionsEditor';
+export { ExtensionsEditor } from './extensionCatalog/ExtensionsEditor';
+export { NoExtensionsNotice } from './extensionCatalog/NoExtensionsNotice';
 export { useExtensions } from './extensionCatalog/useExtensions';
 export type { ExtensionsStatus, ExtensionsValue } from './extensionCatalog/ExtensionsContext';
 export { fetchExtensionCatalog, putExtensionConnection } from './extensionCatalog/catalog';
@@ -119,6 +122,7 @@ export {
     IconButton,
     Menu,
     Select,
+    Switch,
     TextArea,
     TextField,
 } from './ui';
@@ -134,6 +138,7 @@ export type {
     MenuProps,
     SelectOption,
     SelectProps,
+    SwitchProps,
     TextAreaProps,
     TextFieldProps,
 } from './ui';
