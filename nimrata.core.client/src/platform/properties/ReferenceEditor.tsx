@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { Icon } from '@platform/icons/Icon';
 import { useSelection } from '@platform/selection/useSelection';
+import { TypeIcon } from '@platform/tree/TypeIcon';
 import { Button, Dialog, IconButton } from '@platform/ui';
 
 import type { DataController, DataObject } from '@platform/data/DataController';
@@ -137,7 +138,7 @@ function ReferencePicker({ data, property, current, onPick, onCancel }: PickerPr
                             ) : (
                                 <span aria-hidden="true" />
                             )}
-                            <Icon name={data.getType(object.type)?.icon} />
+                            <TypeIcon type={data.getType(object.type)} />
                             <span>{title}</span>
                         </div>
                     );

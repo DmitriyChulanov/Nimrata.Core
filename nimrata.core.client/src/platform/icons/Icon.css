@@ -19,3 +19,32 @@
     width: var(--icon-lg);
     height: var(--icon-lg);
 }
+
+/* Смысловые цвета иконок: оттенки --rule-* подобраны для обеих тем */
+.icon[data-tone='red'] {
+    color: var(--rule-red);
+}
+
+.icon[data-tone='orange'] {
+    color: var(--rule-orange);
+}
+
+.icon[data-tone='yellow'] {
+    color: var(--rule-yellow);
+}
+
+.icon[data-tone='green'] {
+    color: var(--rule-green);
+}
+
+.icon[data-tone='blue'] {
+    color: var(--rule-blue);
+}
+
+.icon[data-tone='purple'] {
+    color: var(--rule-purple);
+}
+
+.icon[data-tone='gray'] {
+    color: var(--rule-gray);
+}

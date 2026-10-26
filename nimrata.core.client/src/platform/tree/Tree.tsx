@@ -4,6 +4,8 @@ import { useActionLauncher } from '@platform/actions/useActionLauncher';
 import { useData } from '@platform/data/useData';
 import { Icon } from '@platform/icons/Icon';
 import { Button, Dialog } from '@platform/ui';
+
+import { TypeIcon } from './TypeIcon';
 import { useSelection } from '@platform/selection/useSelection';
 
 import { planMove, positionInRow } from './planMove';
@@ -377,7 +379,7 @@ export function Tree() {
                                 ) : (
                                     <span aria-hidden="true" />
                                 )}
-                                <Icon name={data.getType(object.type)?.icon} />
+                                <TypeIcon type={data.getType(object.type)} />
                                 <span>{title}</span>
                             </div>
                         );

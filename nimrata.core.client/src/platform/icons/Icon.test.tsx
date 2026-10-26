@@ -50,6 +50,22 @@ describe('Icon: rendering', () => {
     });
 
     /**
+     * Проверяет, что смысловой цвет попадает в атрибут иконки, а без него атрибута нет
+     */
+    it('icon_tone_setsDataAttributeOnlyWhenGiven', () => {
+        const { container } = render(
+            <>
+                <Icon name="star" tone="yellow" />
+                <Icon name="star" />
+            </>,
+        );
+
+        const [colored, plain] = Array.from(container.querySelectorAll('svg'));
+        expect(colored).toHaveAttribute('data-tone', 'yellow');
+        expect(plain).not.toHaveAttribute('data-tone');
+    });
+
+    /**
      * Проверяет, что неизвестное имя даёт запасную иконку и одно предупреждение
      */
     it('icon_unknownName_rendersFallbackAndWarnsOnce', () => {

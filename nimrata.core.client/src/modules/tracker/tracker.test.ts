@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDataController, ICON_REGISTRY } from '@platform';
+import { PALETTE_COLORS } from '@platform/tree/colorRules';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
@@ -320,6 +321,14 @@ describe('Tracker manifest: consistency with logic', () => {
     it('manifest_everyNodeTypeIcon_existsInRegistry', () => {
         const unknown = manifest.types.filter((t) => !Object.hasOwn(ICON_REGISTRY, t.icon));
         expect(unknown.map((t) => t.id)).toEqual([]);
+    });
+
+    /**
+     * Проверяет, что цвет значка каждого типа узла — имя палитры
+     */
+    it('manifest_everyNodeTypeIconColor_isPaletteColor', () => {
+        const invalid = manifest.types.filter((t) => !PALETTE_COLORS.has(t.iconColor));
+        expect(invalid.map((t) => t.id)).toEqual([]);
     });
 
     /**

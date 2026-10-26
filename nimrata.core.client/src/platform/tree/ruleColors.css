@@ -20,3 +20,8 @@
 [data-rule-color='gray'] {
     color: var(--rule-gray);
 }
+
+/* Цвет по правилу строки сильнее цвета иконки типа */
+[data-rule-color] .icon[data-tone] {
+    color: inherit;
+}

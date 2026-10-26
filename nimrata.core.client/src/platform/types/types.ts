@@ -96,6 +96,8 @@ export interface TypeDefinition {
     hiddenInTree?: boolean;
     /** Иконка узла в дереве (имя из реестра иконок); без неё или при неизвестном имени показывается значок по умолчанию */
     icon?: string;
+    /** Цвет иконки узла: имя палитры (red, orange, yellow, green, blue, purple, gray); без него иконка наследует цвет текста */
+    iconColor?: string;
     automation?: boolean;
     allowedChildren?: string[];
     properties?: PropertyDefinition[];

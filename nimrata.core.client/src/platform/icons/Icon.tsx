@@ -9,6 +9,11 @@ import { FALLBACK_ICON, ICON_REGISTRY, isIconName } from './registry';
 export type IconSize = 'sm' | 'md' | 'lg';
 
 /**
+ * Смысловой цвет иконки: имя палитры `--rule-*`; оттенок зависит от темы
+ */
+export type IconTone = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'gray';
+
+/**
  * Имена, для которых уже выведено предупреждение: каждое неизвестное имя сообщается один раз
  */
 const warnedNames = new Set<string>();
@@ -21,6 +26,8 @@ export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'children' | 'n
     name?: string;
     /** Размер из шкалы токенов; по умолчанию основной */
     size?: IconSize;
+    /** Смысловой цвет; без него иконка наследует цвет текста */
+    tone?: IconTone;
 }
 
 /**
@@ -29,7 +36,7 @@ export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'children' | 'n
  * @param props - имя, размер и свойства SVG
  * @returns SVG, скрытый от вспомогательных технологий, если не задан `aria-label`
  */
-export function Icon({ name, size = 'md', className, ...props }: IconProps) {
+export function Icon({ name, size = 'md', tone, className, ...props }: IconProps) {
     let resolved = FALLBACK_ICON;
     if (name !== undefined && name !== '') {
         if (isIconName(name)) {
@@ -51,6 +58,7 @@ export function Icon({ name, size = 'md', className, ...props }: IconProps) {
             aria-hidden={decorative ? 'true' : undefined}
             role={decorative ? undefined : 'img'}
             focusable="false"
+            data-tone={tone}
             {...props}
         />
     );
