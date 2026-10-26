@@ -13,7 +13,7 @@ body,
 
 body {
     margin: 0;
-    font: 14px/1.5 var(--font);
+    font: var(--weight-normal) var(--text-sm)/var(--leading-normal) var(--font);
     color: var(--text);
     background: var(--bg);
     -webkit-font-smoothing: antialiased;
@@ -24,7 +24,8 @@ h1,
 h2,
 h3 {
     margin: 0;
-    font-weight: 600;
+    font-weight: var(--weight-strong);
+    line-height: var(--leading-tight);
     color: var(--text);
 }
 
@@ -41,11 +42,15 @@ textarea {
 }
 
 button {
+    min-height: var(--control-height);
     padding: var(--space-1) var(--space-3);
     background: var(--bg);
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     cursor: pointer;
+    transition:
+        background-color var(--transition),
+        border-color var(--transition);
 }
 
 button:hover:not(:disabled) {
@@ -70,14 +75,16 @@ button[type='submit']:hover:not(:disabled) {
 input:not([type='checkbox']):not([type='radio']),
 select,
 textarea {
+    min-height: var(--control-height);
     padding: var(--space-1) var(--space-2);
     background: var(--bg-input);
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius);
+    transition: border-color var(--transition);
 }
 
 :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: var(--focus-ring);
     outline-offset: 1px;
 }
 
@@ -97,13 +104,13 @@ table {
 }
 
 th {
-    font-weight: 500;
+    font-weight: var(--weight-medium);
     color: var(--text-muted);
 }
 
 code {
     font-family: var(--mono);
-    font-size: 0.9em;
+    font-size: var(--text-xs);
 }
 
 [role='alert'] {
@@ -126,7 +133,7 @@ code {
 }
 
 .auth-card h1 {
-    font-size: 1.35rem;
+    font-size: var(--text-xl);
 }
 
 .auth-card form {
@@ -139,12 +146,12 @@ code {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-    font-size: 0.85rem;
+    font-size: var(--text-xs);
     color: var(--text-muted);
 }
 
 .auth-card label input {
-    font-size: 1rem;
+    font-size: var(--text-md);
     color: var(--text);
 }
 
@@ -152,4 +159,13 @@ code {
     background: none;
     border-color: transparent;
     color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
 }
