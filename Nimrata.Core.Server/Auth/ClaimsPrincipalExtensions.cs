@@ -2,9 +2,14 @@ using System.Security.Claims;
 
 namespace Nimrata.Core.Server.Auth;
 
+/// <summary>
+/// Расширения для чтения данных пользователя из токена
+/// </summary>
 public static class ClaimsPrincipalExtensions
 {
-    /// <summary>Идентификатор аутентифицированного пользователя из claim <c>sub</c></summary>
+    /// <summary>
+    /// Идентификатор аутентифицированного пользователя из claim <c>sub</c>
+    /// </summary>
     /// <exception cref="InvalidOperationException">В токене нет идентификатора пользователя</exception>
     public static Guid GetUserId(this ClaimsPrincipal principal)
     {

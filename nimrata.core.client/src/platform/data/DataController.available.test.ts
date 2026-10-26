@@ -19,7 +19,13 @@ const objects = [
     { id: 'b', type: 'Item', parent: null, order: 1, properties: {} },
 ];
 
+/**
+ * Контроллер данных: условие доступности действия
+ */
 describe('DataController: action availability condition', () => {
+    /**
+     * Проверяет, что действие с условием показывается только там, где оно выполняется, и не запускается иначе
+     */
     it('availability_actionWithCondition_shownOnlyWhereConditionHoldsAndNotRunOtherwise', async () => {
         const data = createDataController({ api: createFakeApi(types, objects) });
         await data.load();

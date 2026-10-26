@@ -1,6 +1,8 @@
 import type { ColorRule } from '@platform/types/types';
 
-/** Цвета манифеста, для которых в `ruleColors.css` заданы оттенки светлой и тёмной темы */
+/**
+ * Цвета манифеста, для которых в `ruleColors.css` заданы оттенки светлой и тёмной темы
+ */
 export const PALETTE_COLORS: ReadonlySet<string> = new Set([
     'red',
     'orange',
@@ -11,7 +13,9 @@ export const PALETTE_COLORS: ReadonlySet<string> = new Set([
     'gray',
 ]);
 
-/** Цвет первого правила, условие которого выполнено; без подходящего правила — `undefined` */
+/**
+ * Цвет первого правила, условие которого выполнено; без подходящего правила — `undefined`
+ */
 export function resolveRuleColor(
     rules: readonly ColorRule[] | undefined,
     properties: Readonly<Record<string, unknown>>,
@@ -19,7 +23,9 @@ export function resolveRuleColor(
     return rules?.find((rule) => properties[rule.property] === rule.equals)?.color;
 }
 
-/** Как показать цвет: имя палитры (оттенок зависит от темы) или произвольное значение CSS напрямую */
+/**
+ * Как показать цвет: имя палитры (оттенок зависит от темы) или произвольное значение CSS напрямую
+ */
 export function colorPresentation(color: string | undefined): {
     paletteColor?: string;
     cssColor?: string;

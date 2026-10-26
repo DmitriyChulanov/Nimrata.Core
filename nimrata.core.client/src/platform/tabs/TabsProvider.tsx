@@ -8,13 +8,25 @@ import type { StoredLayout } from '@platform/tabs/layoutStorage';
 import type { TabRegistry } from '@platform/tabs/registries';
 import type { TabsValue } from '@platform/tabs/TabsContext';
 
+/**
+ * Свойства компонента `TabsProvider`
+ */
 export interface TabsProviderProps {
+    /** Реестр видов вкладок */
     registry: TabRegistry;
     /** Пользователь, чья раскладка хранится в `localStorage` */
     userId: string;
+    /** Вложенные элементы */
     children: ReactNode;
 }
 
+/**
+ * Начальная раскладка: сохранённая, очищенная от неизвестных видов вкладок
+ *
+ * @param registry - реестр видов вкладок
+ * @param userId - пользователь, чья раскладка загружается
+ * @returns раскладка; пустая, если ничего не сохранено
+ */
 function initialLayout(registry: TabRegistry, userId: string): StoredLayout {
     const stored = loadLayout(userId);
     if (!stored) return { tabs: [], activeId: null, widths: DEFAULT_WIDTHS };
@@ -25,7 +37,9 @@ function initialLayout(registry: TabRegistry, userId: string): StoredLayout {
     return { tabs, activeId, widths: stored.widths };
 }
 
-/** Состояние раскладки: открытые вкладки, активная вкладка и ширины панелей (запоминаются для пользователя) */
+/**
+ * Состояние раскладки: открытые вкладки, активная вкладка и ширины панелей (запоминаются для пользователя)
+ */
 export function TabsProvider({ registry, userId, children }: TabsProviderProps) {
     const [layout, setLayout] = useState(() => initialLayout(registry, userId));
 

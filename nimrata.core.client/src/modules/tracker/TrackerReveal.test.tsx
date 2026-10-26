@@ -37,7 +37,13 @@ function Probe({ id }: { id: string }) {
     );
 }
 
+/**
+ * Переход по внутренней ссылке Трекера в интерфейсе
+ */
 describe('Tracker: internal link navigation in the interface', () => {
+    /**
+     * Проверяет, что кнопка выделяет целевой объект и просит дерево показать его
+     */
     it('internalLinkUi_button_selectsTargetObjectAndAsksTreeToShowIt', async () => {
         const bridge = createRevealBridge();
         const data = createDataController({ api: createFakeApi(types, []) });

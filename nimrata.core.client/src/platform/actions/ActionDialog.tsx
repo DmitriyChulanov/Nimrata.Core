@@ -6,11 +6,23 @@ import type { FormEvent, ReactNode } from 'react';
 import type { DataController } from '@platform/data/DataController';
 import type { ActionDefinition, PropertyDefinition } from '@platform/types/types';
 
+/**
+ * Черновик формы: введённые значения полей по идентификаторам параметров
+ */
 type Draft = Record<string, string | boolean>;
 
-/** Результат разбора поля: значение (`undefined` — не передавать) либо причина отказа */
+/**
+ * Результат разбора поля: значение (`undefined` — не передавать) либо причина отказа
+ */
 type Parsed = { ok: true; value: unknown } | { ok: false; error: string };
 
+/**
+ * Разбирает введённое значение параметра по его виду
+ *
+ * @param parameter - описание параметра
+ * @param raw - введённое значение: строка или признак флажка
+ * @returns значение для передачи действию либо причина отказа
+ */
 function parseField(parameter: PropertyDefinition, raw: string | boolean | undefined): Parsed {
     if (parameter.kind === 'boolean') return { ok: true, value: raw === true };
     const text = typeof raw === 'string' ? raw : '';
@@ -36,6 +48,12 @@ function parseField(parameter: PropertyDefinition, raw: string | boolean | undef
     }
 }
 
+/**
+ * Начальный черновик формы по значениям параметров по умолчанию
+ *
+ * @param parameters - параметры действия
+ * @returns черновик с заполненными значениями по умолчанию
+ */
 function initialDraft(parameters: PropertyDefinition[]): Draft {
     const draft: Draft = {};
     for (const p of parameters) {
@@ -45,6 +63,13 @@ function initialDraft(parameters: PropertyDefinition[]): Draft {
     return draft;
 }
 
+/**
+ * Название объекта для списка выбора: вычисляемое имя, иначе название типа
+ *
+ * @param data - контроллер данных
+ * @param id - идентификатор объекта
+ * @returns текст для показа; идентификатор, если объекта нет
+ */
 function titleOf(data: DataController, id: string): string {
     const object = data.getObject(id);
     if (!object) return id;
@@ -52,7 +77,9 @@ function titleOf(data: DataController, id: string): string {
     return typeof name === 'string' && name ? name : (data.getType(object.type)?.name ?? id);
 }
 
-/** Объекты, которые можно выбрать в ссылочном параметре: по `targetTypes` (без него — любые) */
+/**
+ * Объекты, которые можно выбрать в ссылочном параметре: по `targetTypes` (без него — любые)
+ */
 function referenceOptions(data: DataController, parameter: PropertyDefinition) {
     const targets = parameter.targetTypes;
     const result: { id: string; title: string }[] = [];
@@ -68,6 +95,12 @@ function referenceOptions(data: DataController, parameter: PropertyDefinition) {
     return result;
 }
 
+/**
+ * Поле формы для одного параметра действия; вид элемента зависит от вида параметра
+ *
+ * @param props - параметр, его значение, обработчик изменения и контроллер данных
+ * @returns подписанное поле ввода
+ */
 function Field({
     parameter,
     value,
@@ -165,14 +198,21 @@ function Field({
     );
 }
 
+/**
+ * Свойства компонента `ActionDialog`
+ */
 export interface ActionDialogProps {
+    /** Запускаемое действие и описание его параметров */
     action: ActionDefinition;
     /** Запуск действия с собранными параметрами; возвращает причину отказа или `null` при успехе */
     onSubmit(params: Record<string, unknown>): Promise<string | null>;
+    /** Закрывает диалог без запуска действия */
     onCancel(): void;
 }
 
-/** Диалог ввода параметров действия: поля строятся по описанию параметров, обязательные проверяются */
+/**
+ * Диалог ввода параметров действия: поля строятся по описанию параметров, обязательные проверяются
+ */
 export function ActionDialog({ action, onSubmit, onCancel }: ActionDialogProps) {
     const data = useData();
     const parameters = action.parameters ?? [];

@@ -4,7 +4,9 @@ import { useOptionalSelection } from '@platform/selection/useOptionalSelection';
 
 import type { DataController, DataObject } from '@platform/data/DataController';
 
-/** Все объекты типов с отметкой `automation` (включая скрытые в дереве), в порядке обхода */
+/**
+ * Все объекты типов с отметкой `automation` (включая скрытые в дереве), в порядке обхода
+ */
 function collectMechanisms(data: DataController): DataObject[] {
     const result: DataObject[] = [];
     const walk = (parent: string | null) => {
@@ -17,7 +19,9 @@ function collectMechanisms(data: DataController): DataObject[] {
     return result;
 }
 
-/** Цель механизма: значение ссылочного свойства с признаком `revealTarget`, если объект существует */
+/**
+ * Цель механизма: значение ссылочного свойства с признаком `revealTarget`, если объект существует
+ */
 function revealTargetOf(data: DataController, object: DataObject): string | undefined {
     const property = data
         .getType(object.type)
@@ -26,7 +30,9 @@ function revealTargetOf(data: DataController, object: DataObject): string | unde
     return typeof value === 'string' && data.getObject(value) ? value : undefined;
 }
 
-/** Вкладка «Автоматизация»: механизмы и их действия с размещением `automation` */
+/**
+ * Вкладка «Автоматизация»: механизмы и их действия с размещением `automation`
+ */
 export function AutomationTab() {
     const data = useData();
     const selection = useOptionalSelection();

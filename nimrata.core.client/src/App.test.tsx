@@ -17,6 +17,9 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
+/**
+ * Проверяет, что без сессии показывается экран входа
+ */
 it('app_withoutSession_showsLoginScreen', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
 
@@ -27,6 +30,9 @@ it('app_withoutSession_showsLoginScreen', async () => {
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что после перезагрузки страницы сессия восстанавливается по refresh-cookie
+ */
 it('app_afterPageReload_restoresSessionViaRefresh', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ accessToken: 'tok' }));
     vi.stubGlobal('fetch', fetchMock);
@@ -38,6 +44,9 @@ it('app_afterPageReload_restoresSessionViaRefresh', async () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/api/auth/refresh');
 });
 
+/**
+ * Проверяет, что вход по адресу и паролю открывает приложение
+ */
 it('app_loginWithEmailAndPassword_opensApplication', async () => {
     const fetchMock = vi
         .fn()
@@ -59,6 +68,9 @@ it('app_loginWithEmailAndPassword_opensApplication', async () => {
     });
 });
 
+/**
+ * Проверяет, что неверный пароль показывает сообщение и оставляет экран входа
+ */
 it('app_wrongPassword_showsMessageAndStaysOnLogin', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -73,6 +85,9 @@ it('app_wrongPassword_showsMessageAndStaysOnLogin', async () => {
     expect(screen.getByLabelText('Пароль')).toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что выход возвращает на экран входа
+ */
 it('app_logout_returnsToLoginScreen', async () => {
     const fetchMock = vi
         .fn()
@@ -93,6 +108,9 @@ it('app_logout_returnsToLoginScreen', async () => {
     expect(fetchMock.mock.calls.some(([url]) => url === '/api/auth/logout')).toBe(true);
 });
 
+/**
+ * Проверяет, что после входа видны три панели, а выбранный объект показывается в свойствах
+ */
 it('app_afterLogin_showsThreePanelsAndSelectedObjectInProperties', async () => {
     const types = [
         {
@@ -135,6 +153,9 @@ it('app_afterLogin_showsThreePanelsAndSelectedObjectInProperties', async () => {
     ).toHaveValue('Идея');
 });
 
+/**
+ * Проверяет, что вкладка и пункт меню платформы работают без модулей, а роль скрывает недоступные пункты
+ */
 it('app_platformTabAndMenuItem_workWithoutModulesAndRoleHidesItems', async () => {
     tabRegistry.register({
         id: 'app-test',
@@ -192,6 +213,9 @@ function stubSession(isAdmin: boolean) {
     );
 }
 
+/**
+ * Проверяет, что администратор открывает вкладку пользователей из меню администрирования
+ */
 it('app_administrator_opensUsersTabFromAdministrationMenu', async () => {
     stubSession(true);
     const user = userEvent.setup();
@@ -204,6 +228,9 @@ it('app_administrator_opensUsersTabFromAdministrationMenu', async () => {
     expect(await screen.findByRole('button', { name: 'Создать' })).toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что обычный пользователь не видит меню администрирования
+ */
 it('app_member_doesNotSeeAdministrationMenu', async () => {
     stubSession(false);
     render(<App />);
@@ -212,6 +239,9 @@ it('app_member_doesNotSeeAdministrationMenu', async () => {
     expect(screen.queryByRole('menuitem', { name: 'Администрирование' })).not.toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что ссылка из письма открывает форму нового пароля с токеном из адреса
+ */
 it('app_resetLinkFromEmail_opensNewPasswordFormWithTokenFromAddress', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
     vi.stubGlobal('fetch', fetchMock);

@@ -1,7 +1,16 @@
 import type { SVGProps } from 'react';
 
+/**
+ * Свойства значка: стандартные свойства SVG без вложенных элементов
+ */
 type IconProps = Omit<SVGProps<SVGSVGElement>, 'children'>;
 
+/**
+ * Основа значка: рисует SVG 16×16 линией цвета текста
+ *
+ * @param props - вложенные фигуры и свойства SVG
+ * @returns скрытый от вспомогательных технологий значок
+ */
 function Icon({ children, ...props }: SVGProps<SVGSVGElement>) {
     return (
         <svg
@@ -22,7 +31,9 @@ function Icon({ children, ...props }: SVGProps<SVGSVGElement>) {
     );
 }
 
-/** Стрелка раскрытия узла: вправо — свёрнут, вниз — раскрыт */
+/**
+ * Стрелка раскрытия узла: вправо — свёрнут, вниз — раскрыт
+ */
 export function ChevronIcon({ open, ...props }: IconProps & { open: boolean }) {
     return (
         <Icon {...props}>
@@ -31,7 +42,9 @@ export function ChevronIcon({ open, ...props }: IconProps & { open: boolean }) {
     );
 }
 
-/** Крестик закрытия */
+/**
+ * Крестик закрытия
+ */
 export function CloseIcon(props: IconProps) {
     return (
         <Icon {...props}>
@@ -40,7 +53,9 @@ export function CloseIcon(props: IconProps) {
     );
 }
 
-/** Выход из системы */
+/**
+ * Выход из системы
+ */
 export function LogoutIcon(props: IconProps) {
     return (
         <Icon {...props}>

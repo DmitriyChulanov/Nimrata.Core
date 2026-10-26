@@ -35,6 +35,9 @@ async function openEdit(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByRole('menuitem', { name: 'Правка' }));
 }
 
+/**
+ * Проверяет, что пункты правки отключены, пока нечего отменять и повторять
+ */
 it('undoControls_editItems_disabledWhileNothingToUndoOrRedo', async () => {
     const user = userEvent.setup();
     await setup();
@@ -43,6 +46,9 @@ it('undoControls_editItems_disabledWhileNothingToUndoOrRedo', async () => {
     expect(screen.getByRole('menuitem', { name: /Повторить/ })).toBeDisabled();
 });
 
+/**
+ * Проверяет, что отмена и повтор из меню работают и включаются по состоянию стека
+ */
 it('undoControls_undoAndRedoFromMenu_workAndEnableByStackState', async () => {
     const user = userEvent.setup();
     const { data } = await setup();
@@ -60,6 +66,9 @@ it('undoControls_undoAndRedoFromMenu_workAndEnableByStackState', async () => {
     expect(data.getObject('a')?.properties.title).toBe('X');
 });
 
+/**
+ * Проверяет, что `Ctrl+Z` отменяет, а `Ctrl+Y` и `Ctrl+Shift+Z` повторяют
+ */
 it('undoControls_ctrlZUndoes_ctrlYAndCtrlShiftZRedo', async () => {
     const user = userEvent.setup();
     const { data } = await setup();
@@ -76,6 +85,9 @@ it('undoControls_ctrlZUndoes_ctrlYAndCtrlShiftZRedo', async () => {
     expect(data.getObject('a')?.properties.title).toBe('X');
 });
 
+/**
+ * Проверяет, что в поле ввода `Ctrl+Z` остаётся за браузером
+ */
 it('undoControls_inInputField_ctrlZStaysWithBrowser', async () => {
     const user = userEvent.setup();
     const { data } = await setup();
@@ -87,6 +99,9 @@ it('undoControls_inInputField_ctrlZStaysWithBrowser', async () => {
     expect(data.getObject('a')?.properties.title).toBe('X');
 });
 
+/**
+ * Проверяет, что конфликт показывает сообщение и не меняет данные
+ */
 it('undoControls_conflict_showsMessageAndDataUnchanged', async () => {
     const user = userEvent.setup();
     const { data, api } = await setup();

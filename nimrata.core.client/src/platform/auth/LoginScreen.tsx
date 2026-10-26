@@ -6,10 +6,20 @@ import { ForgotPasswordForm } from './ForgotPasswordForm';
 
 import type { FormEvent } from 'react';
 
+/**
+ * Свойства компонента `LoginScreen`
+ */
 interface LoginScreenProps {
+    /** Вход по адресу и паролю; при отказе бросает ошибку с причиной */
     onLogin: (email: string, password: string) => Promise<void>;
 }
 
+/**
+ * Экран входа с переходом к запросу ссылки на смену пароля
+ *
+ * @param props - обработчик входа
+ * @returns форма входа
+ */
 export function LoginScreen({ onLogin }: LoginScreenProps) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');

@@ -4,15 +4,25 @@ import { allTasks, taskDate } from './tasks';
 
 import type { DataController, DataObject } from '@platform';
 
-/** Период проверки задач */
+/**
+ * Период проверки задач
+ */
 export const CHECK_INTERVAL_MS = 60_000;
-/** Сколько минут после назначенного времени уведомление ещё уместно (при входе позже — пропускается) */
+/**
+ * Сколько минут после назначенного времени уведомление ещё уместно (при входе позже — пропускается)
+ */
 export const GRACE_MINUTES = 60;
 
+/**
+ * Формат времени задачи `ЧЧ:мм`
+ */
 const TIME = /^(\d{2}):(\d{2})$/;
 
-/** Уведомление, которое пора показать */
+/**
+ * Уведомление, которое пора показать
+ */
 export interface DueNotification {
+    /** Идентификатор задачи */
     taskId: string;
     /** Время задачи «HH:mm» */
     title: string;
@@ -20,23 +30,38 @@ export interface DueNotification {
     body: string;
 }
 
-/** Состояние службы: сутки (`ГГГГ-ММ-ДД`) и задачи, по которым уведомление уже показано */
+/**
+ * Состояние службы: сутки (`ГГГГ-ММ-ДД`) и задачи, по которым уведомление уже показано
+ */
 export interface NotificationState {
     date: string;
     shown: ReadonlySet<string>;
 }
 
+/**
+ * Создаёт пустое состояние службы уведомлений
+ *
+ * @returns состояние без показанных уведомлений
+ */
 export function createNotificationState(): NotificationState {
     return { date: '', shown: new Set() };
 }
 
-/** Время задачи в минутах от полуночи; `undefined`, если времени нет */
+/**
+ * Время задачи в минутах от полуночи; `undefined`, если времени нет
+ */
 function minutesOfDay(task: DataObject): number | undefined {
     const time = task.properties.time;
     const match = typeof time === 'string' ? TIME.exec(time) : null;
     return match ? Number(match[1]) * 60 + Number(match[2]) : undefined;
 }
 
+/**
+ * За сколько минут до времени задачи нужно уведомить
+ *
+ * @param task - задача
+ * @returns число минут; 0, если уведомление за время не настроено
+ */
 function notifyBefore(task: DataObject): number {
     const value = task.properties.notifyBefore;
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
@@ -73,7 +98,11 @@ export function checkNotifications(
     return { due, state: { date: today, shown } };
 }
 
+/**
+ * Параметры службы уведомлений
+ */
 export interface NotificationServiceOptions {
+    /** Контроллер данных, из которого берутся задачи */
     data: DataController;
     /** Показывает уведомление; по умолчанию — `Notification` браузера, если разрешение выдано */
     notify?: (title: string, body: string) => void;
@@ -83,13 +112,19 @@ export interface NotificationServiceOptions {
     store?: ShownStore;
 }
 
-/** Где запоминаются задачи, по которым уведомление за день уже показано */
+/**
+ * Где запоминаются задачи, по которым уведомление за день уже показано
+ */
 export interface ShownStore {
     /** Показанные в сутки `date` (`ГГГГ-ММ-ДД`); записи прошлых дней могут быть удалены */
     load(date: string): ReadonlySet<string>;
+    /** Запоминает показанные за сутки `date` */
     save(date: string, shown: ReadonlySet<string>): void;
 }
 
+/**
+ * Префикс ключей `localStorage` для показанных уведомлений
+ */
 const STORE_PREFIX = 'nimrata.tracker.notifications.';
 
 /**
@@ -127,14 +162,18 @@ export function createLocalShownStore(userId: string): ShownStore {
     };
 }
 
-/** Узкий слой над Notification API браузера (подменяется в тестах) */
+/**
+ * Узкий слой над Notification API браузера (подменяется в тестах)
+ */
 export interface BrowserNotifications {
     permission(): NotificationPermission;
     requestPermission(): Promise<NotificationPermission>;
     show(title: string, body: string): void;
 }
 
-/** Notification API текущего браузера; `null`, если он не поддерживается */
+/**
+ * Notification API текущего браузера; `null`, если он не поддерживается
+ */
 export function browserNotifications(): BrowserNotifications | null {
     if (typeof Notification === 'undefined') return null;
     return {
@@ -146,7 +185,9 @@ export function browserNotifications(): BrowserNotifications | null {
     };
 }
 
-/** Показывает уведомление, только если разрешение выдано */
+/**
+ * Показывает уведомление, только если разрешение выдано
+ */
 export function showBrowserNotification(title: string, body: string): void {
     const browser = browserNotifications();
     if (browser?.permission() === 'granted') browser.show(title, body);

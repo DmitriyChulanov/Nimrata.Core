@@ -3,10 +3,14 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Objects;
 
-/// <summary>Чтение объектов пользователя</summary>
+/// <summary>
+/// Чтение объектов пользователя
+/// </summary>
 public sealed class ObjectsService(NpgsqlDataSource dataSource)
 {
-    /// <summary>Все объекты пользователя и только они</summary>
+    /// <summary>
+    /// Все объекты пользователя и только они
+    /// </summary>
     public async Task<IReadOnlyList<ObjectRecord>> LoadAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

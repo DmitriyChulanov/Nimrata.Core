@@ -7,19 +7,28 @@ import { uuid7 } from './uuid7';
 import type { ApiClient } from '@platform/api/apiClient';
 import type { ActionDefinition, ActionPlacement, TypeDefinition } from '@platform/types/types';
 
-/** Объект в дереве: значения свойств лежат в `properties`, отсутствующее значение — нет ключа */
+/**
+ * Объект в дереве: значения свойств лежат в `properties`, отсутствующее значение — нет ключа
+ */
 export interface DataObject {
     id: string;
+    /** Идентификатор типа объекта */
     type: string;
     parent: string | null;
     order: number;
     properties: Record<string, unknown>;
 }
 
+/**
+ * Состояние загрузки модели данных
+ */
 export type DataStatus = 'idle' | 'loading' | 'ready' | 'error';
 
-/** Состояние модели для подписчиков UI (неизменяемый снимок) */
+/**
+ * Состояние модели для подписчиков UI (неизменяемый снимок)
+ */
 export interface DataSnapshot {
+    /** Состояние загрузки */
     status: DataStatus;
     /** Версия модели: растёт при каждом изменении (удобно для `useSyncExternalStore`) */
     version: number;
@@ -29,24 +38,41 @@ export interface DataSnapshot {
     needsReload: boolean;
 }
 
-/** Результат изменения: успех либо причина отказа, пригодная для показа пользователю */
+/**
+ * Результат изменения: успех либо причина отказа, пригодная для показа пользователю
+ */
 export type ChangeResult = { ok: true } | { ok: false; error: string };
+/**
+ * Результат создания объекта: идентификатор нового объекта либо причина отказа
+ */
 export type CreateResult = { ok: true; id: string } | { ok: false; error: string };
 
+/**
+ * Данные создаваемого объекта
+ */
 export interface CreateInput {
     type: string;
+    /** Родитель; `null` или отсутствие — корень */
     parent?: string | null;
     /** Порядок среди соседей; без него объект добавляется последним */
     order?: number;
+    /** Начальные значения свойств */
     properties?: Record<string, unknown>;
 }
 
+/**
+ * Новое положение перемещаемого объекта
+ */
 export interface MoveInput {
+    /** Новый родитель; `null` — корень; отсутствие — не менять */
     parent?: string | null;
+    /** Новый порядок среди соседей; отсутствие — не менять */
     order?: number;
 }
 
-/** Параметры выполнения операции */
+/**
+ * Параметры выполнения операции
+ */
 export interface OperationOptions {
     /**
      * `false` — не запускать хуки (внутренние операции: повторы, Undo).
@@ -67,12 +93,22 @@ export interface ChangeScope {
     remove(id: string): ChangeResult;
 }
 
+/**
+ * Операция, к которой подключается хук
+ */
 export type HookOperation = 'create' | 'setProperty' | 'move' | 'remove';
+/**
+ * Момент срабатывания хука: до операции или после неё
+ */
 export type HookPhase = 'before' | 'after';
 
-/** Контекст хука */
+/**
+ * Контекст хука
+ */
 export interface HookContext {
+    /** Выполняемая операция */
     operation: HookOperation;
+    /** Момент срабатывания хука */
     phase: HookPhase;
     /**
      * Объект операции: «до» создания — черновик (ещё не в модели), «после» удаления —
@@ -90,10 +126,18 @@ export interface HookContext {
     tx: ChangeScope;
 }
 
-/** Результат хука «до»: `{ cancel: сообщение }` отменяет операцию (и весь набор) */
+/**
+ * Результат хука «до»: `{ cancel: сообщение }` отменяет операцию (и весь набор)
+ */
 export type HookResult = { cancel: string } | void;
+/**
+ * Обработчик хука
+ */
 export type HookHandler = (context: HookContext) => HookResult;
 
+/**
+ * Контекст обработчика действия
+ */
 export interface ActionContext {
     /** Снимок объекта-цели на момент запуска */
     object: DataObject;
@@ -103,25 +147,42 @@ export interface ActionContext {
     tx: ChangeScope;
 }
 
+/**
+ * Обработчик действия; может быть асинхронным
+ */
 export type ActionHandler = (context: ActionContext) => void | Promise<void>;
 
+/**
+ * Параметры регистрации действия
+ */
 export interface ActionRegistrationOptions {
     /** Условие доступности: действие показывается и запускается только для объектов, где оно истинно */
     available?: (object: DataObject) => boolean;
 }
 
+/**
+ * Параметры контроллера данных
+ */
 export interface DataControllerOptions {
+    /** API-клиент для загрузки данных и отправки наборов изменений */
     api: ApiClient;
     /** Генератор идентификаторов новых объектов (по умолчанию UUIDv7) */
     newId?: () => string;
 }
 
+/**
+ * Контроллер данных: модель типов и объектов, изменения, хуки, действия и отмена
+ */
 export interface DataController {
     /** Загружает типы и объекты пользователя, заменяя модель */
     load(): Promise<void>;
+    /** Текущий снимок состояния модели */
     getSnapshot(): DataSnapshot;
+    /** Подписка на изменения модели; возвращает функцию отписки */
     subscribe(listener: () => void): () => void;
+    /** Тип по идентификатору */
     getType(id: string): TypeDefinition | undefined;
+    /** Все загруженные типы */
     getTypes(): TypeDefinition[];
     getObject(id: string): DataObject | undefined;
     /** Потомки родителя по возрастанию порядка; `null` — корневые объекты */
@@ -188,34 +249,64 @@ export interface DataController {
     ): Promise<ChangeResult>;
 }
 
+/**
+ * Текст причины из произвольной ошибки
+ *
+ * @param error - пойманное исключение
+ * @returns сообщение ошибки или строковое представление значения
+ */
 function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
-/** Предел вложенности хуков: защита от бесконечной рекурсии */
+/**
+ * Предел вложенности хуков: защита от бесконечной рекурсии
+ */
 const MAX_HOOK_DEPTH = 16;
 
+/**
+ * Набор изменений в процессе применения
+ */
 interface Scope {
+    /** Операции набора в порядке выполнения */
     operations: Operation[];
     /** Состояние затронутых объектов до первого изменения (для отката); `undefined` — не было */
     before: Map<string, DataObject | undefined>;
+    /** Запускать ли хуки в этом наборе */
     hooks: boolean;
+    /** Текущая вложенность хуков */
     depth: number;
     /** Первая причина отказа: набор будет отменён */
     error: string | null;
 }
 
+/**
+ * Зарегистрированный хук
+ */
 interface HookEntry {
     type: string;
     operation: HookOperation;
     phase: HookPhase;
+    /** Обработчик хука */
     handler: HookHandler;
 }
 
+/**
+ * Пустой ли параметр действия
+ *
+ * @param value - значение параметра
+ * @returns `true` для `undefined`, `null` и пустой строки
+ */
 function isEmptyParam(value: unknown): boolean {
     return value === undefined || value === null || value === '';
 }
 
+/**
+ * Создаёт контроллер данных
+ *
+ * @param options - API-клиент и генератор идентификаторов
+ * @returns контроллер с пустой моделью; данные загружает `load`
+ */
 export function createDataController(options: DataControllerOptions): DataController {
     const { api } = options;
 
@@ -300,7 +391,9 @@ export function createDataController(options: DataControllerOptions): DataContro
         return { ok: false, error };
     }
 
-    /** Запускает хуки; для фазы «до» возвращает сообщение отмены, если хук отказал */
+    /**
+     * Запускает хуки; для фазы «до» возвращает сообщение отмены, если хук отказал
+     */
     function runHooks(
         scope: Scope,
         tx: ChangeScope,

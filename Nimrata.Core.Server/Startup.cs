@@ -4,9 +4,14 @@ using Nimrata.Core.Server.Data;
 
 namespace Nimrata.Core.Server;
 
+/// <summary>
+/// Действия при старте сервера
+/// </summary>
 public static class Startup
 {
-    /// <summary>Применяет пронумерованные SQL-миграции, встроенные в сборку сервера</summary>
+    /// <summary>
+    /// Применяет пронумерованные SQL-миграции, встроенные в сборку сервера
+    /// </summary>
     public static void ApplyMigrations(string connectionString)
     {
         EnsureDatabase.For.PostgresqlDatabase(connectionString);

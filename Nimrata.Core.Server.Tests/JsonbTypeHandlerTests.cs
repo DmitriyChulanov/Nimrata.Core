@@ -5,8 +5,14 @@ using NpgsqlTypes;
 
 namespace Nimrata.Core.Server.Tests;
 
+/// <summary>
+/// Обработчик jsonb для Dapper
+/// </summary>
 public class JsonbTypeHandlerTests
 {
+    /// <summary>
+    /// Проверяет, что значение записывается в параметр с типом jsonb
+    /// </summary>
     [Fact]
     public void SetValue_WritesParameterAsJsonb()
     {
@@ -19,6 +25,9 @@ public class JsonbTypeHandlerTests
         Assert.Equal("""{"a":1}""", parameter.Value);
     }
 
+    /// <summary>
+    /// Проверяет, что строка jsonb разбирается в JsonElement
+    /// </summary>
     [Fact]
     public void Parse_JsonbString_ReturnsJsonElement()
     {

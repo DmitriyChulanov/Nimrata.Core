@@ -3,8 +3,15 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Tests;
 
+/// <summary>
+/// Базовый запуск сервера
+/// </summary>
+/// <param name="factory">Стенд сервера с Postgres</param>
 public class ServerSkeletonTests(ServerFactory factory) : IClassFixture<ServerFactory>
 {
+    /// <summary>
+    /// Проверяет, что после старта health отвечает успехом и миграции применены
+    /// </summary>
     [Fact]
     public async Task Health_AfterStart_ReturnsOkAndMigrationsApplied()
     {

@@ -11,23 +11,42 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Манифест модуля: загрузка в таблицу типов при старте и выдача типов по API</summary>
+/// <summary>
+/// Манифест модуля: загрузка в таблицу типов при старте и выдача типов по API
+/// </summary>
 public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerFactory>, IDisposable
 {
     private readonly List<string> _directories = [];
 
+    /// <summary>
+    /// Удаляет временные каталоги и базы теста
+    /// </summary>
     public void Dispose()
     {
         foreach (var directory in _directories) Directory.Delete(directory, recursive: true);
     }
 
+    /// <summary>
+    /// Формирует JSON описания типа
+    /// </summary>
+    /// <param name="id">Идентификатор типа</param>
+    /// <param name="name">Название</param>
+    /// <returns>JSON типа</returns>
     private static string TypeJson(string id, string name = "Тип") =>
         $$"""{ "id": "{{id}}", "name": "{{name}}" }""";
 
+    /// <summary>
+    /// Формирует JSON манифеста
+    /// </summary>
+    /// <param name="version">Версия манифеста</param>
+    /// <param name="types">JSON типов</param>
+    /// <returns>JSON манифеста</returns>
     private static string Manifest(int version, params string[] types) =>
         $$"""{ "module": "demo", "version": {{version}}, "types": [ {{string.Join(",", types)}} ] }""";
 
-    /// <summary>Каталог модулей с одним манифестом</summary>
+    /// <summary>
+    /// Каталог модулей с одним манифестом
+    /// </summary>
     private string ModulesDirectory(string manifest)
     {
         var directory = Path.Combine(Path.GetTempPath(), "nimrata-modules-" + Guid.NewGuid().ToString("N"));
@@ -37,9 +56,20 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         return directory;
     }
 
+    /// <summary>
+    /// Создаёт отдельную пустую базу для теста
+    /// </summary>
+    /// <param name="row">Строка подключения, из которой берётся сервер</param>
+    /// <returns>Строка подключения к новой базе</returns>
     private static string NewDatabase(string row) =>
         new NpgsqlConnectionStringBuilder(row) { Database = "m" + Guid.NewGuid().ToString("N") }.ConnectionString;
 
+    /// <summary>
+    /// Запускает сервер с отдельной базой и каталогом модулей
+    /// </summary>
+    /// <param name="database">Строка подключения</param>
+    /// <param name="directory">Каталог манифестов или null</param>
+    /// <returns>Фабрика сервера</returns>
     private WebApplicationFactory<Program> Server(string database, string? directory) =>
         factory.WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, configuration) =>
         {
@@ -48,6 +78,11 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
             configuration.AddInMemoryCollection(values);
         }));
 
+    /// <summary>
+    /// Запрашивает типы у API
+    /// </summary>
+    /// <param name="client">Клиент HTTP</param>
+    /// <returns>Массив типов</returns>
     private static async Task<JsonElement[]> FetchTypes(HttpClient client)
     {
         var login = await client.PostAsJsonAsync("/api/auth/login",
@@ -57,14 +92,27 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         return (await client.GetFromJsonAsync<JsonElement[]>("/api/types"))!;
     }
 
+    /// <summary>
+    /// Считает строки таблицы типов
+    /// </summary>
+    /// <param name="database">Строка подключения</param>
+    /// <returns>Число строк</returns>
     private static async Task<long> RowCount(string database)
     {
         await using var connection = new NpgsqlConnection(database);
         return await connection.ExecuteScalarAsync<long>("select count(*) from types");
     }
 
+    /// <summary>
+    /// Читает идентификатор типа
+    /// </summary>
+    /// <param name="type">JSON типа</param>
+    /// <returns>Идентификатор</returns>
     private static string GetId(JsonElement type) => type.GetProperty("id").GetString()!;
 
+    /// <summary>
+    /// Проверяет, что без токена типы недоступны
+    /// </summary>
     [Fact]
     public async Task Types_WithoutToken_Returns401()
     {
@@ -75,6 +123,9 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что манифест Трекера по умолчанию даёт типы заметки и группы заметок
+    /// </summary>
     [Fact]
     public async Task Types_DefaultTrackerManifest_ReturnsNoteAndNoteGroup()
     {
@@ -91,6 +142,9 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
             property => property.GetProperty("id").GetString() == "priority" && property.GetProperty("kind").GetString() == "enum");
     }
 
+    /// <summary>
+    /// Проверяет, что при старте типы загружаются из манифеста
+    /// </summary>
     [Fact]
     public async Task Startup_LoadsTypesFromManifest()
     {
@@ -106,6 +160,9 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         Assert.Equal(1, a.GetProperty("moduleVersion").GetInt32());
     }
 
+    /// <summary>
+    /// Проверяет, что повторный запуск той же версии не дублирует типы
+    /// </summary>
     [Fact]
     public async Task Restart_SameVersion_DoesNotDuplicateTypes()
     {
@@ -125,6 +182,9 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         Assert.Equal(2, await RowCount(database));
     }
 
+    /// <summary>
+    /// Проверяет, что новая версия манифеста обновляет типы и добавляет новые
+    /// </summary>
     [Fact]
     public async Task Startup_NewManifestVersion_UpdatesTypesAndAddsNew()
     {
@@ -148,6 +208,9 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         Assert.Equal(2, a.GetProperty("moduleVersion").GetInt32());
     }
 
+    /// <summary>
+    /// Проверяет, что та же версия с другим содержимым типы не перезаписывает
+    /// </summary>
     [Fact]
     public async Task Startup_SameVersionDifferentContent_DoesNotOverwriteTypes()
     {
@@ -167,6 +230,9 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         Assert.Equal("Исходное", types.Single().GetProperty("name").GetString());
     }
 
+    /// <summary>
+    /// Некорректные манифесты и ожидаемые фрагменты сообщений об ошибке
+    /// </summary>
     public static TheoryData<string, string> InvalidManifests => new()
     {
         { "{ не json", "JSON" },
@@ -182,6 +248,11 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         { Manifest(1, """{ "id": "A", "name": "A", "colorRules": [ { "property": "нет", "equals": "1", "color": "red" } ] }"""), "нет" },
     };
 
+    /// <summary>
+    /// Проверяет, что некорректный манифест останавливает запуск с понятной ошибкой
+    /// </summary>
+    /// <param name="manifest">JSON манифеста</param>
+    /// <param name="substring">Фрагмент ожидаемого сообщения</param>
     [Theory]
     [MemberData(nameof(InvalidManifests))]
     public void Startup_InvalidManifest_FailsWithClearError(string manifest, string substring)

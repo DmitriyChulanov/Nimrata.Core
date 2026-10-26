@@ -1,9 +1,13 @@
 import type { ComponentType } from 'react';
 
-/** Роль пользователя */
+/**
+ * Роль пользователя
+ */
 export type UserRole = 'admin' | 'member';
 
-/** Вид вкладки: что показывать и сколько копий можно открыть */
+/**
+ * Вид вкладки: что показывать и сколько копий можно открыть
+ */
 export interface TabKind {
     id: string;
     title: string;
@@ -12,21 +16,33 @@ export interface TabKind {
     multiple?: boolean;
 }
 
+/**
+ * Реестр видов вкладок
+ */
 export interface TabRegistry {
+    /** Регистрирует вид вкладки; повторная регистрация того же идентификатора — ошибка */
     register(kind: TabKind): void;
+    /** Вид вкладки по идентификатору */
     get(id: string): TabKind | undefined;
+    /** Все виды вкладок в порядке регистрации */
     list(): TabKind[];
 }
 
-/** Контекст, который получает обработчик пункта меню */
+/**
+ * Контекст, который получает обработчик пункта меню
+ */
 export interface MenuContext {
     /** Открывает вкладку данного вида (для вида с одной копией переключает на существующую) */
     openTab(kindId: string): void;
 }
 
+/**
+ * Пункт главного меню
+ */
 export interface MenuItem {
     /** Путь в меню, например `['Вид', 'Журнал']` */
     path: string[];
+    /** Выполняет пункт */
     run(context: MenuContext): void;
     /** Если задана, пункт показывается только пользователям этой роли */
     role?: UserRole;
@@ -38,6 +54,9 @@ export interface MenuItem {
     subscribe?: (listener: () => void) => () => void;
 }
 
+/**
+ * Реестр пунктов меню
+ */
 export interface MenuRegistry {
     /** Регистрирует пункт; возвращает функцию, снимающую регистрацию */
     register(item: MenuItem): () => void;
@@ -47,6 +66,11 @@ export interface MenuRegistry {
     subscribe(listener: () => void): () => void;
 }
 
+/**
+ * Создаёт пустой реестр видов вкладок
+ *
+ * @returns реестр
+ */
 export function createTabRegistry(): TabRegistry {
     const kinds = new Map<string, TabKind>();
     return {
@@ -60,6 +84,11 @@ export function createTabRegistry(): TabRegistry {
     };
 }
 
+/**
+ * Создаёт пустой реестр пунктов меню
+ *
+ * @returns реестр
+ */
 export function createMenuRegistry(): MenuRegistry {
     const items: MenuItem[] = [];
     const listeners = new Set<() => void>();
@@ -84,6 +113,11 @@ export function createMenuRegistry(): MenuRegistry {
     };
 }
 
-/** Реестры платформы: модули регистрируют в них свои виды вкладок и пункты меню */
+/**
+ * Реестры платформы: модули регистрируют в них свои виды вкладок и пункты меню
+ */
 export const tabRegistry = createTabRegistry();
+/**
+ * Общий реестр пунктов меню платформы
+ */
 export const menuRegistry = createMenuRegistry();

@@ -5,6 +5,12 @@ import { useData } from './useData';
 import type { MenuRegistry } from '@platform/tabs/registries';
 import type { ChangeResult } from './DataController';
 
+/**
+ * Находится ли фокус в элементе ввода, где `Ctrl+Z` должен работать как отмена текста
+ *
+ * @param target - элемент, получивший событие клавиатуры
+ * @returns `true` для полей ввода, списков и редактируемых областей
+ */
 function isTextInput(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
     return (

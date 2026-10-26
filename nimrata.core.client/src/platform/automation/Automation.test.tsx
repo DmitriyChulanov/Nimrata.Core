@@ -80,7 +80,13 @@ async function setup() {
     return { data, ran };
 }
 
+/**
+ * Вкладка «Автоматизация»
+ */
 describe('Automation tab', () => {
+    /**
+     * Проверяет, что вкладка показывает механизмы и их действия с размещением «автоматизация»
+     */
     it('automation_tab_showsMechanismsAndTheirActionsWithAutomationPlacement', async () => {
         await setup();
 
@@ -92,6 +98,9 @@ describe('Automation tab', () => {
         expect(screen.queryByRole('group', { name: 'Простой' })).toBeNull();
     });
 
+    /**
+     * Проверяет, что механизмы, скрытые в дереве, не появляются в основном дереве
+     */
     it('automation_tab_doesNotShowMechanismsHiddenInTreeInMainTree', async () => {
         await setup();
 
@@ -99,6 +108,9 @@ describe('Automation tab', () => {
         expect(screen.queryByRole('treeitem', { name: 'Импорт задач' })).toBeNull();
     });
 
+    /**
+     * Проверяет, что действие запускается одним щелчком
+     */
     it('automation_action_runsWithOneClick', async () => {
         const { ran } = await setup();
 
@@ -107,6 +119,9 @@ describe('Automation tab', () => {
         expect(ran).toEqual(['run']);
     });
 
+    /**
+     * Проверяет, что отказ действия показывается пользователю
+     */
     it('automation_actionFailure_isShown', async () => {
         await setup();
 
@@ -115,6 +130,9 @@ describe('Automation tab', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('Не вышло');
     });
 
+    /**
+     * Проверяет, что действие с параметрами открывает диалог и запускается с введёнными значениями
+     */
     it('automation_actionWithParameters_opensDialogAndRunsWithEnteredValues', async () => {
         const { ran } = await setup();
 
@@ -125,6 +143,9 @@ describe('Automation tab', () => {
         expect(ran).toEqual([{ days: 3 }]);
     });
 
+    /**
+     * Проверяет, что вкладка обновляется при создании и удалении механизма
+     */
     it('automation_tab_updatesOnMechanismCreationAndDeletion', async () => {
         const { data } = await setup();
 
@@ -140,6 +161,9 @@ describe('Automation tab', () => {
         expect(screen.queryByRole('group', { name: 'Импорт задач' })).toBeNull();
     });
 
+    /**
+     * Проверяет, что без механизмов показывается подсказка
+     */
     it('automation_noMechanisms_showsHint', async () => {
         const { data } = await load([]);
         render(
@@ -152,7 +176,13 @@ describe('Automation tab', () => {
     });
 });
 
+/**
+ * Регистрация вкладки «Автоматизация»
+ */
 describe('Automation tab registration', () => {
+    /**
+     * Проверяет, что пункт меню «Вид → Автоматизация» открывает вкладку
+     */
     it('automationRegistration_menuViewAutomation_opensTab', async () => {
         const tabs = createTabRegistry();
         const menu = createMenuRegistry();
@@ -177,6 +207,9 @@ describe('Automation tab registration', () => {
     });
 });
 
+/**
+ * Показ цели механизма во вкладке «Автоматизация» (`revealTarget`)
+ */
 describe('Automation tab: mechanism target reveal (revealTarget)', () => {
     const refType = (id: string, property: string, extra: object) => ({
         id,
@@ -228,6 +261,9 @@ describe('Automation tab: mechanism target reveal (revealTarget)', () => {
         );
     }
 
+    /**
+     * Проверяет, что название механизма с `revealTarget` выделяет цель в дереве
+     */
     it('revealTarget_mechanismNameWithRevealTarget_selectsTargetInTree', async () => {
         await setupRef();
 
@@ -239,6 +275,9 @@ describe('Automation tab: mechanism target reveal (revealTarget)', () => {
         );
     });
 
+    /**
+     * Проверяет, что ссылочное свойство без признака, даже с именем `target`, не становится кнопкой
+     */
     it('revealTarget_referencePropertyWithoutFlag_evenNamedTarget_isNotMadeButton', async () => {
         await setupRef();
 

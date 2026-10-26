@@ -2,11 +2,19 @@ using Microsoft.AspNetCore.Hosting;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Стенд с собранным «клиентом»: временная папка wwwroot с index.html и статическим файлом</summary>
+/// <summary>
+/// Стенд с собранным «клиентом»: временная папка wwwroot с index.html и статическим файлом
+/// </summary>
 public sealed class SpaFactory : ServerFactory
 {
+    /// <summary>
+    /// Временная папка wwwroot стенда
+    /// </summary>
     public string WebRoot { get; } = Path.Combine(Path.GetTempPath(), "nimrata-wwwroot-" + Guid.NewGuid().ToString("N"));
 
+    /// <summary>
+    /// Создаёт временный wwwroot с index.html и статическим файлом
+    /// </summary>
     public SpaFactory()
     {
         Directory.CreateDirectory(Path.Combine(WebRoot, "assets"));
@@ -14,6 +22,10 @@ public sealed class SpaFactory : ServerFactory
         File.WriteAllText(Path.Combine(WebRoot, "assets", "app.js"), "console.log('app');");
     }
 
+    /// <summary>
+    /// Подставляет временный wwwroot вместо настоящего
+    /// </summary>
+    /// <param name="builder">Построитель веб-хоста</param>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -21,8 +33,15 @@ public sealed class SpaFactory : ServerFactory
     }
 }
 
+/// <summary>
+/// Раздача клиентского приложения и его маршрутов
+/// </summary>
+/// <param name="factory">Стенд с собранным клиентом</param>
 public class SpaHostingTests(SpaFactory factory) : IClassFixture<SpaFactory>
 {
+    /// <summary>
+    /// Проверяет, что корневой маршрут отдаёт клиентское приложение
+    /// </summary>
     [Fact]
     public async Task RootRoute_ServesClientApp()
     {
@@ -34,6 +53,9 @@ public class SpaHostingTests(SpaFactory factory) : IClassFixture<SpaFactory>
         Assert.Contains("nimrata-spa", await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Проверяет, что неизвестный клиентский маршрут отдаёт клиентское приложение
+    /// </summary>
     [Fact]
     public async Task UnknownClientRoute_FallsBackToClientApp()
     {
@@ -45,6 +67,9 @@ public class SpaHostingTests(SpaFactory factory) : IClassFixture<SpaFactory>
         Assert.Contains("nimrata-spa", await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Проверяет, что статический файл отдаётся как есть
+    /// </summary>
     [Fact]
     public async Task StaticFile_IsServedAsIs()
     {
@@ -56,6 +81,10 @@ public class SpaHostingTests(SpaFactory factory) : IClassFixture<SpaFactory>
         Assert.Contains("console.log", await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Проверяет, что неизвестный маршрут API не подменяется клиентом
+    /// </summary>
+    /// <param name="path">Путь запроса</param>
     [Theory]
     [InlineData("/api/нет-такого")]
     [InlineData("/api/auth/нет-такого")]
@@ -69,6 +98,9 @@ public class SpaHostingTests(SpaFactory factory) : IClassFixture<SpaFactory>
         Assert.DoesNotContain("nimrata-spa", await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Проверяет, что маршруты API работают как раньше
+    /// </summary>
     [Fact]
     public async Task ApiRoutes_WorkAsBefore()
     {

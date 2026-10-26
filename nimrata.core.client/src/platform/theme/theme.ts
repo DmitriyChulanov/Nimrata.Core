@@ -1,12 +1,25 @@
-/** Выбор пользователя: системная тема следует настройке ОС */
+/**
+ * Выбор пользователя: системная тема следует настройке ОС
+ */
 export type ThemeChoice = 'system' | 'light' | 'dark';
 
+/**
+ * Ключ `localStorage` для выбора темы
+ */
 const STORAGE_KEY = 'nimrata.theme';
+/**
+ * Медиазапрос тёмной темы операционной системы
+ */
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
+/**
+ * Допустимые значения выбора темы
+ */
 const CHOICES: readonly ThemeChoice[] = ['system', 'light', 'dark'];
 
-/** Сохранённый выбор темы; без записи или при недоступном хранилище — системная */
+/**
+ * Сохранённый выбор темы; без записи или при недоступном хранилище — системная
+ */
 export function readThemeChoice(): ThemeChoice {
     try {
         const value = window.localStorage.getItem(STORAGE_KEY);
@@ -16,17 +29,26 @@ export function readThemeChoice(): ThemeChoice {
     }
 }
 
+/**
+ * Предпочитает ли операционная система тёмную тему
+ *
+ * @returns `true`, если медиазапрос тёмной темы выполняется
+ */
 function prefersDark(): boolean {
     return typeof window.matchMedia === 'function' && window.matchMedia(DARK_QUERY).matches;
 }
 
-/** Применяет тему к документу: ставит `data-theme` со значением `light` или `dark` */
+/**
+ * Применяет тему к документу: ставит `data-theme` со значением `light` или `dark`
+ */
 export function applyThemeChoice(choice: ThemeChoice): void {
     const dark = choice === 'dark' || (choice === 'system' && prefersDark());
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
 }
 
-/** Запоминает выбор и сразу применяет его */
+/**
+ * Запоминает выбор и сразу применяет его
+ */
 export function setThemeChoice(choice: ThemeChoice): void {
     try {
         window.localStorage.setItem(STORAGE_KEY, choice);
@@ -36,7 +58,9 @@ export function setThemeChoice(choice: ThemeChoice): void {
     applyThemeChoice(choice);
 }
 
-/** Применяет сохранённую тему и следит за настройкой ОС; возвращает отписку */
+/**
+ * Применяет сохранённую тему и следит за настройкой ОС; возвращает отписку
+ */
 export function initTheme(): () => void {
     applyThemeChoice(readThemeChoice());
     if (typeof window.matchMedia !== 'function') return () => undefined;

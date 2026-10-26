@@ -7,12 +7,16 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Auth;
 
-/// <summary>Вход, обновление и отзыв токенов, создание пользователей</summary>
+/// <summary>
+/// Вход, обновление и отзыв токенов, создание пользователей
+/// </summary>
 public sealed class AuthService(NpgsqlDataSource dataSource, IOptions<JwtOptions> options, TimeProvider timeProvider)
 {
     private sealed record UserRow(Guid Id, string Email, string PasswordHash, bool IsAdmin, bool IsActive);
 
-    /// <summary>Создаёт пользователя</summary>
+    /// <summary>
+    /// Создаёт пользователя
+    /// </summary>
     /// <returns><c>true</c>, если пользователь создан; <c>false</c>, если такой e-mail уже есть</returns>
     /// <exception cref="ArgumentException">Пароль короче <see cref="Passwords.MinLength"/> символов</exception>
     public async Task<bool> CreateUserAsync(
@@ -35,7 +39,9 @@ public sealed class AuthService(NpgsqlDataSource dataSource, IOptions<JwtOptions
         return inserted > 0;
     }
 
-    /// <summary>Проверяет учётные данные и выдаёт токены; <c>null</c>, если вход не удался</summary>
+    /// <summary>
+    /// Проверяет учётные данные и выдаёт токены; <c>null</c>, если вход не удался
+    /// </summary>
     public async Task<AuthResult?> LoginAsync(string email, string password, CancellationToken cancellationToken = default)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -62,7 +68,9 @@ public sealed class AuthService(NpgsqlDataSource dataSource, IOptions<JwtOptions
         return await IssueAsync(connection, user, null, cancellationToken);
     }
 
-    /// <summary>Обменивает действующий refresh-токен на новую пару (старый отзывается)</summary>
+    /// <summary>
+    /// Обменивает действующий refresh-токен на новую пару (старый отзывается)
+    /// </summary>
     /// <returns>Новая пара токенов или <c>null</c>, если токен недействителен</returns>
     public async Task<AuthResult?> RefreshAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
@@ -95,7 +103,9 @@ public sealed class AuthService(NpgsqlDataSource dataSource, IOptions<JwtOptions
         return result;
     }
 
-    /// <summary>Отзывает refresh-токен</summary>
+    /// <summary>
+    /// Отзывает refresh-токен
+    /// </summary>
     public async Task LogoutAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

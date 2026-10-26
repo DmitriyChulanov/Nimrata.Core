@@ -22,7 +22,13 @@ afterEach(() => {
     sessionStorage.clear();
 });
 
+/**
+ * Сессия входа
+ */
 describe('AuthSession', () => {
+    /**
+     * Проверяет, что после входа токен хранится только в памяти и без хранилищ браузера
+     */
     it('login_success_keepsAccessInMemoryAndAuthenticatesWithoutBrowserStorage', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ accessToken: 'tok-1' }));
         const session = setup(fetchMock);
@@ -40,6 +46,9 @@ describe('AuthSession', () => {
         expect(JSON.stringify({ ...sessionStorage })).not.toContain('tok-1');
     });
 
+    /**
+     * Проверяет, что неверный пароль бросает ошибку, а состояние остаётся анонимным
+     */
     it('login_wrongPassword_throwsAndStateStaysAnonymous', async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
         const session = setup(fetchMock);
@@ -51,6 +60,9 @@ describe('AuthSession', () => {
         expect(session.getHeaders()).toEqual({});
     });
 
+    /**
+     * Проверяет, что восстановление по refresh возвращает сессию после перезагрузки страницы
+     */
     it('restore_viaRefresh_restoresSessionAfterPageReload', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ accessToken: 'tok-2' }));
         const session = setup(fetchMock);
@@ -64,6 +76,9 @@ describe('AuthSession', () => {
         expect(session.getHeaders()).toEqual({ Authorization: 'Bearer tok-2' });
     });
 
+    /**
+     * Проверяет, что без действующего refresh состояние становится анонимным
+     */
     it('restore_withoutValidRefresh_becomesAnonymous', async () => {
         const session = setup(vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
 
@@ -72,6 +87,9 @@ describe('AuthSession', () => {
         expect(session.getState().status).toBe('anonymous');
     });
 
+    /**
+     * Проверяет, что параллельные обновления сливаются в один запрос
+     */
     it('refresh_concurrentCalls_mergeIntoOneRefreshRequest', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ accessToken: 'tok-3' }));
         const session = setup(fetchMock);
@@ -82,6 +100,9 @@ describe('AuthSession', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
+    /**
+     * Проверяет, что выход вызывает сервер и очищает токен, даже если сервер недоступен
+     */
     it('logout_callsServerAndClearsTokenEvenIfServerUnavailable', async () => {
         const fetchMock = vi
             .fn()
@@ -97,6 +118,9 @@ describe('AuthSession', () => {
         expect(session.getHeaders()).toEqual({});
     });
 
+    /**
+     * Проверяет, что смена состояния уведомляет подписчиков
+     */
     it('subscribe_stateChange_notifiesSubscribers', async () => {
         const session = setup(vi.fn().mockResolvedValue(jsonResponse({ accessToken: 't' })));
         const listener = vi.fn();

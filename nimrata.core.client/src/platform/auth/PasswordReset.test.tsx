@@ -16,6 +16,9 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
+/**
+ * Проверяет, что на экране входа есть ссылка «Забыли пароль?», открывающая форму запроса
+ */
 it('loginScreen_hasForgotPasswordLink_thatOpensRequestForm', async () => {
     const user = userEvent.setup();
     render(<LoginScreen onLogin={vi.fn()} />);
@@ -26,6 +29,9 @@ it('loginScreen_hasForgotPasswordLink_thatOpensRequestForm', async () => {
     expect(screen.queryByLabelText('Пароль')).not.toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что запрос отправляет адрес и показывает одинаковое подтверждение
+ */
 it('forgotPassword_request_sendsEmailAndShowsSameConfirmation', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -44,6 +50,9 @@ it('forgotPassword_request_sendsEmailAndShowsSameConfirmation', async () => {
     expect(JSON.parse(String(init.body))).toEqual({ email: 'a@b.test' });
 });
 
+/**
+ * Проверяет, что из формы можно вернуться ко входу
+ */
 it('forgotPassword_form_canReturnToLogin', async () => {
     const user = userEvent.setup();
     render(<LoginScreen onLogin={vi.fn()} />);
@@ -54,6 +63,9 @@ it('forgotPassword_form_canReturnToLogin', async () => {
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что новый пароль отправляется с токеном, а успех сообщается
+ */
 it('resetPassword_newPassword_sendsTokenAndPasswordAndReportsSuccess', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -73,6 +85,9 @@ it('resetPassword_newPassword_sendsTokenAndPasswordAndReportsSuccess', async () 
     expect(onDone).toHaveBeenCalled();
 });
 
+/**
+ * Проверяет, что несовпадающие пароли не отправляются на сервер
+ */
 it('resetPassword_mismatchedPasswords_areNotSentToServer', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -87,6 +102,9 @@ it('resetPassword_mismatchedPasswords_areNotSentToServer', async () => {
     expect(fetchMock).not.toHaveBeenCalled();
 });
 
+/**
+ * Проверяет, что недействительная ссылка показывает причину от сервера
+ */
 it('resetPassword_invalidLink_showsServerReason', async () => {
     vi.stubGlobal(
         'fetch',

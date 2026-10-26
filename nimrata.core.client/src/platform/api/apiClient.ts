@@ -1,8 +1,16 @@
-/** Единый префикс всех маршрутов API платформы (совпадает с прокси в vite.config.ts) */
+/**
+ * Единый префикс всех маршрутов API платформы (совпадает с прокси в vite.config.ts)
+ */
 export const API_PREFIX = '/api';
 
+/**
+ * Функция отправки запроса, совместимая с `fetch`
+ */
 export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
+/**
+ * Параметры API-клиента
+ */
 export interface ApiClientOptions {
     /** Базовый адрес API. По умолчанию `/api` */
     baseUrl?: string;
@@ -14,14 +22,25 @@ export interface ApiClientOptions {
     onUnauthorized?: () => Promise<boolean>;
 }
 
+/**
+ * Клиент API платформы; ответ разбирается как JSON, отказ приходит как `ApiError`
+ */
 export interface ApiClient {
+    /** Выполняет GET-запрос */
     get<T>(path: string): Promise<T>;
+    /** Выполняет POST-запрос с необязательным телом */
     post<T>(path: string, body?: unknown): Promise<T>;
+    /** Выполняет PUT-запрос с необязательным телом */
     put<T>(path: string, body?: unknown): Promise<T>;
+    /** Выполняет DELETE-запрос */
     delete<T>(path: string): Promise<T>;
 }
 
+/**
+ * Отказ сервера: код ответа и сообщение, пригодное для показа пользователю
+ */
 export class ApiError extends Error {
+    /** HTTP-код ответа */
     readonly status: number;
 
     constructor(status: number, message: string) {
@@ -31,6 +50,12 @@ export class ApiError extends Error {
     }
 }
 
+/**
+ * Достаёт сообщение об ошибке из тела ответа (ProblemDetails или похожий JSON)
+ *
+ * @param response - ответ с неуспешным кодом
+ * @returns текст причины или сообщение по умолчанию с кодом ответа
+ */
 async function readErrorMessage(response: Response): Promise<string> {
     const fallback = `Ошибка запроса: ${response.status}`;
     try {
@@ -48,6 +73,12 @@ async function readErrorMessage(response: Response): Promise<string> {
     return fallback;
 }
 
+/**
+ * Создаёт API-клиент
+ *
+ * @param options - базовый адрес, подмена `fetch`, заголовки и повтор при 401
+ * @returns клиент для запросов к API
+ */
 export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     const baseUrl = (options.baseUrl ?? API_PREFIX).replace(/\/+$/, '');
     const doFetch: FetchFn = options.fetch ?? ((input, init) => fetch(input, init));

@@ -6,7 +6,9 @@ import { taskDate, taskOrder } from './tasks';
 
 import type { ChangeScope, DataController, DataObject } from '@platform';
 
-/** Названия категорий задачи от внешней к внутренней */
+/**
+ * Названия категорий задачи от внешней к внутренней
+ */
 export function categoryChain(data: DataController, task: DataObject): string[] {
     const names: string[] = [];
     for (let id = task.parent; id;) {
@@ -18,7 +20,9 @@ export function categoryChain(data: DataController, task: DataObject): string[] 
     return names;
 }
 
-/** Удаляет пустые категории, начиная с `start` и вверх; день и выше не трогает */
+/**
+ * Удаляет пустые категории, начиная с `start` и вверх; день и выше не трогает
+ */
 export function pruneEmptyCategories(
     data: DataController,
     tx: ChangeScope,
@@ -33,14 +37,18 @@ export function pruneEmptyCategories(
     }
 }
 
-/** Идентификатор корня «Текущие задачи» или «Завершённые задачи» рядом с задачей */
+/**
+ * Идентификатор корня «Текущие задачи» или «Завершённые задачи» рядом с задачей
+ */
 export function taskRootId(data: DataController, task: DataObject, type: string): string {
     const root = findRoot(data, type, task);
     if (!root) throw new Error('Не найдена группа задач для переноса.');
     return root.id;
 }
 
-/** Переносит задачу в день `iso` внутри корня с той же цепочкой категорий; опустевшие убирает */
+/**
+ * Переносит задачу в день `iso` внутри корня с той же цепочкой категорий; опустевшие убирает
+ */
 function relocate(
     data: DataController,
     tx: ChangeScope,
@@ -63,6 +71,12 @@ function relocate(
     pruneEmptyCategories(data, tx, oldParent);
 }
 
+/**
+ * Не завершена ли задача
+ *
+ * @param task - проверяемая задача
+ * @returns `true`, если статус задачи не «Завершена»
+ */
 function isPending(task: DataObject): boolean {
     return task.properties.status !== COMPLETED;
 }

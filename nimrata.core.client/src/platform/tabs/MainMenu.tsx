@@ -5,12 +5,24 @@ import './Tabs.css';
 
 import type { MenuItem, MenuRegistry, UserRole } from './registries';
 
+/**
+ * Узел дерева меню: подменю или пункт
+ */
 interface MenuNode {
+    /** Подпись узла */
     label: string;
+    /** Пункт, если узел не только подменю */
     item?: MenuItem;
+    /** Вложенные узлы */
     children: MenuNode[];
 }
 
+/**
+ * Строит дерево меню из плоского списка пунктов по их путям
+ *
+ * @param items - пункты реестра
+ * @returns корневые узлы меню
+ */
 function buildTree(items: MenuItem[]): MenuNode[] {
     const root: MenuNode = { label: '', children: [] };
     for (const item of items) {
@@ -28,12 +40,19 @@ function buildTree(items: MenuItem[]): MenuNode[] {
     return root.children;
 }
 
+/**
+ * Свойства компонента `MainMenu`
+ */
 export interface MainMenuProps {
+    /** Реестр пунктов меню */
     registry: MenuRegistry;
+    /** Роль пользователя: показываются доступные ей пункты */
     role: UserRole;
 }
 
-/** Главное меню: строится из реестра, показывает только пункты, доступные роли */
+/**
+ * Главное меню: строится из реестра, показывает только пункты, доступные роли
+ */
 export function MainMenu({ registry, role }: MainMenuProps) {
     const { openTab } = useTabs();
     const [openPath, setOpenPath] = useState<string[]>([]);

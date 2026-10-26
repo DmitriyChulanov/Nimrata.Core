@@ -7,19 +7,35 @@ import './UsersTab.css';
 import type { FormEvent } from 'react';
 import type { UserRole } from '@platform/tabs/registries';
 
+/**
+ * Пользователь в списке администратора
+ */
 interface ManagedUser {
+    /** Идентификатор пользователя */
     id: string;
+    /** Адрес электронной почты */
     email: string;
+    /** Отображаемое имя */
     name: string;
+    /** Роль пользователя */
     role: UserRole;
+    /** Не отключён ли пользователь */
     isActive: boolean;
 }
 
+/**
+ * Названия ролей для показа
+ */
 const ROLE_TITLES: Record<UserRole, string> = { admin: 'Администратор', member: 'Участник' };
 
+/**
+ * Путь административного API пользователей
+ */
 const BASE = '/admin/users';
 
-/** Вкладка «Пользователи» (только администратор): список, создание, смена роли, отключение и включение */
+/**
+ * Вкладка «Пользователи» (только администратор): список, создание, смена роли, отключение и включение
+ */
 export function UsersTab() {
     const api = useApi();
     const [users, setUsers] = useState<ManagedUser[]>([]);
@@ -34,7 +50,9 @@ export function UsersTab() {
         setUsers(await api.get<ManagedUser[]>(BASE));
     }, [api]);
 
-    /** Выполняет операцию, затем перечитывает список; при отказе показывает причину сервера */
+    /**
+     * Выполняет операцию, затем перечитывает список; при отказе показывает причину сервера
+     */
     const run = useCallback(
         async (operation: () => Promise<unknown>): Promise<boolean> => {
             setError(null);

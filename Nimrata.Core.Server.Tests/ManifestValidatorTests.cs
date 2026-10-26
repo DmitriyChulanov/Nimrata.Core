@@ -3,9 +3,15 @@ using Nimrata.Core.Server.Modules;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Проверка манифестов валидатором; БД и сервер не нужны</summary>
+/// <summary>
+/// Проверка манифестов валидатором; БД и сервер не нужны
+/// </summary>
 public sealed class ManifestValidatorTests
 {
+    /// <summary>
+    /// Находит манифест Трекера в репозитории
+    /// </summary>
+    /// <returns>Путь к файлу</returns>
     private static string TrackerManifestPath()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
@@ -16,12 +22,20 @@ public sealed class ManifestValidatorTests
         throw new FileNotFoundException("Манифест Трекера не найден выше каталога тестов.");
     }
 
+    /// <summary>
+    /// Проверяет манифест валидатором
+    /// </summary>
+    /// <param name="json">JSON манифеста</param>
+    /// <returns>Список найденных ошибок</returns>
     private static List<string> Validate(string json)
     {
         using var document = JsonDocument.Parse(json);
         return ManifestValidator.Validate(document.RootElement);
     }
 
+    /// <summary>
+    /// Проверяет, что манифест Трекера проходит валидацию
+    /// </summary>
     [Fact]
     public void TrackerManifest_IsValid()
     {
@@ -30,6 +44,9 @@ public sealed class ManifestValidatorTests
         Assert.Empty(errors);
     }
 
+    /// <summary>
+    /// Проверяет, что корни задач допускают текущие и выполненные
+    /// </summary>
     [Fact]
     public void TrackerManifest_TaskRootsAllowCurrentAndCompleted()
     {
@@ -43,9 +60,17 @@ public sealed class ManifestValidatorTests
         Assert.Contains("CompletedTasksRoot", children);
     }
 
+    /// <summary>
+    /// Формирует манифест с одним типом и заданным свойством
+    /// </summary>
+    /// <param name="property">JSON свойства</param>
+    /// <returns>JSON манифеста</returns>
     private static string WithType(string property) =>
         $$"""{ "module": "demo", "version": 1, "types": [ { "id": "A", "name": "A", "properties": [ {{property}} ] } ] }""";
 
+    /// <summary>
+    /// Проверяет, что цель показа допустима для свойства-ссылки
+    /// </summary>
     [Fact]
     public void RevealTarget_ForReference_IsAllowed()
     {
@@ -54,6 +79,11 @@ public sealed class ManifestValidatorTests
         Assert.Empty(errors);
     }
 
+    /// <summary>
+    /// Проверяет, что недопустимая цель показа отклоняется
+    /// </summary>
+    /// <param name="property">JSON свойства</param>
+    /// <param name="substring">Фрагмент ожидаемой ошибки</param>
     [Theory]
     [InlineData("""{ "id": "t", "name": "T", "kind": "string", "revealTarget": true }""", "reference")]
     [InlineData("""{ "id": "t", "name": "T", "kind": "reference", "revealTarget": "да" }""", "логическое")]

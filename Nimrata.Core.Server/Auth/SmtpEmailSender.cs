@@ -4,9 +4,12 @@ using Microsoft.Extensions.Options;
 
 namespace Nimrata.Core.Server.Auth;
 
-/// <summary>Отправка по SMTP (Mailpit в разработке)</summary>
+/// <summary>
+/// Отправка по SMTP (Mailpit в разработке)
+/// </summary>
 public sealed class SmtpEmailSender(IOptions<SmtpOptions> options) : IEmailSender
 {
+    /// <inheritdoc/>
     public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
     {
         var smtp = options.Value;

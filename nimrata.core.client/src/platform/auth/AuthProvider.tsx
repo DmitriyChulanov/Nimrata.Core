@@ -7,6 +7,12 @@ import { createAuthSession } from '@platform/auth/authSession';
 import type { ReactNode } from 'react';
 import type { AuthContextValue } from '@platform/auth/AuthContext';
 
+/**
+ * Создаёт сессию входа и API-клиента и раздаёт их потомкам; при загрузке пробует восстановить сессию
+ *
+ * @param props - дочерние элементы, которым нужна авторизация
+ * @returns контекст авторизации вокруг потомков
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [value] = useState<AuthContextValue>(() => {
         // Клиент без повтора для самих эндпоинтов /auth/*, иначе обновление токена зациклится

@@ -21,7 +21,13 @@ async function loaded() {
     return { api, data };
 }
 
+/**
+ * Контроллер данных: изменения через набор
+ */
 describe('DataController: changes through a changeset', () => {
+    /**
+     * Проверяет, что создание объекта — один набор с клиентским идентификатором, а объект появляется в модели
+     */
     it('create_object_oneChangesetWithClientIdAndObjectAppearsInModel', async () => {
         const { api, data } = await loaded();
         const result = await data.create({
@@ -56,6 +62,9 @@ describe('DataController: changes through a changeset', () => {
         ]);
     });
 
+    /**
+     * Проверяет, что создание без порядка добавляет объект последним среди потомков
+     */
     it('create_withoutOrder_appendsObjectLastAmongChildren', async () => {
         const { data } = await loaded();
         const result = await data.create({ type: 'Note', parent: 'root' });
@@ -69,6 +78,9 @@ describe('DataController: changes through a changeset', () => {
         ).toBe(id);
     });
 
+    /**
+     * Проверяет, что запись свойства отправляет старое и новое значение, а `null` убирает значение
+     */
     it('setProperty_sendsOldAndNew_nullRemovesValue', async () => {
         const { api, data } = await loaded();
         await data.setProperty('a', 'title', 'A2');
@@ -81,6 +93,9 @@ describe('DataController: changes through a changeset', () => {
         ]);
     });
 
+    /**
+     * Проверяет, что перенос меняет родителя и порядок одним набором
+     */
     it('move_changesParentAndOrder_inOneChangeset', async () => {
         const { api, data } = await loaded();
         await data.move('a', { parent: null, order: 7 });
@@ -90,6 +105,9 @@ describe('DataController: changes through a changeset', () => {
         ]);
     });
 
+    /**
+     * Проверяет, что перенос только порядка не затрагивает родителя
+     */
     it('move_orderOnly_doesNotTouchParent', async () => {
         const { api, data } = await loaded();
         await data.move('a', { order: 9 });
@@ -98,6 +116,9 @@ describe('DataController: changes through a changeset', () => {
         ]);
     });
 
+    /**
+     * Проверяет, что удаление поддерева — один набор, потомки удаляются раньше родителя
+     */
     it('remove_subtree_isOneChangesetDescendantsBeforeParent', async () => {
         const { api, data } = await loaded();
         await data.remove('root');
@@ -110,6 +131,9 @@ describe('DataController: changes through a changeset', () => {
         expect(api.changesets[0].operations.every((o) => o.op === 'delete')).toBe(true);
     });
 
+    /**
+     * Проверяет, что изменение модели уведомляет подписчиков, а отписавшиеся молчат
+     */
     it('subscribe_modelChange_notifiesSubscribersAndUnsubscribedStaySilent', async () => {
         const { data } = await loaded();
         let calls = 0;
@@ -125,7 +149,13 @@ describe('DataController: changes through a changeset', () => {
     });
 });
 
+/**
+ * Контроллер данных: отказ, откат, расхождение, перезагрузка
+ */
 describe('DataController: rejection, rollback, divergence, reload', () => {
+    /**
+     * Проверяет, что отказ сервера откатывает правку свойства и сообщает причину подписчикам
+     */
     it('rejection_serverRejectsPropertyChange_revertsItAndSetsReasonForSubscribers', async () => {
         const { api, data } = await loaded();
         let seen: string | null = null;
@@ -141,6 +171,9 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         expect(seen).toBe('Операция 1: значение не подходит.');
     });
 
+    /**
+     * Проверяет, что отказ сервера откатывает создание, перенос и удаление
+     */
     it('rejection_serverRejects_revertsCreateMoveAndRemove', async () => {
         const { api, data } = await loaded();
         const before = JSON.stringify(data.getChildren('root'));
@@ -160,6 +193,9 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         expect(JSON.stringify(data.getChildren('root'))).toBe(before);
     });
 
+    /**
+     * Проверяет, что успешное изменение после отказа очищает ошибку
+     */
     it('rejection_successfulChangeAfterRejection_clearsError', async () => {
         const { api, data } = await loaded();
         api.rejectNext(422, 'нет');
@@ -169,6 +205,9 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         expect(data.getObject('a')?.properties).toEqual({ title: 'Y' });
     });
 
+    /**
+     * Проверяет, что 409 из-за расхождения старого значения требует перезагрузки и блокирует правки
+     */
     it('rejection_409OldMismatch_setsReloadNeededAndBlocksEdits', async () => {
         const { api, data } = await loaded();
         api.rejectNext(409, 'свойство изменилось с момента загрузки');
@@ -181,6 +220,9 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         expect(api.changesets).toHaveLength(0);
     });
 
+    /**
+     * Проверяет, что перезагрузка заменяет модель данными сервера и снимает признак
+     */
     it('reload_replacesModelWithServerDataAndClearsFlag', async () => {
         const { api, data } = await loaded();
         api.rejectNext(409, 'расхождение');
@@ -199,6 +241,9 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         expect((await data.setProperty('z', 'title', 'Q')).ok).toBe(true);
     });
 
+    /**
+     * Проверяет, что изменения идут в очереди, а откат одного не затирает следующее
+     */
     it('changes_areQueued_rollbackOfOneDoesNotOverwriteNext', async () => {
         const { api, data } = await loaded();
         api.rejectNext(422, 'нет');
@@ -210,6 +255,9 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         expect(data.getObject('b')?.properties).toEqual({ title: 'Y' });
     });
 
+    /**
+     * Проверяет, что перенос в собственного потомка отклоняется без отправки набора
+     */
     it('move_intoOwnDescendant_isRefusedAndNoChangesetSent', async () => {
         const { api, data } = await loaded();
         const result = await data.move('root', { parent: 'a' });
@@ -218,7 +266,13 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
     });
 });
 
+/**
+ * Контроллер данных: загрузка и чтение
+ */
 describe('DataController: loading and reading', () => {
+    /**
+     * Проверяет, что после загрузки типов и объектов состояние становится «готово»
+     */
     it('load_typesAndObjects_thenBecomesReady', async () => {
         const api = createFakeApi(types, objects);
         const data = createDataController({ api });
@@ -230,12 +284,18 @@ describe('DataController: loading and reading', () => {
         expect(data.getObject('нет')).toBeUndefined();
     });
 
+    /**
+     * Проверяет, что потомки возвращаются по порядку, а для `null` — корни
+     */
     it('getChildren_returnsChildrenInOrderAndRootsForNullParent', async () => {
         const { data } = await loaded();
         expect(data.getChildren('root').map((o) => o.id)).toEqual(['a', 'b']);
         expect(data.getChildren(null).map((o) => o.id)).toEqual(['root']);
     });
 
+    /**
+     * Проверяет, что сбой загрузки переводит в состояние ошибки с причиной
+     */
     it('load_failure_becomesErrorWithReason', async () => {
         const api = createFakeApi(types, objects);
         api.get = () => Promise.reject(new Error('сеть недоступна'));
@@ -245,6 +305,9 @@ describe('DataController: loading and reading', () => {
         expect(data.getSnapshot().error).toBe('сеть недоступна');
     });
 
+    /**
+     * Проверяет, что порядок вычисляется среди соседей
+     */
     it('orderAt_computesOrderAmongSiblings', async () => {
         const { data } = await loaded();
         expect(data.orderAt('root', 0)).toBe(0); // перед первым
@@ -256,7 +319,13 @@ describe('DataController: loading and reading', () => {
     });
 });
 
+/**
+ * Контроллер данных: значения по умолчанию
+ */
 describe('DataController: default values', () => {
+    /**
+     * Проверяет, что создание подставляет значения по умолчанию, не перезаписывая заданные
+     */
     it('create_appliesPropertyDefaultsWithoutOverwritingGivenValues', async () => {
         const api = createFakeApi(
             [

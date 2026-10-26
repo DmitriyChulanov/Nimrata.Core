@@ -37,7 +37,9 @@ const olga: User = {
     isActive: false,
 };
 
-/** Сервер в памяти: список пользователей и запись вызовов администрирования */
+/**
+ * Сервер в памяти: список пользователей и запись вызовов администрирования
+ */
 function stubServer(
     initial: User[] = [admin, ivan, olga],
     reject?: { status: number; error: string },
@@ -83,6 +85,9 @@ function renderTab() {
     );
 }
 
+/**
+ * Проверяет, что список показывает пользователей с ролью и состоянием
+ */
 it('usersTab_list_showsUsersWithRoleAndState', async () => {
     stubServer();
     renderTab();
@@ -95,6 +100,9 @@ it('usersTab_list_showsUsersWithRoleAndState', async () => {
     expect(within(disabledRow).getByText('Отключён')).toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что создание добавляет пользователя с паролем и ролью и обновляет список
+ */
 it('usersTab_create_addsUserWithPasswordAndRoleAndRefreshesList', async () => {
     const { calls } = stubServer();
     const user = userEvent.setup();
@@ -117,6 +125,9 @@ it('usersTab_create_addsUserWithPasswordAndRoleAndRefreshesList', async () => {
     expect(screen.getByLabelText('Пароль')).toHaveValue('');
 });
 
+/**
+ * Проверяет, что роль меняется выбором в списке
+ */
 it('usersTab_changeRole_bySelectingInList', async () => {
     const { calls } = stubServer();
     const user = userEvent.setup();
@@ -134,6 +145,9 @@ it('usersTab_changeRole_bySelectingInList', async () => {
     expect(await screen.findByLabelText('Роль ivan@x.test')).toHaveValue('admin');
 });
 
+/**
+ * Проверяет, что пользователя можно отключить и включить
+ */
 it('usersTab_disableAndEnable_user', async () => {
     const { calls } = stubServer();
     const user = userEvent.setup();
@@ -152,6 +166,9 @@ it('usersTab_disableAndEnable_user', async () => {
     ]);
 });
 
+/**
+ * Проверяет, что отказ сервера для последнего администратора показывается пользователю
+ */
 it('usersTab_serverRefusal_lastAdministratorIsShownToUser', async () => {
     const reason = 'Нельзя отключить или понизить последнего действующего администратора.';
     stubServer([admin], { status: 409, error: reason });
@@ -164,6 +181,9 @@ it('usersTab_serverRefusal_lastAdministratorIsShownToUser', async () => {
     expect(screen.getByLabelText('Роль admin@x.test')).toHaveValue('admin');
 });
 
+/**
+ * Проверяет, что кнопка сброса пароля отправляет письмо выбранному пользователю
+ */
 it('usersTab_sendPasswordResetButton_sendsEmailToSelectedUser', async () => {
     const { calls } = stubServer();
     const user = userEvent.setup();

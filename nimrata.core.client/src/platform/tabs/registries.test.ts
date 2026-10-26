@@ -4,6 +4,9 @@ import { createMenuRegistry, createTabRegistry } from './registries';
 
 const stub = () => null;
 
+/**
+ * Проверяет, что зарегистрированный вид возвращается по идентификатору
+ */
 it('tabRegistry_registeredKind_isReturnedById', () => {
     const tabs = createTabRegistry();
     tabs.register({ id: 'journal', title: 'Журнал', component: stub });
@@ -13,6 +16,9 @@ it('tabRegistry_registeredKind_isReturnedById', () => {
     expect(tabs.list().map((k) => k.id)).toEqual(['journal']);
 });
 
+/**
+ * Проверяет, что повторный идентификатор вида отклоняется
+ */
 it('tabRegistry_duplicateKindId_isRejected', () => {
     const tabs = createTabRegistry();
     tabs.register({ id: 'journal', title: 'Журнал', component: stub });
@@ -22,6 +28,9 @@ it('tabRegistry_duplicateKindId_isRejected', () => {
     );
 });
 
+/**
+ * Проверяет, что пункты без условия видны всем, а с условием — только своей роли
+ */
 it('menuRegistry_itemsWithoutCondition_visibleToAllWithConditionOnlyToTheirRole', () => {
     const menu = createMenuRegistry();
     menu.register({ path: ['Вид', 'Журнал'], run: () => {} });

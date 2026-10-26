@@ -1,12 +1,16 @@
 import type { DataObject } from './DataController';
 
-/** Изменение значения: было и стало */
+/**
+ * Изменение значения: было и стало
+ */
 export interface ValueChange<T> {
     old: T;
     new: T;
 }
 
-/** Операция набора изменений в том виде, в каком она уходит на сервер */
+/**
+ * Операция набора изменений в том виде, в каком она уходит на сервер
+ */
 export type Operation =
     | {
           op: 'create';
@@ -20,13 +24,17 @@ export type Operation =
     | { op: 'move'; id: string; parent?: ValueChange<string | null>; order?: ValueChange<number> }
     | { op: 'delete'; id: string };
 
-/** Одно действие пользователя: набор изменений и обратный ему набор */
+/**
+ * Одно действие пользователя: набор изменений и обратный ему набор
+ */
 export interface HistoryEntry {
     forward: Operation[];
     inverse: Operation[];
 }
 
-/** Стеки отмены и повтора (живут в памяти вкладки) */
+/**
+ * Стеки отмены и повтора (живут в памяти вкладки)
+ */
 export interface UndoHistory {
     /** Записывает успешно применённое действие; стек повторов очищается */
     record(entry: HistoryEntry): void;
@@ -41,6 +49,11 @@ export interface UndoHistory {
     clear(): void;
 }
 
+/**
+ * Создаёт пустую историю отмены
+ *
+ * @returns история с раздельными стеками отмены и повтора
+ */
 export function createUndoHistory(): UndoHistory {
     let undo: HistoryEntry[] = [];
     let redo: HistoryEntry[] = [];
@@ -68,10 +81,22 @@ export function createUndoHistory(): UndoHistory {
     };
 }
 
+/**
+ * Исчерпывающая проверка вариантов: вызов означает неизвестную операцию
+ *
+ * @param value - значение, которого быть не должно
+ * @returns не возвращает управление
+ */
 function assertNever(value: never): never {
     throw new Error(`Неизвестная операция: ${JSON.stringify(value)}.`);
 }
 
+/**
+ * Меняет местами прежнее и новое значения
+ *
+ * @param change - изменение значения
+ * @returns обратное изменение
+ */
 function swap<T>(change: ValueChange<T>): ValueChange<T> {
     return { old: change.new, new: change.old };
 }
@@ -112,7 +137,9 @@ export function invertOperation(operation: Operation, before: DataObject | undef
     }
 }
 
-/** Обратный набор: операции в обратном порядке, каждая инвертирована */
+/**
+ * Обратный набор: операции в обратном порядке, каждая инвертирована
+ */
 export function invertOperations(
     operations: Operation[],
     before: ReadonlyMap<string, DataObject | undefined>,
@@ -122,7 +149,9 @@ export function invertOperations(
         .map((operation) => invertOperation(operation, before.get(operation.id)));
 }
 
-/** Применяет операции набора к модели (без хуков и без обращения к серверу) */
+/**
+ * Применяет операции набора к модели (без хуков и без обращения к серверу)
+ */
 export function applyOperations(objects: Map<string, DataObject>, operations: Operation[]): void {
     for (const operation of operations) {
         const id = operation.id;
@@ -164,7 +193,9 @@ export function applyOperations(objects: Map<string, DataObject>, operations: Op
     }
 }
 
-/** Идентификаторы объектов, которых касаются операции (без повторов) */
+/**
+ * Идентификаторы объектов, которых касаются операции (без повторов)
+ */
 export function touchedIds(operations: Operation[]): string[] {
     return [...new Set(operations.map((o) => o.id))];
 }

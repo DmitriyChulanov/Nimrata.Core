@@ -29,7 +29,9 @@ async function start() {
     return { api, data, reveal, mechanisms, current };
 }
 
-/** Фиксирует «сейчас» (местное время) на время теста */
+/**
+ * Фиксирует «сейчас» (местное время) на время теста
+ */
 async function atDate(year: number, month: number, day: number, body: () => Promise<void>) {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(year, month - 1, day, 12, 0));
@@ -40,7 +42,13 @@ async function atDate(year: number, month: number, day: number, body: () => Prom
     }
 }
 
+/**
+ * Механизм «Выделить текущий день»
+ */
 describe('Tracker: "Select today"', () => {
+    /**
+     * Проверяет, что тип — механизм автоматизации, скрытый в дереве, с действием в автоматизации
+     */
     it('selectToday_type_isAutomationMechanismHiddenInTreeWithActionInAutomation', () => {
         const type = types.find((t) => t.id === MECHANISM)!;
         expect(type.automation).toBe(true);
@@ -50,6 +58,9 @@ describe('Tracker: "Select today"', () => {
         );
     });
 
+    /**
+     * Проверяет, что стартовая настройка создаёт единственный механизм без дублей
+     */
     it('selectToday_startSetup_createsSingleMechanismWithoutDuplicates', async () => {
         const { data, mechanisms } = await start();
         expect(mechanisms()).toHaveLength(1);
@@ -59,6 +70,9 @@ describe('Tracker: "Select today"', () => {
         expect(mechanisms()).toHaveLength(1);
     });
 
+    /**
+     * Проверяет, что пользователь со структурой, но без механизма, получает его при следующем входе
+     */
     it('selectToday_userWithStructureButNoMechanism_getsItOnNextLogin', async () => {
         const { data, mechanisms } = await start();
         await data.perform((tx) => {
@@ -73,6 +87,9 @@ describe('Tracker: "Select today"', () => {
         expect(mechanisms()).toHaveLength(1);
     });
 
+    /**
+     * Проверяет, что действие выделяет день с сегодняшней датой
+     */
     it('selectToday_action_selectsDayWithTodaysDate', async () => {
         await atDate(2026, 6, 10, async () => {
             const { data, reveal, mechanisms, current } = await start();
@@ -92,6 +109,9 @@ describe('Tracker: "Select today"', () => {
         });
     });
 
+    /**
+     * Проверяет, что действие выделяет и выходной день
+     */
     it('selectToday_action_selectsWeekendDayToo', async () => {
         await atDate(2026, 6, 13, async () => {
             const { data, reveal, mechanisms, current } = await start();
@@ -105,6 +125,9 @@ describe('Tracker: "Select today"', () => {
         });
     });
 
+    /**
+     * Проверяет, что при отсутствии дня на сегодня возвращается сообщение, объекты не создаются и ничего не выделяется
+     */
     it('selectToday_noDayForToday_returnsMessageCreatesNoObjectsSelectsNothing', async () => {
         await atDate(2026, 6, 10, async () => {
             const { api, data, reveal, mechanisms, current } = await start();

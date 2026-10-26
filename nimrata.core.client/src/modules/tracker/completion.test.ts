@@ -44,7 +44,9 @@ async function createTask(data: DataController, params: Record<string, unknown>)
     if (!result.ok) throw new Error(result.error);
 }
 
-/** Находит единственную задачу с названием */
+/**
+ * Находит единственную задачу с названием
+ */
 function task(data: DataController, title: string) {
     const all: DataObject[] = [];
     const walk = (parent: string | null) =>
@@ -57,7 +59,9 @@ function task(data: DataController, title: string) {
     return all[0];
 }
 
-/** Цепочка названий от корня до объекта */
+/**
+ * Цепочка названий от корня до объекта
+ */
 function path(data: DataController, object: DataObject): string[] {
     const names: string[] = [];
     let current: DataObject | undefined = object;
@@ -79,6 +83,9 @@ async function moveIntoNewCategory(data: DataController, title: string, name: st
     return created.id;
 }
 
+/**
+ * Завершение и откладывание задач Трекера
+ */
 describe('Tracker: complete and postpone', () => {
     beforeEach(() => {
         vi.useFakeTimers({ toFake: ['Date'] });
@@ -86,7 +93,13 @@ describe('Tracker: complete and postpone', () => {
     });
     afterEach(() => vi.useRealTimers());
 
+    /**
+     * Завершение задачи
+     */
     describe('Complete', () => {
+        /**
+         * Проверяет, что завершение ставит статус и переносит задачу в архив на ту же дату, создавая год, месяц и день
+         */
         it('complete_task_setsStatusAndMovesToArchiveOnSameDateCreatingYearMonthDay', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Позвонить', date: '2026-03-05' });
@@ -112,6 +125,9 @@ describe('Tracker: complete and postpone', () => {
             expect(data.getObject(done.parent!)!.type).toBe('Day');
         });
 
+        /**
+         * Проверяет, что завершение использует существующие узлы архива без дублей
+         */
         it('complete_task_reusesExistingArchiveNodesWithoutDuplicates', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Раз', date: '2026-03-05' });
@@ -124,6 +140,9 @@ describe('Tracker: complete and postpone', () => {
             expect(task(data, 'Раз').parent).toBe(task(data, 'Два').parent);
         });
 
+        /**
+         * Проверяет, что день архива для задачи выходного дня получает тип выходного
+         */
         it('complete_weekendTask_archiveDayGetsWeekendType', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Отдых', date: '2026-03-07' }); // суббота
@@ -133,6 +152,9 @@ describe('Tracker: complete and postpone', () => {
             expect(data.getObject(task(data, 'Отдых').parent!)!.type).toBe('DayOff');
         });
 
+        /**
+         * Проверяет, что цепочка категорий воссоздаётся по названиям, а опустевшие текущие удаляются
+         */
         it('complete_task_recreatesCategoryChainByNamesAndRemovesEmptiedCurrentOnes', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Купить', date: '2026-03-05', category: 'Дом' });
@@ -147,6 +169,9 @@ describe('Tracker: complete and postpone', () => {
             expect(data.getObject(dayId)).toBeDefined();
         });
 
+        /**
+         * Проверяет, что категория остаётся, пока в ней есть другие задачи
+         */
         it('complete_task_keepsCategoryWhenOtherTasksRemain', async () => {
             const { data } = await start();
             await createTask(data, { title: 'А', date: '2026-03-05', category: 'Дом' });
@@ -158,6 +183,9 @@ describe('Tracker: complete and postpone', () => {
             expect(path(data, task(data, 'А')).at(-2)).toBe('Дом');
         });
 
+        /**
+         * Проверяет, что завершение выполняется одним набором изменений
+         */
         it('complete_task_runsInSingleChangeset', async () => {
             const { api, data } = await start();
             await createTask(data, { title: 'Одна', date: '2026-03-05', category: 'Дом' });
@@ -168,6 +196,9 @@ describe('Tracker: complete and postpone', () => {
             expect(api.changesets.length - before).toBe(1);
         });
 
+        /**
+         * Проверяет, что отмена возвращает задачу, категорию и статус
+         */
         it('complete_undo_restoresTaskCategoryAndStatus', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Одна', date: '2026-03-05', category: 'Дом' });
@@ -183,6 +214,9 @@ describe('Tracker: complete and postpone', () => {
             expect(data.getChildren(root(data, 'CompletedTasksRoot').id)).toHaveLength(0);
         });
 
+        /**
+         * Проверяет, что уже завершённую задачу завершить нельзя
+         */
         it('complete_alreadyCompletedTask_isUnavailable', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Одна' });
@@ -194,6 +228,9 @@ describe('Tracker: complete and postpone', () => {
             expect(ids).not.toContain('postpone');
         });
 
+        /**
+         * Проверяет, что действие доступно для текущей задачи в контекстном меню и таблице свойств
+         */
         it('complete_currentTask_availableInContextMenuAndPropertyGrid', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Одна' });
@@ -206,7 +243,13 @@ describe('Tracker: complete and postpone', () => {
         });
     });
 
+    /**
+     * Откладывание задачи
+     */
     describe('Postpone', () => {
+        /**
+         * Проверяет, что откладывание переносит задачу в день выбранной даты, создавая месяц и день
+         */
         it('postpone_task_movesToDayOfChosenDateCreatingMonthAndDay', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Позже' });
@@ -223,6 +266,9 @@ describe('Tracker: complete and postpone', () => {
             expect(task(data, 'Позже').properties.status).toBeUndefined();
         });
 
+        /**
+         * Проверяет, что откладывание переносит задачу с цепочкой категорий и удаляет опустевшие
+         */
         it('postpone_task_movesWithCategoryChainAndRemovesEmptied', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Дело', category: 'Работа' });
@@ -238,6 +284,9 @@ describe('Tracker: complete and postpone', () => {
             expect(data.getChildren(oldDay)).toHaveLength(0);
         });
 
+        /**
+         * Проверяет, что откладывание использует существующую категорию целевого дня
+         */
         it('postpone_task_reusesExistingCategoryOfTargetDay', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Уже', date: '2026-03-06', category: 'Работа' });
@@ -248,6 +297,9 @@ describe('Tracker: complete and postpone', () => {
             expect(task(data, 'Дело').parent).toBe(task(data, 'Уже').parent);
         });
 
+        /**
+         * Проверяет, что порядок в новом дне соответствует времени задачи
+         */
         it('postpone_task_orderInNewDayMatchesTime', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Дело' });
@@ -258,6 +310,9 @@ describe('Tracker: complete and postpone', () => {
             expect(task(data, 'Дело').order).toBe(1 + 9 * 60 + 30);
         });
 
+        /**
+         * Проверяет, что откладывание идёт одним набором, а отмена возвращает задачу и категории
+         */
         it('postpone_task_runsInSingleChangesetAndUndoRestoresTaskAndCategories', async () => {
             const { api, data } = await start();
             await createTask(data, { title: 'Дело', category: 'Работа' });
@@ -275,6 +330,9 @@ describe('Tracker: complete and postpone', () => {
             ]);
         });
 
+        /**
+         * Проверяет, что откладывание на ту же дату ничего не меняет
+         */
         it('postpone_sameDate_changesNothing', async () => {
             const { api, data } = await start();
             await createTask(data, { title: 'Дело', category: 'Работа' });
@@ -288,6 +346,9 @@ describe('Tracker: complete and postpone', () => {
             expect(api.changesets.length).toBe(count);
         });
 
+        /**
+         * Проверяет, что откладывание на пустую или недопустимую дату отклоняется и ничего не меняет
+         */
         it.each([[''], ['4 марта'], ['2026-02-30']])(
             'postpone_invalidDate_isRejected_%s',
             async (date) => {
@@ -303,7 +364,13 @@ describe('Tracker: complete and postpone', () => {
         );
     });
 
+    /**
+     * Удаление задач
+     */
     describe('Task deletion', () => {
+        /**
+         * Проверяет, что удаление задачи убирает всю опустевшую цепочку категорий до дня
+         */
         it('delete_task_removesWholeEmptiedCategoryChainUpToDay', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Дело', category: 'Работа' });
@@ -317,6 +384,9 @@ describe('Tracker: complete and postpone', () => {
             expect(data.getObject(day)).toBeDefined();
         });
 
+        /**
+         * Проверяет, что категория с другими объектами остаётся
+         */
         it('delete_task_keepsCategoryWithOtherObjects', async () => {
             const { data } = await start();
             await createTask(data, { title: 'А', category: 'Работа' });
@@ -328,6 +398,9 @@ describe('Tracker: complete and postpone', () => {
             expect(data.getObject(category)).toBeDefined();
         });
 
+        /**
+         * Проверяет, что удаление и очистка идут одним набором, а отмена возвращает всё
+         */
         it('delete_task_deletionAndCleanupAreOneChangesetAndUndoRestoresAll', async () => {
             const { api, data } = await start();
             await createTask(data, { title: 'Дело', category: 'Работа' });
@@ -341,6 +414,9 @@ describe('Tracker: complete and postpone', () => {
             expect(path(data, task(data, 'Дело'))).toEqual(before);
         });
 
+        /**
+         * Проверяет, что удаление задачи прямо в дне оставляет день
+         */
         it('delete_taskDirectlyInDay_keepsDay', async () => {
             const { data } = await start();
             await createTask(data, { title: 'Дело' });

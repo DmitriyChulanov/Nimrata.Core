@@ -41,6 +41,9 @@ function stubApi(objects: unknown[], rejectChangesets?: string) {
 const changesets = (fetchMock: ReturnType<typeof stubApi>) =>
     fetchMock.mock.calls.filter(([url]) => url === '/api/changesets');
 
+/**
+ * Проверяет, что первый вход без корней создаёт стартовую структуру одним набором изменений
+ */
 it('tracker_firstLoginWithoutRoots_createsStartStructureInOneChangeset', async () => {
     const fetchMock = stubApi([]);
     render(<App />);
@@ -50,6 +53,9 @@ it('tracker_firstLoginWithoutRoots_createsStartStructureInOneChangeset', async (
     expect(changesets(fetchMock)).toHaveLength(1);
 });
 
+/**
+ * Проверяет, что вход при готовых корнях не создаёт дублей и не отправляет наборов
+ */
 it('tracker_loginWithExistingRoots_createsNoDuplicatesAndSendsNoChangesets', async () => {
     const fetchMock = stubApi([
         { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
@@ -63,6 +69,9 @@ it('tracker_loginWithExistingRoots_createsNoDuplicatesAndSendsNoChangesets', asy
     expect(changesets(fetchMock)).toHaveLength(0);
 });
 
+/**
+ * Проверяет, что отказ сервера на стартовой структуре показывается пользователю
+ */
 it('tracker_serverRejectsStartStructure_showsErrorToUser', async () => {
     stubApi([], 'тип "CurrentTasksRoot" нельзя разместить внутри типа "TasksRoot".');
     render(<App />);
@@ -70,6 +79,9 @@ it('tracker_serverRejectsStartStructure_showsErrorToUser', async () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('нельзя разместить');
 });
 
+/**
+ * Проверяет, что отказ сервера при достройке повторов показывается пользователю
+ */
 it('tracker_serverRejectsRepeatsTopUp_showsErrorToUser', async () => {
     const today = todayIso();
     const month = `${today.slice(0, 8)}01`;

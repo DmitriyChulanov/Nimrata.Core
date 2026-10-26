@@ -48,7 +48,13 @@ function mount(data: DataController) {
     );
 }
 
+/**
+ * Быстрый доступ Трекера в интерфейсе
+ */
 describe('Tracker: quick access interface', () => {
+    /**
+     * Проверяет, что записи скрыты в основном дереве и сгруппированы по названию цели во вкладке автоматизации
+     */
     it('quickAccessUi_entries_hiddenInMainTreeAndGroupedByTargetNameInAutomationTab', async () => {
         const { data, group, note } = await setup();
         await data.runAction(group.id, 'addToQuickAccess');
@@ -60,6 +66,9 @@ describe('Tracker: quick access interface', () => {
         expect(screen.queryByRole('treeitem', { name: /Быстрый доступ/ })).toBeNull();
     });
 
+    /**
+     * Проверяет, что щелчок по записи выделяет цель в основном дереве и раскрывает путь к ней
+     */
     it('quickAccessUi_clickOnEntry_selectsTargetInMainTreeAndExpandsPath', async () => {
         const { data, note } = await setup();
         await data.runAction(note.id, 'addToQuickAccess');
@@ -79,6 +88,9 @@ describe('Tracker: quick access interface', () => {
         expect(screen.getByRole('treeitem', { name: /Работа/ })).toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что действие в таблице свойств добавляет запись, а «Убрать» удаляет её
+     */
     it('quickAccessUi_addFromPropertyGrid_createsEntryAndRemoveDeletesIt', async () => {
         const { data } = await setup();
         mount(data);

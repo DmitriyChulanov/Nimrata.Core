@@ -9,17 +9,36 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Сброс пароля по e-mail: HTTP API с поддельной почтой (фабрика с Postgres в Testcontainers)</summary>
+/// <summary>
+/// Сброс пароля по e-mail: HTTP API с поддельной почтой (фабрика с Postgres в Testcontainers)
+/// </summary>
 public class PasswordResetTests(ServerFactory factory) : IClassFixture<ServerFactory>
 {
+    /// <summary>
+    /// Пользователь в ответе API
+    /// </summary>
+    /// <param name="Id">Идентификатор</param>
+    /// <param name="Email">Адрес</param>
     private record UserDto(Guid Id, string Email);
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+    /// <summary>
+    /// Создаёт клиент без автоматической обработки cookie
+    /// </summary>
+    /// <returns>Клиент HTTP</returns>
     private HttpClient NewClient() => factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
 
+    /// <summary>
+    /// Формирует уникальный адрес
+    /// </summary>
+    /// <returns>Новый адрес</returns>
     private static string UniqueEmail() => $"r{Guid.NewGuid():N}@example.test";
 
+    /// <summary>
+    /// Создаёт клиент, вошедший как администратор
+    /// </summary>
+    /// <returns>Клиент администратора</returns>
     private async Task<HttpClient> Administrator()
     {
         var client = NewClient();
@@ -29,6 +48,12 @@ public class PasswordResetTests(ServerFactory factory) : IClassFixture<ServerFac
         return client;
     }
 
+    /// <summary>
+    /// Создаёт пользователя через API администратора
+    /// </summary>
+    /// <param name="email">Адрес</param>
+    /// <param name="password">Пароль</param>
+    /// <returns>Созданный пользователь</returns>
     private async Task<UserDto> CreateUserAsync(string email, string password = "old-password-1")
     {
         using var admin = await Administrator();
@@ -37,21 +62,54 @@ public class PasswordResetTests(ServerFactory factory) : IClassFixture<ServerFac
         return (await response.Content.ReadFromJsonAsync<UserDto>(Json))!;
     }
 
+    /// <summary>
+    /// Достаёт токен из ссылки в письме
+    /// </summary>
+    /// <param name="email">Письмо</param>
+    /// <returns>Токен</returns>
     private static string TokenFromEmail(Auth.EmailMessage email) =>
         Uri.UnescapeDataString(Regex.Match(email.Body, @"token=([^\s]+)").Groups[1].Value);
 
+    /// <summary>
+    /// Находит последнее письмо, отправленное на адрес
+    /// </summary>
+    /// <param name="email">Адрес получателя</param>
+    /// <returns>Письмо или null</returns>
     private Auth.EmailMessage? LastEmail(string email) =>
         factory.Mailbox.Emails.LastOrDefault(mail => mail.To == email);
 
+    /// <summary>
+    /// Запрашивает ссылку сброса пароля
+    /// </summary>
+    /// <param name="client">Клиент HTTP</param>
+    /// <param name="email">Адрес</param>
+    /// <returns>Ответ сервера</returns>
     private static Task<HttpResponseMessage> RequestReset(HttpClient client, string email) =>
         client.PostAsJsonAsync("/api/auth/forgot-password", new { email });
 
+    /// <summary>
+    /// Устанавливает новый пароль по токену
+    /// </summary>
+    /// <param name="client">Клиент HTTP</param>
+    /// <param name="token">Токен из письма</param>
+    /// <param name="password">Новый пароль</param>
+    /// <returns>Ответ сервера</returns>
     private static Task<HttpResponseMessage> Confirm(HttpClient client, string token, string password) =>
         client.PostAsJsonAsync("/api/auth/reset-password", new { token = token, password = password });
 
+    /// <summary>
+    /// Отправляет запрос входа
+    /// </summary>
+    /// <param name="client">Клиент HTTP</param>
+    /// <param name="email">Адрес</param>
+    /// <param name="password">Пароль</param>
+    /// <returns>Ответ сервера</returns>
     private static Task<HttpResponseMessage> Login(HttpClient client, string email, string password) =>
         client.PostAsJsonAsync("/api/auth/login", new { email, password = password });
 
+    /// <summary>
+    /// Проверяет, что ответ одинаков для известного и неизвестного адреса, а письмо уходит только существующему пользователю
+    /// </summary>
     [Fact]
     public async Task Request_ForKnownAndUnknownEmail_RespondsSameAndMailsOnlyExistingUser()
     {
@@ -69,6 +127,9 @@ public class PasswordResetTests(ServerFactory factory) : IClassFixture<ServerFac
         Assert.Contains("https://nimrata.test/reset-password?token=", LastEmail(email)!.Body);
     }
 
+    /// <summary>
+    /// Проверяет, что действующая ссылка меняет пароль и отзывает refresh-токены
+    /// </summary>
     [Fact]
     public async Task Confirm_WithValidLink_ChangesPasswordAndRevokesRefresh()
     {
@@ -90,6 +151,9 @@ public class PasswordResetTests(ServerFactory factory) : IClassFixture<ServerFac
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.SendAsync(update)).StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что повторное использование ссылки отклоняется
+    /// </summary>
     [Fact]
     public async Task Confirm_ReusingSameLink_IsRejected()
     {
@@ -106,6 +170,9 @@ public class PasswordResetTests(ServerFactory factory) : IClassFixture<ServerFac
         Assert.Equal(HttpStatusCode.OK, (await Login(client, email, "new-password-1")).StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что просроченная ссылка отклоняется
+    /// </summary>
     [Fact]
     public async Task Confirm_WithExpiredLink_IsRejected()
     {
@@ -127,6 +194,9 @@ public class PasswordResetTests(ServerFactory factory) : IClassFixture<ServerFac
         Assert.Equal(HttpStatusCode.OK, (await Login(client, email, "old-password-1")).StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что произвольный токен или короткий пароль отклоняются
+    /// </summary>
     [Fact]
     public async Task Confirm_WithArbitraryTokenOrShortPassword_IsRejected()
     {
@@ -142,6 +212,9 @@ public class PasswordResetTests(ServerFactory factory) : IClassFixture<ServerFac
         Assert.Equal(HttpStatusCode.NoContent, (await Confirm(client, token, "new-password-1")).StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что отключённому пользователю письмо не отправляется
+    /// </summary>
     [Fact]
     public async Task Request_ForDisabledUser_SendsNoMail()
     {
@@ -157,6 +230,9 @@ public class PasswordResetTests(ServerFactory factory) : IClassFixture<ServerFac
         Assert.Null(LastEmail(email));
     }
 
+    /// <summary>
+    /// Проверяет, что администратор отправляет ссылку пользователю, а обычный пользователь получает 403
+    /// </summary>
     [Fact]
     public async Task Administrator_SendsResetLinkToUser_MemberGets403()
     {

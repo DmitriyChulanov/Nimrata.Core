@@ -9,7 +9,13 @@ function jsonResponse(body: unknown, status = 200): Response {
     });
 }
 
+/**
+ * API-клиент
+ */
 describe('ApiClient', () => {
+    /**
+     * Проверяет, что GET по базовому адресу `/api` возвращает разобранный JSON
+     */
     it('get_baseUrlApi_returnsParsedJson', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ name: 'Nimrata' }));
         const api = createApiClient({ fetch: fetchMock });
@@ -21,6 +27,9 @@ describe('ApiClient', () => {
         expect(fetchMock.mock.calls[0][1].method).toBe('GET');
     });
 
+    /**
+     * Проверяет, что тело POST отправляется как JSON с заголовком типа содержимого
+     */
     it('post_body_isSentAsJsonWithContentTypeHeader', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ id: 1 }));
         const api = createApiClient({ fetch: fetchMock });
@@ -33,6 +42,9 @@ describe('ApiClient', () => {
         expect(new Headers(init.headers).get('Content-Type')).toBe('application/json');
     });
 
+    /**
+     * Проверяет, что заголовки из `getHeaders`, например токен доступа, добавляются к запросу
+     */
     it('request_getHeaders_addsHeadersSuchAsAccessToken', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
         const api = createApiClient({
@@ -47,6 +59,9 @@ describe('ApiClient', () => {
         );
     });
 
+    /**
+     * Проверяет, что пользовательский базовый адрес учитывается
+     */
     it('request_customBaseUrl_isRespected', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
         const api = createApiClient({ fetch: fetchMock, baseUrl: '/v2/' });
@@ -56,6 +71,9 @@ describe('ApiClient', () => {
         expect(fetchMock.mock.calls[0][0]).toBe('/v2/x');
     });
 
+    /**
+     * Проверяет, что причина ошибки берётся из поля `detail`
+     */
     it('request_errorResponse_takesReasonFromDetailField', async () => {
         const fetchMock = vi
             .fn()
@@ -72,6 +90,9 @@ describe('ApiClient', () => {
         expect((error as ApiError).message).toBe('Операция 1: объект не найден.');
     });
 
+    /**
+     * Проверяет, что причина ошибки берётся из поля `error`
+     */
     it('request_errorResponseWithErrorField_takesReasonFromIt', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'Старый формат' }, 400));
         const api = createApiClient({ fetch: fetchMock });
@@ -81,6 +102,9 @@ describe('ApiClient', () => {
         expect((error as ApiError).message).toBe('Старый формат');
     });
 
+    /**
+     * Проверяет, что ошибка ответа бросает `ApiError` с кодом и сообщением сервера
+     */
     it('request_errorResponse_throwsApiErrorWithStatusAndServerMessage', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ title: 'Нет доступа' }, 403));
         const api = createApiClient({ fetch: fetchMock });
@@ -92,6 +116,9 @@ describe('ApiClient', () => {
         expect((error as ApiError).message).toBe('Нет доступа');
     });
 
+    /**
+     * Проверяет, что ответ-ошибка без JSON использует код в сообщении
+     */
     it('request_errorResponseWithoutJsonBody_usesStatusInMessage', async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response('boom', { status: 500 }));
         const api = createApiClient({ fetch: fetchMock });
@@ -102,6 +129,9 @@ describe('ApiClient', () => {
         expect((error as ApiError).message).toContain('500');
     });
 
+    /**
+     * Проверяет, что ответ 204 возвращает `undefined`
+     */
     it('request_response204_returnsUndefined', async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
         const api = createApiClient({ fetch: fetchMock });

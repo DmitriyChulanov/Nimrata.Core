@@ -10,21 +10,51 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Tests;
 
+/// <summary>
+/// Вход, обновление и отзыв токенов, защита API
+/// </summary>
+/// <param name="factory">Стенд сервера с Postgres</param>
 public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
 {
+    /// <summary>
+    /// Создаёт клиент без автоматической обработки cookie
+    /// </summary>
+    /// <returns>Клиент HTTP</returns>
     private HttpClient NewClient() => factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
 
+    /// <summary>
+    /// Достаёт пару «имя=значение» из Set-Cookie для заголовка Cookie следующего запроса
+    /// </summary>
+    /// <param name="response">Ответ сервера</param>
+    /// <param name="name">Имя cookie</param>
+    /// <returns>Пара или null, если cookie нет</returns>
     private static string? Cookie(HttpResponseMessage response, string name) =>
         response.Headers.TryGetValues("Set-Cookie", out var values)
             ? values.FirstOrDefault(v => v.StartsWith(name + "="))
             : null;
 
-    /// <summary>Пара «имя=значение» из Set-Cookie для заголовка Cookie следующего запроса</summary>
+    /// <summary>
+    /// Пара «имя=значение» из Set-Cookie для заголовка Cookie следующего запроса
+    /// </summary>
     private static string CookieHeader(string setCookie) => setCookie.Split(';')[0];
 
+    /// <summary>
+    /// Отправляет запрос входа
+    /// </summary>
+    /// <param name="client">Клиент HTTP</param>
+    /// <param name="email">Адрес</param>
+    /// <param name="password">Пароль</param>
+    /// <returns>Ответ сервера</returns>
     private static async Task<HttpResponseMessage> Login(HttpClient client, string email, string password) =>
         await client.PostAsJsonAsync("/api/auth/login", new { email, password = password });
 
+    /// <summary>
+    /// Отправляет GET с необязательным cookie
+    /// </summary>
+    /// <param name="client">Клиент HTTP</param>
+    /// <param name="path">Путь запроса</param>
+    /// <param name="cookie">Значение заголовка Cookie или null</param>
+    /// <returns>Ответ сервера</returns>
     private static Task<HttpResponseMessage> Request(HttpClient client, string path, string? cookie)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, path);
@@ -32,6 +62,9 @@ public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
         return client.SendAsync(request);
     }
 
+    /// <summary>
+    /// Проверяет, что верный пароль даёт access-токен и HttpOnly refresh-cookie
+    /// </summary>
     [Fact]
     public async Task Login_WithCorrectPassword_IssuesAccessAndHttpOnlyRefreshCookie()
     {
@@ -48,6 +81,9 @@ public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
         Assert.Contains("samesite=strict", cookie, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Проверяет, что неверный пароль даёт 401 без cookie
+    /// </summary>
     [Fact]
     public async Task Login_WithWrongPassword_Returns401WithoutCookie()
     {
@@ -59,6 +95,9 @@ public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
         Assert.Null(Cookie(response, "refresh_token"));
     }
 
+    /// <summary>
+    /// Проверяет, что неизвестный адрес даёт 401
+    /// </summary>
     [Fact]
     public async Task Login_WithUnknownEmail_Returns401()
     {
@@ -69,6 +108,9 @@ public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что API закрыт без токена и отвечает с токеном
+    /// </summary>
     [Fact]
     public async Task ProtectedApi_WithoutToken401_WithTokenResponds()
     {
@@ -85,6 +127,9 @@ public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
         Assert.Contains(ServerFactory.AdminEmail, await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Проверяет, что обновление выдаёт новый access-токен и заменяет refresh, а старый перестаёт работать
+    /// </summary>
     [Fact]
     public async Task Refresh_WithCookie_IssuesNewAccessAndRotatesRefresh()
     {
@@ -104,6 +149,9 @@ public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, (await Request(client, "/api/auth/refresh", cookie)).StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что обновление без cookie даёт 401
+    /// </summary>
     [Fact]
     public async Task Refresh_WithoutCookie_Returns401()
     {
@@ -114,6 +162,9 @@ public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что выход отзывает refresh-токен
+    /// </summary>
     [Fact]
     public async Task Logout_RevokesRefresh()
     {
@@ -127,6 +178,9 @@ public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, (await Request(client, "/api/auth/refresh", cookie)).StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что отключённый пользователь не входит и не обновляет токен
+    /// </summary>
     [Fact]
     public async Task DisabledUser_CannotLoginOrRefreshToken()
     {
@@ -147,6 +201,9 @@ public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, (await Request(client, "/api/auth/refresh", cookie)).StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что повторный запуск не создаёт первого администратора второй раз
+    /// </summary>
     [Fact]
     public async Task FirstAdministrator_OnRestart_IsNotDuplicated()
     {
@@ -162,6 +219,9 @@ public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что слишком короткий пароль администратора останавливает запуск
+    /// </summary>
     [Fact]
     public void FirstAdministrator_WithShortPassword_StartupFails()
     {
@@ -175,7 +235,9 @@ public class AuthTests(ServerFactory factory) : IClassFixture<ServerFactory>
         Assert.ThrowsAny<Exception>(() => bad.CreateClient());
     }
 
-    /// <summary>Создаёт пользователя тем же способом, что и сид администратора: запуском сервера с другими настройками</summary>
+    /// <summary>
+    /// Создаёт пользователя тем же способом, что и сид администратора: запуском сервера с другими настройками
+    /// </summary>
     private async Task CreateUserAsync(string email, string password)
     {
         using var start = factory.WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, c) =>

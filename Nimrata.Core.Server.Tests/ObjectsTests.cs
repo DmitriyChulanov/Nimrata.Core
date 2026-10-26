@@ -11,7 +11,9 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Объекты и наборы изменений: загрузка, атомарное применение, проверки по типам, журнал</summary>
+/// <summary>
+/// Объекты и наборы изменений: загрузка, атомарное применение, проверки по типам, журнал
+/// </summary>
 public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFactory>, IAsyncLifetime
 {
     private const string Manifest = """
@@ -47,6 +49,10 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     private HttpClient _me = null!;
     private HttpClient _other = null!;
 
+    /// <summary>
+    /// Готовит двух пользователей и клиентов для тестов объектов
+    /// </summary>
+    /// <returns>Задача подготовки</returns>
     public async Task InitializeAsync()
     {
         _directory = Path.Combine(Path.GetTempPath(), "nimrata-objects-" + Guid.NewGuid().ToString("N"));
@@ -65,6 +71,10 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         _other = await Login(ForeignEmail, ForeignPassword);
     }
 
+    /// <summary>
+    /// Освобождает ресурсы теста
+    /// </summary>
+    /// <returns>Завершённая задача</returns>
     public Task DisposeAsync()
     {
         _me?.Dispose();
@@ -74,6 +84,12 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Входит под пользователем
+    /// </summary>
+    /// <param name="email">Адрес</param>
+    /// <param name="password">Пароль</param>
+    /// <returns>Клиент с access-токеном</returns>
     private async Task<HttpClient> Login(string email, string password)
     {
         var client = _server.CreateClient();
@@ -83,15 +99,41 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         return client;
     }
 
+    /// <summary>
+    /// Описывает операцию создания объекта
+    /// </summary>
+    /// <param name="id">Идентификатор</param>
+    /// <param name="type">Тип</param>
+    /// <param name="parent">Родитель</param>
+    /// <param name="order">Порядок</param>
+    /// <param name="properties">Свойства</param>
+    /// <returns>Операция набора</returns>
     private static object Create(Guid id, string type, Guid? parent = null, double order = 1, object? properties = null) =>
         new { op = "create", id, type = type, parent = parent, order = order, properties = properties ?? new { } };
 
+    /// <summary>
+    /// Отправляет набор изменений
+    /// </summary>
+    /// <param name="client">Клиент HTTP</param>
+    /// <param name="operations">Операции набора</param>
+    /// <returns>Ответ сервера</returns>
     private static Task<HttpResponseMessage> Apply(HttpClient client, params object[] operations) =>
         client.PostAsJsonAsync("/api/changesets", new { operations = operations });
 
+    /// <summary>
+    /// Загружает объекты пользователя
+    /// </summary>
+    /// <param name="client">Клиент HTTP</param>
+    /// <returns>Массив объектов</returns>
     private static async Task<JsonElement[]> Load(HttpClient client) =>
         (await client.GetFromJsonAsync<JsonElement[]>("/api/objects"))!;
 
+    /// <summary>
+    /// Проверяет, что набор отклонён с нужным кодом и причиной
+    /// </summary>
+    /// <param name="response">Ответ сервера</param>
+    /// <param name="status">Ожидаемый код</param>
+    /// <param name="substring">Фрагмент причины</param>
     private static async Task AssertRejected(HttpResponseMessage response, HttpStatusCode status, string substring)
     {
         Assert.Equal(status, response.StatusCode);
@@ -99,6 +141,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Contains(substring, reason);
     }
 
+    /// <summary>
+    /// Некорректные значения свойств: название случая, свойства и фрагмент причины
+    /// </summary>
     public static TheoryData<string, object, string> InvalidProperties => new()
     {
         { "string", new { title = 5 }, "title" },
@@ -114,6 +159,12 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         { "неизвестное свойство", new { nope = "x" }, "nope" },
     };
 
+    /// <summary>
+    /// Проверяет, что создание с недопустимым значением свойства отклоняется
+    /// </summary>
+    /// <param name="_">Название случая</param>
+    /// <param name="properties">Свойства объекта</param>
+    /// <param name="name">Фрагмент причины</param>
     [Theory]
     [MemberData(nameof(InvalidProperties))]
     public async Task Changeset_CreateWithInvalidPropertyValue_IsRejected(string _, object properties, string name)
@@ -124,6 +175,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Empty(await Load(_me));
     }
 
+    /// <summary>
+    /// Проверяет, что значения всех видов свойств принимаются
+    /// </summary>
     [Fact]
     public async Task Changeset_CreateWithValidValuesOfAllKinds_IsAccepted()
     {
@@ -139,6 +193,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что ссылка на чужой или отсутствующий объект отклоняется
+    /// </summary>
     [Fact]
     public async Task Changeset_ReferenceToForeignOrMissingObject_IsRejected()
     {
@@ -152,6 +209,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(toMissing, HttpStatusCode.UnprocessableEntity, "ref");
     }
 
+    /// <summary>
+    /// Проверяет, что ссылка на объект недопустимого типа отклоняется
+    /// </summary>
     [Fact]
     public async Task Changeset_ReferenceToDisallowedType_IsRejected()
     {
@@ -164,6 +224,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "folderRef");
     }
 
+    /// <summary>
+    /// Проверяет, что неизвестный тип отклоняется
+    /// </summary>
     [Fact]
     public async Task Changeset_UnknownType_IsRejected()
     {
@@ -172,6 +235,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "Nope");
     }
 
+    /// <summary>
+    /// Проверяет, что объект абстрактного типа создать нельзя
+    /// </summary>
     [Fact]
     public async Task Changeset_AbstractType_IsRejected()
     {
@@ -180,6 +246,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "абстракт");
     }
 
+    /// <summary>
+    /// Проверяет, что несуществующий родитель отклоняется
+    /// </summary>
     [Fact]
     public async Task Changeset_ParentDoesNotExist_IsRejected()
     {
@@ -188,6 +257,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "родител");
     }
 
+    /// <summary>
+    /// Проверяет, что чужой родитель считается отсутствующим
+    /// </summary>
     [Fact]
     public async Task Changeset_ForeignParent_RejectedAsMissing()
     {
@@ -200,6 +272,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Empty(await Load(_me));
     }
 
+    /// <summary>
+    /// Проверяет, что родитель не принимает дочерний объект недопустимого типа
+    /// </summary>
     [Fact]
     public async Task Changeset_ParentDisallowsChildType_IsRejected()
     {
@@ -211,6 +286,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "Folder");
     }
 
+    /// <summary>
+    /// Проверяет, что занятый идентификатор отклоняется
+    /// </summary>
     [Fact]
     public async Task Changeset_IdAlreadyTaken_IsRejected()
     {
@@ -224,6 +302,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(foreign, HttpStatusCode.Conflict, "занят");
     }
 
+    /// <summary>
+    /// Проверяет, что отказ на последней операции отменяет весь набор
+    /// </summary>
     [Fact]
     public async Task Changeset_LastOperationRejected_NoneIsApplied()
     {
@@ -236,6 +317,10 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(0, await JournalEntryCount());
     }
 
+    /// <summary>
+    /// Проверяет, что набор неверного формата отклоняется с причиной
+    /// </summary>
+    /// <param name="body">Тело запроса</param>
     [Theory]
     [InlineData("{}")]
     [InlineData("""{ "operations": [] }""")]
@@ -249,16 +334,43 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "");
     }
 
+    /// <summary>
+    /// Описывает операцию изменения свойств
+    /// </summary>
+    /// <param name="id">Идентификатор объекта</param>
+    /// <param name="changes">Изменения</param>
+    /// <returns>Операция набора</returns>
     private static object Update(Guid id, object changes) => new { op = "update", id, changes = changes };
 
+    /// <summary>
+    /// Описывает операцию перемещения
+    /// </summary>
+    /// <param name="id">Идентификатор объекта</param>
+    /// <param name="parent">Описание смены родителя</param>
+    /// <param name="order">Описание смены порядка</param>
+    /// <returns>Операция набора</returns>
     private static object Move(Guid id, object? parent = null, object? order = null) =>
         new { op = "move", id, parent = parent, order = order };
 
+    /// <summary>
+    /// Описывает операцию удаления
+    /// </summary>
+    /// <param name="id">Идентификатор объекта</param>
+    /// <returns>Операция набора</returns>
     private static object Delete(Guid id) => new { op = "delete", id };
 
+    /// <summary>
+    /// Находит объект по идентификатору
+    /// </summary>
+    /// <param name="objects">Загруженные объекты</param>
+    /// <param name="id">Идентификатор</param>
+    /// <returns>JSON объекта</returns>
     private static JsonElement Find(JsonElement[] objects, Guid id) =>
         objects.Single(element => element.GetProperty("id").GetGuid() == id);
 
+    /// <summary>
+    /// Проверяет, что изменение с совпавшим старым значением применяется
+    /// </summary>
     [Fact]
     public async Task Changeset_UpdateProperty_MatchingOld_IsApplied()
     {
@@ -278,6 +390,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(1, properties.GetProperty("count").GetInt32());
     }
 
+    /// <summary>
+    /// Проверяет, что новое значение null убирает свойство
+    /// </summary>
     [Fact]
     public async Task Changeset_UpdateProperty_NewNull_RemovesValue()
     {
@@ -290,6 +405,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.False(Find(await Load(_me), id).GetProperty("properties").TryGetProperty("title", out _));
     }
 
+    /// <summary>
+    /// Проверяет, что несовпавшее старое значение даёт конфликт и ничего не меняет
+    /// </summary>
     [Fact]
     public async Task Changeset_UpdateProperty_OldMismatch_RejectedAsConflictAndChangesNothing()
     {
@@ -308,6 +426,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(1, properties.GetProperty("count").GetInt32());
     }
 
+    /// <summary>
+    /// Проверяет, что недопустимое новое значение отклоняется
+    /// </summary>
     [Fact]
     public async Task Changeset_UpdateProperty_InvalidValue_IsRejected()
     {
@@ -319,6 +440,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "level");
     }
 
+    /// <summary>
+    /// Проверяет, что изменение чужого или отсутствующего объекта отклоняется
+    /// </summary>
     [Fact]
     public async Task Changeset_UpdateForeignOrMissingObject_IsRejected()
     {
@@ -334,6 +458,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal("Секрет", Find(await Load(_other), foreign).GetProperty("properties").GetProperty("title").GetString());
     }
 
+    /// <summary>
+    /// Проверяет, что при отказе второй операции первая откатывается
+    /// </summary>
     [Fact]
     public async Task Changeset_FirstOperationValidSecondNot_FirstIsRolledBack()
     {
@@ -348,6 +475,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal("Исходное", Find(await Load(_me), id).GetProperty("properties").GetProperty("title").GetString());
     }
 
+    /// <summary>
+    /// Проверяет, что перемещение меняет родителя и порядок
+    /// </summary>
     [Fact]
     public async Task Changeset_Move_ChangesParentAndOrder()
     {
@@ -365,6 +495,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(1.5, after.GetProperty("order").GetDouble());
     }
 
+    /// <summary>
+    /// Проверяет, что перемещение в корень убирает родителя
+    /// </summary>
     [Fact]
     public async Task Changeset_MoveToRoot_ClearsParent()
     {
@@ -378,6 +511,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(JsonValueKind.Null, Find(await Load(_me), nested).GetProperty("parent").ValueKind);
     }
 
+    /// <summary>
+    /// Проверяет, что перемещение с неверным прежним положением даёт конфликт
+    /// </summary>
     [Fact]
     public async Task Changeset_MoveWithWrongOld_RejectedAsConflict()
     {
@@ -393,6 +529,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(wrongOrder, HttpStatusCode.Conflict, "order");
     }
 
+    /// <summary>
+    /// Проверяет, что перемещение под недопустимого родителя или в себя отклоняется
+    /// </summary>
     [Fact]
     public async Task Changeset_MoveUnderInvalidParentOrIntoSelf_IsRejected()
     {
@@ -410,6 +549,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(intoDescendant, HttpStatusCode.UnprocessableEntity, "цикл");
     }
 
+    /// <summary>
+    /// Проверяет, что перемещение чужого объекта или под чужого родителя отклоняется
+    /// </summary>
     [Fact]
     public async Task Changeset_MoveForeignObjectOrUnderForeignParent_IsRejected()
     {
@@ -425,6 +567,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await AssertRejected(underForeign, HttpStatusCode.UnprocessableEntity, "родител");
     }
 
+    /// <summary>
+    /// Проверяет, что удаляются перечисленные объекты поддерева
+    /// </summary>
     [Fact]
     public async Task Changeset_DeleteSubtree_ListedObjectsAreDeleted()
     {
@@ -439,6 +584,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal([remaining], (await Load(_me)).Select(element => element.GetProperty("id").GetGuid()));
     }
 
+    /// <summary>
+    /// Проверяет, что удаление родителя без потомков отклоняется, а потомки неявно не удаляются
+    /// </summary>
     [Fact]
     public async Task Changeset_DeleteParentWithoutChildren_RejectedChildrenNotDeletedImplicitly()
     {
@@ -452,6 +600,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(2, (await Load(_me)).Length);
     }
 
+    /// <summary>
+    /// Проверяет, что удаление чужого или отсутствующего объекта отклоняется
+    /// </summary>
     [Fact]
     public async Task Changeset_DeleteForeignOrMissing_IsRejected()
     {
@@ -466,8 +617,21 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Single(await Load(_other));
     }
 
+    /// <summary>
+    /// Запись журнала, прочитанная из БД
+    /// </summary>
+    /// <param name="Operation">Операция</param>
+    /// <param name="Property">Свойство</param>
+    /// <param name="Old">Прежнее значение</param>
+    /// <param name="New">Новое значение</param>
+    /// <param name="Snapshot">Снимок объекта</param>
     private sealed record JournalEntry(string Operation, string? Property, JsonElement? Old, JsonElement? New, JsonElement? Snapshot);
 
+    /// <summary>
+    /// Читает записи журнала объекта из БД
+    /// </summary>
+    /// <param name="obj">Идентификатор объекта</param>
+    /// <returns>Записи по порядку</returns>
     private async Task<List<JournalEntry>> Journal(Guid obj)
     {
         await using var connection = new NpgsqlConnection(_database);
@@ -478,6 +642,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
             """, new { obj })).ToList();
     }
 
+    /// <summary>
+    /// Проверяет, что операции набора попадают в журнал со старым и новым значением
+    /// </summary>
     [Fact]
     public async Task Journal_ChangesetOperations_AreRecordedWithOldAndNew()
     {
@@ -501,6 +668,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(second, journal[2].New!.Value.GetProperty("parent").GetGuid());
     }
 
+    /// <summary>
+    /// Проверяет, что удаление записывает в журнал полный снимок объекта
+    /// </summary>
     [Fact]
     public async Task Journal_Delete_StoresFullObjectSnapshot()
     {
@@ -520,6 +690,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(7, snapshot.GetProperty("properties").GetProperty("count").GetInt32());
     }
 
+    /// <summary>
+    /// Проверяет, что отклонённый набор не оставляет записей в журнале
+    /// </summary>
     [Fact]
     public async Task Journal_RejectedChangeset_LeavesNoTrace()
     {
@@ -529,6 +702,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(0, await Dapper.SqlMapper.ExecuteScalarAsync<long>(connection, "select count(*) from changesets"));
     }
 
+    /// <summary>
+    /// Проверяет, что запись журнала принадлежит автору набора
+    /// </summary>
     [Fact]
     public async Task Journal_ChangesetEntry_BelongsToAuthor()
     {
@@ -541,6 +717,10 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(ForeignEmail, author);
     }
 
+    /// <summary>
+    /// Проверяет, что БД запрещает изменять и удалять записи журнала
+    /// </summary>
+    /// <param name="request">SQL-запрос изменения</param>
     [Theory]
     [InlineData("update changeset_entries set new_value = '1'")]
     [InlineData("delete from changeset_entries")]
@@ -554,12 +734,19 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await Assert.ThrowsAsync<PostgresException>(() => Dapper.SqlMapper.ExecuteAsync(connection, request));
     }
 
+    /// <summary>
+    /// Считает записи журнала в БД
+    /// </summary>
+    /// <returns>Число записей</returns>
     private async Task<long> JournalEntryCount()
     {
         await using var connection = new NpgsqlConnection(_database);
         return await Dapper.SqlMapper.ExecuteScalarAsync<long>(connection, "select count(*) from changeset_entries");
     }
 
+    /// <summary>
+    /// Проверяет, что без токена объекты недоступны
+    /// </summary>
     [Fact]
     public async Task Objects_WithoutToken_Returns401()
     {
@@ -570,6 +757,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что созданные объекты загружаются вместе с данными клиента
+    /// </summary>
     [Fact]
     public async Task Changeset_CreateObjects_AppearInLoadWithClientData()
     {
@@ -593,6 +783,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(JsonValueKind.Null, root.GetProperty("parent").ValueKind);
     }
 
+    /// <summary>
+    /// Проверяет, что загрузка возвращает только объекты текущего пользователя
+    /// </summary>
     [Fact]
     public async Task Load_ReturnsOnlyCurrentUserObjects()
     {

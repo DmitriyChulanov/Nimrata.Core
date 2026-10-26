@@ -6,22 +6,35 @@ import './Journal.css';
 import type { ApiClient } from '@platform/api/apiClient';
 import type { JournalEntry, JournalPage, JournalResolver } from './journal';
 
+/**
+ * Свойства компонента `JournalView`
+ */
 export interface JournalViewProps {
+    /** API-клиент для чтения журнала */
     api: ApiClient;
     /** Выделенный в дереве объект */
     selectedId: string | null;
+    /** Сведения об окружении для понятных названий */
     resolver: JournalResolver;
 }
 
+/**
+ * Загруженные записи журнала для одного запроса
+ */
 interface Loaded {
     /** Запрос, которому принадлежат записи (`null` — «все мои изменения») */
     key: string;
+    /** Загруженные записи */
     entries: JournalEntry[];
+    /** Общее число записей по запросу */
     total: number;
+    /** Причина ошибки загрузки или `null` */
     error: string | null;
 }
 
-/** Просмотр журнала: записи выбранного объекта или все изменения пользователя. Только чтение */
+/**
+ * Просмотр журнала: записи выбранного объекта или все изменения пользователя. Только чтение
+ */
 export function JournalView({ api, selectedId, resolver }: JournalViewProps) {
     const [all, setAll] = useState(false);
     const [loaded, setLoaded] = useState<Loaded | null>(null);

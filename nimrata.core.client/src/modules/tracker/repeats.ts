@@ -10,26 +10,49 @@ import { allTasks, taskDate, taskName, taskOrder } from './tasks';
 import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
 import type { Ymd } from './dates';
 
+/**
+ * Значение «повтора нет»
+ */
 const NONE = 'none';
+/**
+ * Значение повтора «каждый будний день»
+ */
 const WEEKDAYS = 'weekdays';
+/**
+ * Значение повтора «каждую неделю»
+ */
 const WEEKLY = 'weekly';
+/**
+ * Значение повтора «каждый месяц»
+ */
 const MONTHLY = 'monthly';
 
-/** Свойства, правки которых распространяются на весь набор повторов (порядок — отдельно, через `move`) */
+/**
+ * Свойства, правки которых распространяются на весь набор повторов (порядок — отдельно, через `move`)
+ */
 const SYNCED = ['title', 'comment', 'link', 'priority', 'time'];
-/** Свойства, которые копируются в новый повтор (статус и вычисляемое имя — нет) */
+/**
+ * Свойства, которые копируются в новый повтор (статус и вычисляемое имя — нет)
+ */
 const COPIED = [...SYNCED, 'internalLink', 'notifyBefore', 'repeat', 'repeatId'];
 
+/**
+ * Сообщение об отказе во включении повтора по будням для выходного дня
+ */
 const WEEKEND_MESSAGE = 'Для задачи выходного дня нельзя включить повтор «Каждый будний день».';
 
-/** Горизонт повторов: последний день следующего месяца (`ГГГГ-ММ-ДД`) */
+/**
+ * Горизонт повторов: последний день следующего месяца (`ГГГГ-ММ-ДД`)
+ */
 export function repeatHorizon(today: string): string {
     const ymd = parseIso(today);
     if (!ymd) throw new Error('Дата должна быть в формате ГГГГ-ММ-ДД.');
     return toIso(fromUtc(new Date(Date.UTC(ymd.year, ymd.month + 1, 0))));
 }
 
-/** Подходящие даты вида `kind`, идущие после `anchor`, пока не пройден `horizon` (включительно) */
+/**
+ * Подходящие даты вида `kind`, идущие после `anchor`, пока не пройден `horizon` (включительно)
+ */
 function* seriesDates(kind: string, anchor: Ymd, horizon: string): Generator<string> {
     for (let step = 1; ; step++) {
         let next: Ymd;
@@ -43,16 +66,35 @@ function* seriesDates(kind: string, anchor: Ymd, horizon: string): Generator<str
     }
 }
 
+/**
+ * Вид повтора задачи
+ *
+ * @param task - задача
+ * @returns значение свойства `repeat` или «нет»
+ */
 function repeatKind(task: DataObject): string {
     const value = task.properties.repeat;
     return typeof value === 'string' ? value : NONE;
 }
 
+/**
+ * Идентификатор набора повторов задачи
+ *
+ * @param task - задача
+ * @returns идентификатор набора или `undefined`, если задача не повторяется
+ */
 function repeatIdOf(task: DataObject): string | undefined {
     const value = task.properties.repeatId;
     return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
+/**
+ * Задачи набора с их датами по порядку возрастания даты
+ *
+ * @param data - контроллер данных
+ * @param members - задачи набора повторов
+ * @returns пары задача и дата; задачи без даты отброшены
+ */
 function datedMembers(data: DataController, members: DataObject[]) {
     return members
         .map((task) => ({ task, date: taskDate(data, task) }))
@@ -130,7 +172,9 @@ export async function ensureRepeats(data: DataController): Promise<ChangeResult>
     );
 }
 
-/** Включение, смена и выключение повтора, синхронизация набора. Возвращает функцию отписки */
+/**
+ * Включение, смена и выключение повтора, синхронизация набора. Возвращает функцию отписки
+ */
 export function registerRepeats(data: DataController): () => void {
     // Правки повторов внутри набора идут «тихо»: собственные хуки при этом не срабатывают,
     // иначе синхронизация зацикливалась бы

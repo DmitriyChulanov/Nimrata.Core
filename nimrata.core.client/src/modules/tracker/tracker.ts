@@ -22,14 +22,18 @@ import { createTaskAction, syncTask } from './tasks';
 
 import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
-/** Подпись статуса заметки по описанию типа; `undefined`, если статус не задан или неизвестен */
+/**
+ * Подпись статуса заметки по описанию типа; `undefined`, если статус не задан или неизвестен
+ */
 function statusLabel(data: DataController, status: unknown): string | undefined {
     if (typeof status !== 'string' || status === '') return undefined;
     const property = data.getType(NOTE)?.properties?.find((p) => p.id === 'status');
     return property?.values?.find((v) => v.value === status)?.name;
 }
 
-/** Имя заметки: «[Статус] Название», если статус задан, иначе название */
+/**
+ * Имя заметки: «[Статус] Название», если статус задан, иначе название
+ */
 export function noteName(data: DataController, note: DataObject): string | undefined {
     const title = note.properties.title;
     if (typeof title !== 'string' || title === '') return undefined;
@@ -37,7 +41,9 @@ export function noteName(data: DataController, note: DataObject): string | undef
     return label ? `[${label}] ${title}` : title;
 }
 
-/** Приводит `name` заметки к вычисленному значению в том же наборе изменений */
+/**
+ * Приводит `name` заметки к вычисленному значению в том же наборе изменений
+ */
 function syncNoteName(data: DataController, id: string, tx: ChangeScope): HookResult {
     const note = data.getObject(id);
     if (!note) return;
@@ -48,12 +54,21 @@ function syncNoteName(data: DataController, id: string, tx: ChangeScope): HookRe
 
 export { taskDate } from './tasks';
 
+/**
+ * Проверяет, что значение — непустая строка
+ *
+ * @param value - проверяемое значение
+ * @param message - текст ошибки при неудаче
+ * @returns строка без пробелов по краям
+ */
 function requireText(value: unknown, message: string): string {
     if (typeof value !== 'string' || value.trim() === '') throw new Error(message);
     return value.trim();
 }
 
-/** Безопасный адрес для перехода: только http и https */
+/**
+ * Безопасный адрес для перехода: только http и https
+ */
 function safeUrl(value: unknown): string | null {
     if (typeof value !== 'string') return null;
     try {
@@ -64,7 +79,9 @@ function safeUrl(value: unknown): string | null {
     }
 }
 
-/** Связь логики Трекера с интерфейсом */
+/**
+ * Связь логики Трекера с интерфейсом
+ */
 export interface TrackerOptions {
     /** Показывает объект в дереве (выделяет и раскрывает родителей); нужен для перехода по внутренней ссылке */
     reveal?: (id: string) => void;

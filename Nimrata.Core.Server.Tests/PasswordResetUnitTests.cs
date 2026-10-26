@@ -2,9 +2,14 @@ using Nimrata.Core.Server.Auth;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Логика сброса пароля, не требующая БД: токены и письмо</summary>
+/// <summary>
+/// Логика сброса пароля, не требующая БД: токены и письмо
+/// </summary>
 public class PasswordResetUnitTests
 {
+    /// <summary>
+    /// Проверяет, что токены уникальны и отличаются от своих хешей
+    /// </summary>
     [Fact]
     public void Token_IsUniqueAndDiffersFromHash()
     {
@@ -16,6 +21,9 @@ public class PasswordResetUnitTests
         Assert.True(first.Value.Length >= 43); // 32 байта в base64url
     }
 
+    /// <summary>
+    /// Проверяет, что хеш детерминирован и совпадает с хешем выпущенного токена
+    /// </summary>
     [Fact]
     public void Hash_IsDeterministicAndMatchesIssuedTokenHash()
     {
@@ -25,6 +33,9 @@ public class PasswordResetUnitTests
         Assert.NotEqual(token.Hash, OpaqueTokens.Hash(token.Value + "x"));
     }
 
+    /// <summary>
+    /// Проверяет, что токен безопасен для вставки в адрес
+    /// </summary>
     [Fact]
     public void Token_IsUrlSafe()
     {
@@ -33,6 +44,9 @@ public class PasswordResetUnitTests
         Assert.Equal(token, Uri.EscapeDataString(token));
     }
 
+    /// <summary>
+    /// Проверяет, что ссылка строится от публичного адреса и экранирует токен
+    /// </summary>
     [Fact]
     public void Link_BuiltFromPublicUrlAndEscapesToken()
     {
@@ -42,6 +56,9 @@ public class PasswordResetUnitTests
             PasswordResetMail.BuildLink("http://localhost:8080", "t"));
     }
 
+    /// <summary>
+    /// Проверяет, что письмо содержит ссылку и срок действия
+    /// </summary>
     [Fact]
     public void Email_ContainsLinkAndLifetime()
     {

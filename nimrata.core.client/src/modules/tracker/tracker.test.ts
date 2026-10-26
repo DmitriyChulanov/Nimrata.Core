@@ -27,7 +27,13 @@ function byType(data: DataController, type: string) {
     return data.getChildren(null).find((o) => o.type === type)!;
 }
 
+/**
+ * Стартовая структура Трекера
+ */
 describe('Tracker: start structure', () => {
+    /**
+     * Проверяет, что без корней создаются задачи с двумя подгруппами и заметки одним набором
+     */
     it('startStructure_noRoots_createsTasksWithTwoSubgroupsAndNotesInOneChangeset', async () => {
         const { api, data } = await start();
 
@@ -49,6 +55,9 @@ describe('Tracker: start structure', () => {
         expect(data.getChildren(byType(data, 'NotesRoot').id)).toEqual([]);
     });
 
+    /**
+     * Проверяет, что повторный вход не создаёт дублей и ничего не отправляет
+     */
     it('startStructure_repeatedLogin_createsNoDuplicatesAndSendsNothing', async () => {
         const { api, data } = await start();
         await ensureStartStructure(data);
@@ -66,6 +75,9 @@ describe('Tracker: start structure', () => {
         expect(data.getChildren(null)).toHaveLength(3);
     });
 
+    /**
+     * Проверяет, что при отказе сервера возвращается причина и частичной структуры не остаётся
+     */
     it('startStructure_serverRejects_returnsReasonAndLeavesNoPartialStructure', async () => {
         const { api, data } = await start();
         api.rejectNext(400, 'нельзя');
@@ -76,6 +88,9 @@ describe('Tracker: start structure', () => {
         expect(data.getChildren(null)).toEqual([]);
     });
 
+    /**
+     * Проверяет, что при незагруженных данных ничего не создаётся, чтобы не плодить дубли при сбое сети
+     */
     it('startStructure_dataNotLoaded_createsNothingToAvoidDuplicatesOnNetworkFailure', async () => {
         const api = createFakeApi(types, []);
         api.get = () => Promise.reject(new Error('сеть недоступна'));
@@ -89,6 +104,9 @@ describe('Tracker: start structure', () => {
     });
 });
 
+/**
+ * Заметки Трекера
+ */
 describe('Tracker: notes', () => {
     let api: FakeApi;
     let data: DataController;
@@ -104,6 +122,9 @@ describe('Tracker: notes', () => {
         return data.getChildren(parent).find((o) => o.properties.name === name);
     }
 
+    /**
+     * Проверяет, что действие создаёт заметку с введённым названием в корне
+     */
     it('createNote_action_createsNoteWithEnteredTitleUnderRoot', async () => {
         const result = await data.runAction(notesId, 'createNote', { title: 'Идея' });
 
@@ -113,6 +134,9 @@ describe('Tracker: notes', () => {
         expect(note.properties.title).toBe('Идея');
     });
 
+    /**
+     * Проверяет, что действие создаёт группу, в которой можно создавать вложенные группы и заметки
+     */
     it('createNoteGroup_action_createsGroupWithNestedGroupsAndNotes', async () => {
         await data.runAction(notesId, 'createNoteGroup', { name: 'Работа' });
         const group = childByName(notesId, 'Работа')!;
@@ -126,6 +150,9 @@ describe('Tracker: notes', () => {
         expect(childByName(inner.id, 'Заметка')?.type).toBe('Note');
     });
 
+    /**
+     * Проверяет, что заметка без названия отклоняется
+     */
     it('createNote_withoutTitle_isRejected', async () => {
         const result = await data.runAction(notesId, 'createNote', { title: '' });
 
@@ -133,12 +160,18 @@ describe('Tracker: notes', () => {
         expect(data.getChildren(notesId)).toEqual([]);
     });
 
+    /**
+     * Проверяет, что имя заметки без статуса равно названию
+     */
     it('noteName_withoutStatus_equalsTitle', async () => {
         await data.runAction(notesId, 'createNote', { title: 'Идея' });
 
         expect(data.getChildren(notesId)[0].properties.name).toBe('Идея');
     });
 
+    /**
+     * Проверяет, что имя со статусом — «статус в скобках и название» и обновляется при смене статуса и названия
+     */
     it('noteName_withStatus_isStatusInBracketsTitleAndUpdatesOnStatusAndTitleChange', async () => {
         await data.runAction(notesId, 'createNote', { title: 'Идея' });
         const id = data.getChildren(notesId)[0].id;
@@ -153,6 +186,9 @@ describe('Tracker: notes', () => {
         expect(data.getObject(id)?.properties.name).toBe('Мысль');
     });
 
+    /**
+     * Проверяет, что смена статуса и пересчёт имени идут одним набором, а отмена возвращает оба
+     */
     it('noteStatus_changeAndNameRecompute_areOneChangesetAndUndoRevertsBoth', async () => {
         await data.runAction(notesId, 'createNote', { title: 'Идея' });
         const id = data.getChildren(notesId)[0].id;
@@ -166,6 +202,9 @@ describe('Tracker: notes', () => {
         expect(data.getObject(id)?.properties.name).toBe('Идея');
     });
 
+    /**
+     * Проверяет, что заметка, созданная из дерева с названием, получает и имя
+     */
     it('noteName_createdFromTreeWithTitle_getsNameToo', async () => {
         const created = await data.create({
             type: 'Note',
@@ -178,6 +217,9 @@ describe('Tracker: notes', () => {
         expect(data.getObject(id)?.properties.name).toBe('[Завершена] Из дерева');
     });
 
+    /**
+     * Проверяет правила цвета заметки: средний приоритет оранжевый, высокий красный, завершённая зелёная
+     */
     it('noteColorRules_mediumPriorityOrangeHighRedCompletedGreen', () => {
         expect(data.getType('Note')?.colorRules).toEqual([
             { property: 'priority', equals: 'medium', color: 'orange' },
@@ -186,7 +228,13 @@ describe('Tracker: notes', () => {
         ]);
     });
 
+    /**
+     * Действие «Открыть внешнюю ссылку»
+     */
     describe('"Open external link"', () => {
+        /**
+         * Проверяет, что действие доступно только при заданной ссылке
+         */
         it('openExternalLink_available_onlyWhenLinkIsSet', async () => {
             await data.runAction(notesId, 'createNote', { title: 'Без ссылки' });
             await data.runAction(notesId, 'createNote', { title: 'Со ссылкой' });
@@ -199,6 +247,9 @@ describe('Tracker: notes', () => {
             expect(ids(withLink.id)).toContain('openExternalLink');
         });
 
+        /**
+         * Проверяет, что ссылка открывается в новой вкладке без доступа к открывшей странице
+         */
         it('openExternalLink_opensLinkInNewTabWithoutOpener', async () => {
             const open = vi.spyOn(window, 'open').mockReturnValue(null);
             await data.runAction(notesId, 'createNote', { title: 'Со ссылкой' });
@@ -216,6 +267,9 @@ describe('Tracker: notes', () => {
             open.mockRestore();
         });
 
+        /**
+         * Проверяет, что небезопасные схемы, например javascript, не открываются
+         */
         it('openExternalLink_unsafeSchemes_javascriptAreNotOpened', async () => {
             const open = vi.spyOn(window, 'open').mockReturnValue(null);
             await data.runAction(notesId, 'createNote', { title: 'Плохая' });
@@ -231,7 +285,13 @@ describe('Tracker: notes', () => {
     });
 });
 
+/**
+ * Изоляция пользователей в Трекере
+ */
 describe('Tracker: user isolation', () => {
+    /**
+     * Проверяет, что структура достраивается по объектам, которые сервер отдал этому пользователю
+     */
     it('isolation_structure_isCompletedFromObjectsServerGaveThisUser', async () => {
         // Сервер отдаёт пользователю только его объекты; у второго пользователя корней нет —
         // они создаются у него, а чужие объекты не появляются
@@ -250,12 +310,21 @@ describe('Tracker: user isolation', () => {
     });
 });
 
+/**
+ * Согласованность манифеста Трекера с логикой
+ */
 describe('Tracker manifest: consistency with logic', () => {
+    /**
+     * Проверяет, что у каждого типа узла есть значок
+     */
     it('manifest_everyNodeType_hasIcon', () => {
         const withoutIcon = manifest.types.filter((t) => !('icon' in t) || !t.icon);
         expect(withoutIcon.map((t) => t.id)).toEqual([]);
     });
 
+    /**
+     * Проверяет, что стартовая структура допустима так, как её проверил бы сервер
+     */
     it('manifest_startStructure_isAcceptedAsServerWouldAcceptIt', async () => {
         const { api, data } = await start([]);
 

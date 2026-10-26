@@ -7,6 +7,9 @@ import { ActionDialog } from './ActionDialog';
 import type { ReactNode } from 'react';
 import type { ActionDefinition } from '@platform/types/types';
 
+/**
+ * Результат хука `useActionLauncher`: запуск действий и связанное с ним состояние
+ */
 export interface ActionLauncher {
     /**
      * Запускает действие над объектом: без параметров сразу, с параметрами — через диалог.
@@ -17,10 +20,13 @@ export interface ActionLauncher {
     dialog: ReactNode;
     /** Причина последнего отказа запуска без диалога */
     error: string | null;
+    /** Сбрасывает сообщение об отказе */
     clearError(): void;
 }
 
-/** Общий запуск действий для кнопок таблицы свойств и пунктов контекстного меню */
+/**
+ * Общий запуск действий для кнопок таблицы свойств и пунктов контекстного меню
+ */
 export function useActionLauncher(): ActionLauncher {
     const data = useData();
     const [pending, setPending] = useState<{ objectId: string; action: ActionDefinition } | null>(

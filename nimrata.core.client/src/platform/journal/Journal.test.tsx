@@ -48,7 +48,13 @@ function fakeJournalApi(pages: Record<string, JournalPage>) {
     return { api, get };
 }
 
+/**
+ * Просмотр журнала
+ */
 describe('JournalView', () => {
+    /**
+     * Проверяет, что для выбранного объекта показываются записи: когда, кто, свойство, было и стало
+     */
     it('journal_selectedObject_showsEntriesWhenWhoPropertyOldAndNew', async () => {
         const { api, get } = fakeJournalApi({
             'journal?objectId=t1&skip=0&take=50': {
@@ -69,6 +75,9 @@ describe('JournalView', () => {
         expect(get).toHaveBeenCalledWith('journal?objectId=t1&skip=0&take=50');
     });
 
+    /**
+     * Проверяет, что создание, перенос и удаление описаны понятными строками
+     */
     it('journal_createMoveDelete_areDescribedByClearLines', async () => {
         const { api } = fakeJournalApi({
             'journal?objectId=t1&skip=0&take=50': {
@@ -111,6 +120,9 @@ describe('JournalView', () => {
         expect(rows[2]).toHaveTextContent('Создан');
     });
 
+    /**
+     * Проверяет, что записи одного набора показываются группой: одно действие — одна группа
+     */
     it('journal_entriesOfOneChangeset_areShownAsGroupOneActionOneGroup', async () => {
         const { api } = fakeJournalApi({
             'journal?skip=0&take=50': {
@@ -136,6 +148,9 @@ describe('JournalView', () => {
         expect(within(groups[1]).getAllByText('me@example.test')).toHaveLength(1);
     });
 
+    /**
+     * Проверяет, что группа не разрывается при подгрузке следующей страницы
+     */
     it('journal_group_isNotSplitWhenNextPageLoads', async () => {
         const first = Array.from({ length: 50 }, (_, i) =>
             entry({ id: 100 - i, changesetId: i < 49 ? `a${i}` : 'edge' }),
@@ -157,6 +172,9 @@ describe('JournalView', () => {
         expect(within(groups[49]).getAllByRole('row')).toHaveLength(2);
     });
 
+    /**
+     * Проверяет, что без выделения предлагается выбрать объект, а сервер не вызывается
+     */
     it('journal_noSelection_suggestsSelectingObjectAndDoesNotCallServer', () => {
         const { api, get } = fakeJournalApi({});
 
@@ -166,6 +184,9 @@ describe('JournalView', () => {
         expect(get).not.toHaveBeenCalled();
     });
 
+    /**
+     * Проверяет, что смена выделения запрашивает журнал нового объекта
+     */
     it('journal_selectionChange_requestsJournalOfNewObject', async () => {
         const { api, get } = fakeJournalApi({
             'journal?objectId=t1&skip=0&take=50': { total: 0, items: [] },
@@ -179,6 +200,9 @@ describe('JournalView', () => {
         await waitFor(() => expect(get).toHaveBeenCalledWith('journal?objectId=f1&skip=0&take=50'));
     });
 
+    /**
+     * Проверяет, что переключатель «Все мои изменения» показывает общий список
+     */
     it('journal_allMyChangesToggle_showsCommonList', async () => {
         const { api, get } = fakeJournalApi({
             'journal?objectId=t1&skip=0&take=50': { total: 0, items: [] },
@@ -197,6 +221,9 @@ describe('JournalView', () => {
         expect(screen.getByText('Купить молоко')).toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что «Показать ещё» подгружает следующую страницу
+     */
     it('journal_showMore_loadsNextPage', async () => {
         const first = Array.from({ length: 50 }, (_, i) =>
             entry({
@@ -231,6 +258,9 @@ describe('JournalView', () => {
         expect(screen.queryByRole('button', { name: 'Показать ещё' })).not.toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что сбой загрузки показывается сообщением
+     */
     it('journal_loadFailure_isShownAsMessage', async () => {
         const { api } = fakeJournalApi({});
 
@@ -239,6 +269,9 @@ describe('JournalView', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('journal?objectId=t1');
     });
 
+    /**
+     * Проверяет, что журнал только для чтения: кнопок отката и правки нет
+     */
     it('journal_readOnly_hasNoRollbackOrEditButtons', async () => {
         const { api } = fakeJournalApi({
             'journal?objectId=t1&skip=0&take=50': {
@@ -255,7 +288,13 @@ describe('JournalView', () => {
     });
 });
 
+/**
+ * Регистрация журнала
+ */
 describe('registerJournal', () => {
+    /**
+     * Проверяет, что регистрация добавляет вкладку журнала и пункт «Вид → Журнал», который её открывает
+     */
     it('journal_registration_registersJournalTabAndMenuItemViewJournalThatOpensIt', () => {
         const tabs = createTabRegistry();
         const menu = createMenuRegistry();

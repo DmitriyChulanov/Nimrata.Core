@@ -3,7 +3,9 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Auth;
 
-/// <summary>Администрирование пользователей: создание, смена роли, отключение и включение (удаления нет)</summary>
+/// <summary>
+/// Администрирование пользователей: создание, смена роли, отключение и включение (удаления нет)
+/// </summary>
 public sealed class UserAdminService(NpgsqlDataSource dataSource)
 {
     private const string LastAdminReason =
@@ -18,7 +20,9 @@ public sealed class UserAdminService(NpgsqlDataSource dataSource)
         public UserInfo ToInfo() => new(Id, Email, Name, IsAdmin ? Roles.Admin : Roles.Member, IsActive);
     }
 
-    /// <summary>Все пользователи по алфавиту e-mail</summary>
+    /// <summary>
+    /// Все пользователи по алфавиту e-mail
+    /// </summary>
     public async Task<IReadOnlyList<UserInfo>> ListAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -27,7 +31,9 @@ public sealed class UserAdminService(NpgsqlDataSource dataSource)
         return rows.Select(row => row.ToInfo()).ToList();
     }
 
-    /// <summary>Создаёт пользователя; при невалидных данных или занятом e-mail возвращает причину отказа</summary>
+    /// <summary>
+    /// Создаёт пользователя; при невалидных данных или занятом e-mail возвращает причину отказа
+    /// </summary>
     public async Task<UserOpResult> CreateAsync(
         string? email, string? name, string? password, string? role, CancellationToken cancellationToken = default)
     {
@@ -66,7 +72,9 @@ public sealed class UserAdminService(NpgsqlDataSource dataSource)
             : new(UserOpStatus.Ok, null, row.ToInfo());
     }
 
-    /// <summary>Назначает пользователю роль</summary>
+    /// <summary>
+    /// Назначает пользователю роль
+    /// </summary>
     public Task<UserOpResult> ChangeRoleAsync(Guid id, string? role, CancellationToken cancellationToken = default)
     {
         if (!Roles.IsKnown(role))
@@ -81,7 +89,9 @@ public sealed class UserAdminService(NpgsqlDataSource dataSource)
             cancellationToken);
     }
 
-    /// <summary>Отключает пользователя и отзывает его refresh-токены</summary>
+    /// <summary>
+    /// Отключает пользователя и отзывает его refresh-токены
+    /// </summary>
     public Task<UserOpResult> DisableAsync(Guid id, CancellationToken cancellationToken = default) =>
         ApplyAsync(
             id,
@@ -94,7 +104,9 @@ public sealed class UserAdminService(NpgsqlDataSource dataSource)
             new { id },
             cancellationToken);
 
-    /// <summary>Снова включает отключённого пользователя</summary>
+    /// <summary>
+    /// Снова включает отключённого пользователя
+    /// </summary>
     public Task<UserOpResult> EnableAsync(Guid id, CancellationToken cancellationToken = default) =>
         ApplyAsync(
             id,

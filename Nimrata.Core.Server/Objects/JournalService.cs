@@ -3,12 +3,16 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Objects;
 
-/// <summary>Чтение журнала изменений; журнал через API не правится</summary>
+/// <summary>
+/// Чтение журнала изменений; журнал через API не правится
+/// </summary>
 public sealed class JournalService(NpgsqlDataSource dataSource)
 {
     private const string Filter = "c.user_id = @userId and (@objectId::uuid is null or e.object_id = @objectId::uuid)";
 
-    /// <summary>Записи журнала пользователя от новых к старым: все или по одному объекту; чужие записи не возвращаются</summary>
+    /// <summary>
+    /// Записи журнала пользователя от новых к старым: все или по одному объекту; чужие записи не возвращаются
+    /// </summary>
     public async Task<JournalPage> ReadAsync(
         Guid userId, Guid? objectId, int skip, int take, CancellationToken cancellationToken = default)
     {

@@ -7,7 +7,9 @@ import { JournalView } from './JournalView';
 
 import type { JournalResolver } from './journal';
 
-/** Вкладка «Журнал»: следит за выделением в дереве */
+/**
+ * Вкладка «Журнал»: следит за выделением в дереве
+ */
 export function JournalTab() {
     const api = useApi();
     const data = useData();

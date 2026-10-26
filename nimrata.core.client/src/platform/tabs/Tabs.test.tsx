@@ -46,6 +46,9 @@ async function choose(user: ReturnType<typeof userEvent.setup>, group: string, i
     await user.click(screen.getByRole('menuitem', { name: item }));
 }
 
+/**
+ * Проверяет, что меню строится из реестра и открывает вкладку выбранного пункта
+ */
 it('tabs_menu_isBuiltFromRegistryAndOpensSelectedItemTab', async () => {
     const user = userEvent.setup();
     setup();
@@ -56,6 +59,9 @@ it('tabs_menu_isBuiltFromRegistryAndOpensSelectedItemTab', async () => {
     expect(screen.getByText('Содержимое журнала')).toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что недоступные роли пункты не показываются
+ */
 it('tabs_itemsUnavailableToRole_areNotShown', async () => {
     const user = userEvent.setup();
     setup('member');
@@ -65,6 +71,9 @@ it('tabs_itemsUnavailableToRole_areNotShown', async () => {
     expect(screen.queryByRole('menuitem', { name: 'Пользователи' })).not.toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что администратор видит административный пункт
+ */
 it('tabs_administrator_seesAdministrativeItem', async () => {
     const user = userEvent.setup();
     setup('admin');
@@ -74,6 +83,9 @@ it('tabs_administrator_seesAdministrativeItem', async () => {
     expect(screen.getByText('Список')).toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что переключение и закрытие вкладок работают
+ */
 it('tabs_switchAndClose_work', async () => {
     const user = userEvent.setup();
     setup();
@@ -90,6 +102,9 @@ it('tabs_switchAndClose_work', async () => {
     expect(screen.getByText('Содержимое заметки')).toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что повторное открытие вида с одной копией переключает на существующую вкладку
+ */
 it('tabs_reopenSingleCopyKind_switchesToExistingTab', async () => {
     const user = userEvent.setup();
     setup();
@@ -102,6 +117,9 @@ it('tabs_reopenSingleCopyKind_switchesToExistingTab', async () => {
     expect(screen.getByRole('tab', { name: /Журнал/ })).toHaveAttribute('aria-selected', 'true');
 });
 
+/**
+ * Проверяет, что вид с несколькими копиями каждый раз открывается заново
+ */
 it('tabs_multiCopyKind_opensAnewEveryTime', async () => {
     const user = userEvent.setup();
     setup();
@@ -112,6 +130,9 @@ it('tabs_multiCopyKind_opensAnewEveryTime', async () => {
     expect(screen.getAllByRole('tab', { name: /Заметка/ })).toHaveLength(2);
 });
 
+/**
+ * Проверяет, что раскладка восстанавливается после перезагрузки для того же пользователя
+ */
 it('tabs_layout_isRestoredAfterReloadForSameUser', async () => {
     const user = userEvent.setup();
     const first = setup();
@@ -126,6 +147,9 @@ it('tabs_layout_isRestoredAfterReloadForSameUser', async () => {
     expect(screen.getByRole('tab', { name: /Журнал/ })).toHaveAttribute('aria-selected', 'true');
 });
 
+/**
+ * Проверяет, что у другого пользователя раскладка пустая
+ */
 it('tabs_otherUser_hasEmptyLayout', async () => {
     const user = userEvent.setup();
     const first = setup('member', 'u1');
@@ -137,6 +161,9 @@ it('tabs_otherUser_hasEmptyLayout', async () => {
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что недоступное хранилище не ломает вкладки
+ */
 it('tabs_unavailableStorage_doesNotBreakTabs', async () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
         throw new Error('закрыто');
@@ -152,6 +179,9 @@ it('tabs_unavailableStorage_doesNotBreakTabs', async () => {
     expect(screen.getByText('Содержимое журнала')).toBeInTheDocument();
 });
 
+/**
+ * Проверяет, что неизвестный вид в сохранённой раскладке пропускается
+ */
 it('tabs_unknownKindInSavedLayout_isSkipped', () => {
     localStorage.setItem(
         'nimrata.layout.u1',

@@ -4,11 +4,17 @@ import { createApiClient } from '@platform/api/apiClient';
 
 import type { FormEvent } from 'react';
 
+/**
+ * Свойства компонента `ForgotPasswordForm`
+ */
 interface ForgotPasswordFormProps {
+    /** Возврат к форме входа */
     onBack: () => void;
 }
 
-/** Запрос ссылки на смену пароля; ответ одинаков для любого адреса */
+/**
+ * Запрос ссылки на смену пароля; ответ одинаков для любого адреса
+ */
 export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
     const [email, setEmail] = useState('');
     const [sent, setSent] = useState(false);

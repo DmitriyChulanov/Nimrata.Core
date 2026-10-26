@@ -12,6 +12,9 @@ function mockSystemDark(dark: boolean) {
     );
 }
 
+/**
+ * Тема оформления
+ */
 describe('theme', () => {
     beforeEach(() => {
         window.localStorage.clear();
@@ -22,16 +25,25 @@ describe('theme', () => {
         vi.unstubAllGlobals();
     });
 
+    /**
+     * Проверяет, что без сохранённого значения возвращается системная тема
+     */
     it('readThemeChoice_noStoredValue_returnsSystem', () => {
         expect(readThemeChoice()).toBe('system');
     });
 
+    /**
+     * Проверяет, что неизвестное сохранённое значение даёт системную тему
+     */
     it('readThemeChoice_unknownStoredValue_returnsSystem', () => {
         window.localStorage.setItem('nimrata.theme', 'neon');
 
         expect(readThemeChoice()).toBe('system');
     });
 
+    /**
+     * Проверяет, что системная тема при тёмной ОС ставит тёмную
+     */
     it('applyThemeChoice_systemWithDarkOs_setsDark', () => {
         mockSystemDark(true);
 
@@ -40,6 +52,9 @@ describe('theme', () => {
         expect(document.documentElement.dataset.theme).toBe('dark');
     });
 
+    /**
+     * Проверяет, что светлая тема при тёмной ОС ставит светлую
+     */
     it('applyThemeChoice_lightWithDarkOs_setsLight', () => {
         mockSystemDark(true);
 
@@ -48,6 +63,9 @@ describe('theme', () => {
         expect(document.documentElement.dataset.theme).toBe('light');
     });
 
+    /**
+     * Проверяет, что выбор тёмной темы сохраняется и применяется
+     */
     it('setThemeChoice_dark_storesAndApplies', () => {
         setThemeChoice('dark');
 
@@ -55,6 +73,9 @@ describe('theme', () => {
         expect(document.documentElement.dataset.theme).toBe('dark');
     });
 
+    /**
+     * Проверяет, что регистрация добавляет три пункта в «Вид → Тема»
+     */
     it('registerTheme_registersThreeItemsUnderViewTheme', () => {
         const registry = createMenuRegistry();
 

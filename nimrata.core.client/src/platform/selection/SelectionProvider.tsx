@@ -5,7 +5,9 @@ import { SelectionContext } from '@platform/selection/SelectionContext';
 import type { ReactNode } from 'react';
 import type { SelectionValue } from '@platform/selection/SelectionContext';
 
-/** Хранит выделенный в дереве объект, чтобы остальные панели могли его читать */
+/**
+ * Хранит выделенный в дереве объект, чтобы остальные панели могли его читать
+ */
 export function SelectionProvider({ children }: { children: ReactNode }) {
     const [selectedId, select] = useState<string | null>(null);
     const [revealRequest, setRevealRequest] = useState<SelectionValue['revealRequest']>(null);

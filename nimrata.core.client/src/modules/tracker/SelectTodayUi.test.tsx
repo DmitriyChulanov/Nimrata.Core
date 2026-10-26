@@ -47,6 +47,9 @@ async function mount(withToday: boolean) {
     );
 }
 
+/**
+ * Механизм «Выделить текущий день» в интерфейсе
+ */
 describe('Tracker: "Select today" interface', () => {
     afterEach(() => vi.useRealTimers());
 
@@ -55,6 +58,9 @@ describe('Tracker: "Select today" interface', () => {
         vi.setSystemTime(new Date(2026, 5, 10, 12, 0));
     }
 
+    /**
+     * Проверяет, что механизм виден во вкладке автоматизации и скрыт в основном дереве
+     */
     it('selectTodayUi_mechanism_visibleInAutomationTabButNotInMainTree', async () => {
         freezeToday();
         await mount(true);
@@ -63,6 +69,9 @@ describe('Tracker: "Select today" interface', () => {
         expect(screen.queryByRole('treeitem', { name: /Выделить текущий день/ })).toBeNull();
     });
 
+    /**
+     * Проверяет, что щелчок выделяет сегодняшний день и раскрывает его родителей
+     */
     it('selectTodayUi_click_selectsTodayAndExpandsParents', async () => {
         freezeToday();
         await mount(true);
@@ -80,6 +89,9 @@ describe('Tracker: "Select today" interface', () => {
         );
     });
 
+    /**
+     * Проверяет, что при отсутствии дня на сегодня показывается понятное сообщение, а дерево не меняется
+     */
     it('selectTodayUi_noDayForToday_showsClearMessageAndTreeUnchanged', async () => {
         freezeToday();
         await mount(false);

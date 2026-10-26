@@ -35,7 +35,9 @@ function current(data: DataController) {
         .find((o) => o.type === 'CurrentTasksRoot')!;
 }
 
-/** Создаёт задачу на дату и задаёт ей свойства; возвращает идентификатор */
+/**
+ * Создаёт задачу на дату и задаёт ей свойства; возвращает идентификатор
+ */
 async function addTask(
     data: DataController,
     date: string,
@@ -67,7 +69,13 @@ function allIds(data: DataController): string[] {
 
 const at = (h: number, m: number, day = 4) => new Date(2026, 2, day, h, m); // март 2026
 
+/**
+ * Расчёт уведомлений Трекера
+ */
 describe('Tracker: notifications calculation', () => {
+    /**
+     * Проверяет, что задача без времени не даёт уведомлений
+     */
     it('notifications_taskWithoutTime_createsNone', async () => {
         const data = await start();
         await addTask(data, '2026-03-04', 'Без времени');
@@ -77,6 +85,9 @@ describe('Tracker: notifications calculation', () => {
         expect(due).toEqual([]);
     });
 
+    /**
+     * Проверяет, что без упреждения уведомление приходит точно в назначенное время
+     */
     it('notifications_withoutLeadMinutes_notifiesExactlyAtScheduledTime', async () => {
         const data = await start();
         await addTask(data, '2026-03-04', 'Позвонить', { time: '09:30' });
@@ -87,6 +98,9 @@ describe('Tracker: notifications calculation', () => {
         expect(due.map((d) => [d.title, d.body])).toEqual([['09:30', 'Позвонить']]);
     });
 
+    /**
+     * Проверяет, что с упреждением уведомление приходит раньше на заданное число минут
+     */
     it('notifications_withLeadMinutes_notifiesEarlierByThatMany', async () => {
         const data = await start();
         await addTask(data, '2026-03-04', 'Встреча', { time: '10:00', notifyBefore: 15 });
@@ -97,6 +111,9 @@ describe('Tracker: notifications calculation', () => {
         expect(due.map((d) => [d.title, d.body])).toEqual([['10:00', 'Встреча']]);
     });
 
+    /**
+     * Проверяет, что завершённая задача не уведомляет
+     */
     it('notifications_completedTask_doesNotNotify', async () => {
         const data = await start();
         await addTask(data, '2026-03-04', 'Готово', { time: '09:00', status: 'completed' });
@@ -104,6 +121,9 @@ describe('Tracker: notifications calculation', () => {
         expect(checkNotifications(data, at(9, 0), createNotificationState()).due).toEqual([]);
     });
 
+    /**
+     * Проверяет, что уже показанное уведомление не показывается повторно
+     */
     it('notifications_alreadyShown_isNotShownAgain', async () => {
         const data = await start();
         await addTask(data, '2026-03-04', 'Раз', { time: '09:00' });
@@ -115,6 +135,9 @@ describe('Tracker: notifications calculation', () => {
         expect(second.due).toEqual([]);
     });
 
+    /**
+     * Проверяет, что задачи других дней не уведомляют
+     */
     it('notifications_tasksOfOtherDays_doNotNotify', async () => {
         const data = await start();
         await addTask(data, '2026-03-05', 'Завтра', { time: '09:00' });
@@ -123,6 +146,9 @@ describe('Tracker: notifications calculation', () => {
         expect(checkNotifications(data, at(9, 0), createNotificationState()).due).toEqual([]);
     });
 
+    /**
+     * Проверяет, что давно прошедшее время не уведомляет при позднем входе
+     */
     it('notifications_longPastTime_doesNotNotifyOnLateLogin', async () => {
         const data = await start();
         await addTask(data, '2026-03-04', 'Утром', { time: '09:00' });
@@ -130,6 +156,9 @@ describe('Tracker: notifications calculation', () => {
         expect(checkNotifications(data, at(15, 0), createNotificationState()).due).toEqual([]);
     });
 
+    /**
+     * Проверяет, что показанное вчера не мешает уведомлениям нового дня
+     */
     it('notifications_dayChange_yesterdayShownDoesNotBlockNewDay', async () => {
         const data = await start();
         await addTask(data, '2026-03-04', 'Вечером', { time: '23:50' });
@@ -144,10 +173,16 @@ describe('Tracker: notifications calculation', () => {
     });
 });
 
+/**
+ * Служба уведомлений Трекера
+ */
 describe('Tracker: notification service', () => {
     beforeEach(() => vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] }));
     afterEach(() => vi.useRealTimers());
 
+    /**
+     * Проверяет, что запуск проверяет сразу и каждую минуту, показывает задачу один раз, а остановка гасит таймер
+     */
     it('notificationService_start_checksImmediatelyAndEveryMinuteShowsTaskOnceStopHaltsTimer', async () => {
         const data = await start();
         await addTask(data, '2026-03-04', 'Таймер', { time: '09:02' });
@@ -174,6 +209,9 @@ describe('Tracker: notification service', () => {
         expect(vi.getTimerCount()).toBe(0);
     });
 
+    /**
+     * Проверяет, что задача, добавленная после запуска, подхватывается
+     */
     it('notificationService_taskAddedAfterStart_isPickedUp', async () => {
         const data = await start();
         let now = at(9, 0);
@@ -188,6 +226,9 @@ describe('Tracker: notification service', () => {
         stop();
     });
 
+    /**
+     * Запоминание показанных за день уведомлений
+     */
     describe('persisting shown notifications per day', () => {
         beforeEach(() => localStorage.clear());
         afterEach(() => vi.restoreAllMocks());
@@ -201,6 +242,9 @@ describe('Tracker: notification service', () => {
             return { notify, id };
         }
 
+        /**
+         * Проверяет, что после перезагрузки страницы показанное не дублируется
+         */
         it('shownNotifications_afterPageReload_isNotDuplicated', async () => {
             const data = await start();
             await addTask(data, '2026-03-04', 'Созвон', { time: '09:00' });
@@ -225,6 +269,9 @@ describe('Tracker: notification service', () => {
             expect(second).not.toHaveBeenCalled();
         });
 
+        /**
+         * Проверяет, что показанное хранится в `localStorage` по ключу пользователя и даты
+         */
         it('shownNotifications_stored_inLocalStorageByUserAndDateKey', async () => {
             const { id } = await run(createLocalShownStore('u1'));
 
@@ -232,6 +279,9 @@ describe('Tracker: notification service', () => {
             expect(JSON.parse(raw!)).toEqual([id]);
         });
 
+        /**
+         * Проверяет, что записи другого пользователя или другого дня игнорируются
+         */
         it('shownNotifications_shownByOtherUserOrOtherDay_isIgnored', async () => {
             const data = await start();
             const id = await addTask(data, '2026-03-04', 'Созвон', { time: '09:00' });
@@ -256,6 +306,9 @@ describe('Tracker: notification service', () => {
             expect(notify).toHaveBeenCalledTimes(1);
         });
 
+        /**
+         * Проверяет, что записи прошлых дней этого пользователя удаляются
+         */
         it('shownNotifications_pastDaysOfThisUser_areRemoved', async () => {
             localStorage.setItem('nimrata.tracker.notifications.u1.2026-03-03', '["x"]');
             localStorage.setItem('nimrata.tracker.notifications.u2.2026-03-03', '["x"]');
@@ -268,6 +321,9 @@ describe('Tracker: notification service', () => {
             ).not.toBeNull();
         });
 
+        /**
+         * Проверяет, что недоступное хранилище и мусор в нём не ломают службу
+         */
         it('shownNotifications_unavailableStorageAndGarbage_doNotBreakService', async () => {
             localStorage.setItem('nimrata.tracker.notifications.u1.2026-03-04', '{не json');
             const garbage = await run(createLocalShownStore('u1'));

@@ -31,7 +31,13 @@ async function loaded() {
     return { api, data };
 }
 
+/**
+ * Контроллер данных: хуки «до операции»
+ */
 describe('DataController: before-operation hooks', () => {
+    /**
+     * Проверяет, что отмена в хуке прерывает операцию с сообщением, не меняя модель и сервер
+     */
     it('hooksBefore_cancel_operationWithMessageModelAndServerUnchanged', async () => {
         const { api, data } = await loaded();
         data.registerHook('Task', 'setProperty', 'before', (ctx) =>
@@ -47,6 +53,9 @@ describe('DataController: before-operation hooks', () => {
         expect((await data.setProperty('t1', 'title', 'B')).ok).toBe(true);
     });
 
+    /**
+     * Проверяет, что хуки срабатывают при создании, переносе и удалении
+     */
     it('hooksBefore_fire_forCreateMoveAndRemove', async () => {
         const { api, data } = await loaded();
         data.registerHook('Task', 'create', 'before', () => ({ cancel: 'нельзя создавать' }));
@@ -68,6 +77,9 @@ describe('DataController: before-operation hooks', () => {
         expect(api.changesets).toEqual([]);
     });
 
+    /**
+     * Проверяет, что хук для любого типа действует на все типы, а отписка его снимает
+     */
     it('hooksBefore_wildcardType_appliesToAllTypesAndUnsubscribeRemovesHook', async () => {
         const { data } = await loaded();
         const off = data.registerHook('*', 'remove', 'before', () => ({ cancel: 'запрет' }));
@@ -76,6 +88,9 @@ describe('DataController: before-operation hooks', () => {
         expect((await data.remove('root')).ok).toBe(true);
     });
 
+    /**
+     * Проверяет, что исключение в хуке отменяет операцию с текстом ошибки
+     */
     it('hooksBefore_exception_cancelsOperationWithErrorText', async () => {
         const { data } = await loaded();
         data.registerHook('Task', 'setProperty', 'before', () => {
@@ -89,7 +104,13 @@ describe('DataController: before-operation hooks', () => {
     });
 });
 
+/**
+ * Контроллер данных: хуки «после операции» и общий набор изменений
+ */
 describe('DataController: after-operation hooks and shared changeset', () => {
+    /**
+     * Проверяет, что хук «после» расширяет тот же набор: правка свойства и побочная правка — один набор
+     */
     it('hooksAfter_extendSameChangeset_propertyEditPlusSideEditIsOneChangeset', async () => {
         const { api, data } = await loaded();
         data.registerHook('Task', 'setProperty', 'after', (ctx) => {
@@ -105,6 +126,9 @@ describe('DataController: after-operation hooks and shared changeset', () => {
         ]);
     });
 
+    /**
+     * Проверяет, что хук после создания может создавать вложенные узлы и переносить объекты в том же наборе
+     */
     it('hooksAfter_create_canCreateNestedNodesAndMoveObjectsInSameChangeset', async () => {
         const { api, data } = await loaded();
         data.registerHook('Folder', 'create', 'after', (ctx) => {
@@ -120,6 +144,9 @@ describe('DataController: after-operation hooks and shared changeset', () => {
         expect(data.getChildren(folder)).toHaveLength(2);
     });
 
+    /**
+     * Проверяет, что хук «до» тоже может добавлять операции в набор
+     */
     it('hooksBefore_canAddOperationsToChangesetToo', async () => {
         const { api, data } = await loaded();
         data.registerHook('Task', 'remove', 'before', (ctx) => {
@@ -130,6 +157,9 @@ describe('DataController: after-operation hooks and shared changeset', () => {
         expect(api.changesets[0].operations.map((o) => o.op)).toEqual(['update', 'delete']);
     });
 
+    /**
+     * Проверяет, что отказ вложенной операции откатывает весь набор, включая исходную
+     */
     it('hooks_nestedOperationFailure_revertsWholeChangesetIncludingOriginal', async () => {
         const { api, data } = await loaded();
         data.registerHook('Task', 'setProperty', 'after', (ctx) => {
@@ -141,6 +171,9 @@ describe('DataController: after-operation hooks and shared changeset', () => {
         expect(api.changesets).toEqual([]);
     });
 
+    /**
+     * Проверяет, что отказ сервера откатывает исходную и вложенные правки
+     */
     it('hooks_serverRejection_revertsOriginalAndNestedChanges', async () => {
         const { api, data } = await loaded();
         data.registerHook('Folder', 'create', 'after', (ctx) => {
@@ -153,6 +186,9 @@ describe('DataController: after-operation hooks and shared changeset', () => {
         expect(data.getChildren(null)).toHaveLength(2);
     });
 
+    /**
+     * Проверяет, что бесконечная рекурсия хуков останавливается отказом набора
+     */
     it('hooks_infiniteRecursion_isStoppedByChangesetRejection', async () => {
         const { data } = await loaded();
         data.registerHook('Task', 'setProperty', 'after', (ctx) => {
@@ -164,7 +200,13 @@ describe('DataController: after-operation hooks and shared changeset', () => {
     });
 });
 
+/**
+ * Контроллер данных: отключение хуков
+ */
 describe('DataController: disabling hooks', () => {
+    /**
+     * Проверяет, что параметр отключает хуки «до» и «после» для операции
+     */
     it('hooksOff_option_runsOperationWithoutBeforeAndAfterHooks', async () => {
         const { api, data } = await loaded();
         let calls = 0;
@@ -181,6 +223,9 @@ describe('DataController: disabling hooks', () => {
         expect(api.changesets[0].operations).toHaveLength(1);
     });
 
+    /**
+     * Проверяет, что параметр действует и на создание, перенос и удаление
+     */
     it('hooksOff_option_alsoAppliesToCreateMoveRemove', async () => {
         const { data } = await loaded();
         data.registerHook('*', 'create', 'before', () => ({ cancel: 'запрет' }));
@@ -193,7 +238,13 @@ describe('DataController: disabling hooks', () => {
     });
 });
 
+/**
+ * Контроллер данных: произвольный набор изменений через `perform`
+ */
 describe('DataController.perform: arbitrary changeset', () => {
+    /**
+     * Проверяет, что несколько операций идут одним набором, а хуки срабатывают для каждой
+     */
     it('perform_severalOperations_inOneChangesetHooksFireForEach', async () => {
         const { api, data } = await loaded();
         const seen: string[] = [];
@@ -210,6 +261,9 @@ describe('DataController.perform: arbitrary changeset', () => {
         expect(api.changesets[0].operations).toHaveLength(2);
     });
 
+    /**
+     * Проверяет, что отказ одной операции отменяет набор, а пустой набор не отправляется
+     */
     it('perform_oneOperationFailure_cancelsWholeChangesetEmptyChangesetIsNotSent', async () => {
         const { api, data } = await loaded();
         const failed = await data.perform((tx) => {
@@ -222,6 +276,9 @@ describe('DataController.perform: arbitrary changeset', () => {
         expect(api.changesets).toEqual([]);
     });
 
+    /**
+     * Проверяет, что асинхронная функция набора и исключения поддерживаются
+     */
     it('perform_asyncChangesetFunctionAndExceptions_areSupported', async () => {
         const { api, data } = await loaded();
         const ok = await data.perform(async (tx) => {
@@ -237,6 +294,9 @@ describe('DataController.perform: arbitrary changeset', () => {
     });
 });
 
+/**
+ * Контроллер данных: действия
+ */
 describe('DataController: actions', () => {
     const actionTypes = [
         ...types.slice(0, 1),
@@ -278,6 +338,9 @@ describe('DataController: actions', () => {
         return { api, data };
     }
 
+    /**
+     * Проверяет, что возвращаются только действия с обработчиком и подходящим размещением
+     */
     it('getActions_returnsOnlyActionsWithHandlerAndMatchingPlacement', async () => {
         const { data } = await withActions();
         expect(data.getActions('j', 'propertyGrid').map((a) => a.id)).toEqual([
@@ -290,6 +353,9 @@ describe('DataController: actions', () => {
         expect(data.getActions('nope', 'propertyGrid')).toEqual([]);
     });
 
+    /**
+     * Проверяет, что запуск вызывает обработчик с объектом, параметрами и набором, и всё идёт одним набором изменений
+     */
     it('runAction_runsHandlerWithObjectParametersAndTx_allInOneChangeset', async () => {
         const { api, data } = await withActions();
         data.registerAction('Job', 'finish', (ctx) => {
@@ -303,6 +369,9 @@ describe('DataController: actions', () => {
         expect(api.changesets[0].operations.map((o) => o.op)).toEqual(['update', 'create']);
     });
 
+    /**
+     * Проверяет, что обязательные параметры проверяются до вызова обработчика
+     */
     it('runAction_requiredParameters_areCheckedBeforeHandlerCall', async () => {
         const { data } = await withActions();
         let called = 0;
@@ -319,6 +388,9 @@ describe('DataController: actions', () => {
         expect(data.getObject('j')?.properties.status).toBe('+3');
     });
 
+    /**
+     * Проверяет, что неизвестное действие, отсутствие обработчика или объекта дают отказ
+     */
     it('runAction_unknownActionNoHandlerOrMissingObject_giveRejection', async () => {
         const { data } = await withActions();
         expect((await data.runAction('j', 'nohandler')).ok).toBe(false);
@@ -326,6 +398,9 @@ describe('DataController: actions', () => {
         expect((await data.runAction('nope', 'finish')).ok).toBe(false);
     });
 
+    /**
+     * Проверяет, что внутреннее действие без размещений доступно из кода, но не из списков
+     */
     it('runAction_internalActionWithoutPlacements_availableFromCodeButNotInLists', async () => {
         const { data } = await withActions();
         expect((await data.runAction('j', 'internal')).ok).toBe(true);
@@ -334,6 +409,9 @@ describe('DataController: actions', () => {
         }
     });
 
+    /**
+     * Проверяет, что хуки срабатывают для операций действия, а отключение их выключает
+     */
     it('runAction_hooks_fireForActionOperationsAndHooksOffDisablesThem', async () => {
         const { data } = await withActions();
         data.registerAction('Job', 'finish', (ctx) => {
@@ -345,7 +423,13 @@ describe('DataController: actions', () => {
     });
 });
 
+/**
+ * Контроллер данных: отмена, повтор и хуки
+ */
 describe('DataController: undo/redo and hooks', () => {
+    /**
+     * Проверяет, что отмена и повтор идут без хуков, и хук «до» не блокирует отмену
+     */
     it('undoRedo_applyWithoutHooks_beforeHookDoesNotBlockUndo', async () => {
         const { api, data } = await loaded();
         expect((await data.setProperty('t1', 'status', 'done')).ok).toBe(true);
@@ -367,6 +451,9 @@ describe('DataController: undo/redo and hooks', () => {
         expect(api.changesets.length).toBe(posted + 2);
     });
 
+    /**
+     * Проверяет, что набор с расширениями хуков откатывается целиком одной отменой, а очередь остаётся целой
+     */
     it('undo_changesetWithHookExtensions_isRevertedWhollyByOneUndoAndQueueStaysIntact', async () => {
         const { data } = await loaded();
         data.registerHook('Task', 'setProperty', 'after', (ctx) => {

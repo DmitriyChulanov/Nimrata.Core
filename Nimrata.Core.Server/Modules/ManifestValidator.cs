@@ -2,15 +2,23 @@ using System.Text.Json;
 
 namespace Nimrata.Core.Server.Modules;
 
-/// <summary>Проверка формата манифеста модуля. Возвращает список понятных ошибок с путями</summary>
+/// <summary>
+/// Проверка формата манифеста модуля. Возвращает список понятных ошибок с путями
+/// </summary>
 public static class ManifestValidator
 {
-    /// <summary>Допустимые виды свойств</summary>
+    /// <summary>
+    /// Допустимые виды свойств
+    /// </summary>
     public static readonly string[] Kinds = ["string", "text", "integer", "boolean", "date", "time", "enum", "reference"];
-    /// <summary>Допустимые места действий в интерфейсе</summary>
+    /// <summary>
+    /// Допустимые места действий в интерфейсе
+    /// </summary>
     public static readonly string[] Placements = ["automation", "propertyGrid", "contextMenu"];
 
-    /// <summary>Проверяет корень манифеста</summary>
+    /// <summary>
+    /// Проверяет корень манифеста
+    /// </summary>
     /// <param name="root">Разобранный JSON манифеста</param>
     /// <returns>Ошибки с путями вида <c>$.types[0].id</c>; пустой список, если манифест валиден</returns>
     public static List<string> Validate(JsonElement root)

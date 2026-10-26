@@ -4,13 +4,19 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Modules;
 
-/// <summary>Читает манифесты модулей (<c>{каталог}/{модуль}/manifest.json</c>) и синхронизирует таблицу типов</summary>
+/// <summary>
+/// Читает манифесты модулей (<c>{каталог}/{модуль}/manifest.json</c>) и синхронизирует таблицу типов
+/// </summary>
 public static class ManifestLoader
 {
-    /// <summary>Каталог манифестов по умолчанию: контент сборки сервера</summary>
+    /// <summary>
+    /// Каталог манифестов по умолчанию: контент сборки сервера
+    /// </summary>
     public static string DefaultDirectory => Path.Combine(AppContext.BaseDirectory, "Modules");
 
-    /// <summary>Проверяет все манифесты каталога и в одной транзакции записывает типы с более новой версией модуля</summary>
+    /// <summary>
+    /// Проверяет все манифесты каталога и в одной транзакции записывает типы с более новой версией модуля
+    /// </summary>
     /// <param name="connectionString">Строка подключения к БД</param>
     /// <param name="directory">Каталог с манифестами модулей</param>
     /// <exception cref="InvalidOperationException">Каталога нет, манифест невалиден или тип объявлен другим модулем</exception>

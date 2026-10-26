@@ -46,6 +46,11 @@ registerJournal(tabRegistry, menuRegistry);
 registerUsersAdmin(tabRegistry, menuRegistry);
 registerTheme(menuRegistry);
 
+/**
+ * Основной экран после входа: состояние загрузки данных или рабочая область из трёх панелей
+ *
+ * @returns индикатор загрузки, сообщение об ошибке с повтором или рабочая область
+ */
 function Main() {
     const data = useData();
     const { widths, setWidths } = useTabs();
@@ -74,9 +79,14 @@ function Main() {
     );
 }
 
+/**
+ * Мост между логикой Трекера и выделением узла в дереве
+ */
 const revealBridge = createRevealBridge();
 
-/** Загрузка данных, стартовая структура и достройка повторов; ошибка любого шага не теряется */
+/**
+ * Загрузка данных, стартовая структура и достройка повторов; ошибка любого шага не теряется
+ */
 async function prepareData(controller: DataController): Promise<string | null> {
     await controller.load();
     if (controller.getSnapshot().status !== 'ready') return null; // ошибку загрузки показывает Main
@@ -86,6 +96,12 @@ async function prepareData(controller: DataController): Promise<string | null> {
     return repeats.ok ? null : repeats.error;
 }
 
+/**
+ * Контекст данных пользователя: контроллер, подключение Трекера, подготовка данных и основной экран
+ *
+ * @param props - идентификатор вошедшего пользователя
+ * @returns основной экран внутри провайдеров данных и выделения
+ */
 function Application({ userId }: { userId: string }) {
     const api = useApi();
     const [controller] = useState(() => createDataController({ api }));
@@ -122,6 +138,11 @@ function Application({ userId }: { userId: string }) {
     );
 }
 
+/**
+ * Оболочка вошедшего пользователя: шапка с меню и выходом и область приложения
+ *
+ * @returns интерфейс сессии; ничего, пока неизвестен текущий пользователь
+ */
 function Session() {
     const { logout } = useAuth();
     const user = useCurrentUser();
@@ -147,12 +168,19 @@ function Session() {
     );
 }
 
-/** Токен из ссылки письма (`/reset-password?token=…`); null, если открыт обычный адрес */
+/**
+ * Токен из ссылки письма (`/reset-password?token=…`); null, если открыт обычный адрес
+ */
 function readResetToken(): string | null {
     if (window.location.pathname !== '/reset-password') return null;
     return new URLSearchParams(window.location.search).get('token') ?? '';
 }
 
+/**
+ * Выбирает экран по состоянию входа: смена пароля, вход или сессия
+ *
+ * @returns экран, подходящий текущему состоянию
+ */
 function Shell() {
     const { status, login } = useAuth();
     const [resetToken, setResetToken] = useState(readResetToken);
@@ -174,6 +202,11 @@ function Shell() {
     return <Session />;
 }
 
+/**
+ * Корень приложения: авторизация, типы и оболочка
+ *
+ * @returns приложение
+ */
 export function App() {
     return (
         <AuthProvider>

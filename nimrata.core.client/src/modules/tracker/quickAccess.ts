@@ -3,19 +3,28 @@ import { cancelIfFailed, orThrow } from './results';
 
 import type { ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
+/**
+ * Типы объектов, на которые можно ссылаться из быстрого доступа
+ */
 const TARGET_TYPES = [NOTE, NOTE_GROUP];
 
-/** Все записи быстрого доступа (лежат среди корневых объектов) */
+/**
+ * Все записи быстрого доступа (лежат среди корневых объектов)
+ */
 export function quickAccessEntries(data: DataController): DataObject[] {
     return data.getChildren(null).filter((o) => o.type === QUICK_ACCESS_ENTRY);
 }
 
-/** Записи, ссылающиеся на объект `targetId` */
+/**
+ * Записи, ссылающиеся на объект `targetId`
+ */
 function entriesOf(data: DataController, targetId: string): DataObject[] {
     return quickAccessEntries(data).filter((e) => e.properties.target === targetId);
 }
 
-/** Название цели для записи: вычисляемое имя, а при его отсутствии — название */
+/**
+ * Название цели для записи: вычисляемое имя, а при его отсутствии — название
+ */
 function targetName(target: DataObject): string {
     for (const key of ['name', 'title']) {
         const value = target.properties[key];
@@ -24,7 +33,9 @@ function targetName(target: DataObject): string {
     return '';
 }
 
-/** Идентификаторы объекта и всех его потомков */
+/**
+ * Идентификаторы объекта и всех его потомков
+ */
 function subtreeIds(data: DataController, id: string): Set<string> {
     const ids = new Set<string>();
     const walk = (current: string) => {
@@ -35,6 +46,13 @@ function subtreeIds(data: DataController, id: string): Set<string> {
     return ids;
 }
 
+/**
+ * Удаляет записи быстрого доступа
+ *
+ * @param entries - записи для удаления
+ * @param tx - область изменений, в которой выполняется удаление
+ * @returns отмена изменений, если удалить запись не удалось; иначе ничего
+ */
 function removeEntries(entries: DataObject[], tx: ChangeScope): HookResult {
     for (const entry of entries) {
         const failed = cancelIfFailed(tx.remove(entry.id));

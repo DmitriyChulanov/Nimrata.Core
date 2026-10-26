@@ -6,9 +6,16 @@ using NpgsqlTypes;
 
 namespace Nimrata.Core.Server.Data;
 
-/// <summary>Обработчик Dapper: колонки jsonb отображаются в <see cref="JsonElement"/></summary>
+/// <summary>
+/// Обработчик Dapper: колонки jsonb отображаются в <see cref="JsonElement"/>
+/// </summary>
 public sealed class JsonbTypeHandler : SqlMapper.TypeHandler<JsonElement>
 {
+    /// <summary>
+    /// Записывает значение в параметр запроса как jsonb
+    /// </summary>
+    /// <param name="parameter">Параметр команды</param>
+    /// <param name="value">Записываемый JSON</param>
     public override void SetValue(IDbDataParameter parameter, JsonElement value)
     {
         parameter.Value = value.GetRawText();
@@ -18,9 +25,14 @@ public sealed class JsonbTypeHandler : SqlMapper.TypeHandler<JsonElement>
         }
     }
 
+    /// <summary>
+    /// Разбирает значение колонки jsonb
+    /// </summary>
+    /// <param name="value">Значение, пришедшее из БД</param>
+    /// <returns>Независимая копия корневого элемента JSON</returns>
     public override JsonElement Parse(object value)
     {
-        using var документ = JsonDocument.Parse(value.ToString()!);
-        return документ.RootElement.Clone();
+        using var document = JsonDocument.Parse(value.ToString()!);
+        return document.RootElement.Clone();
     }
 }

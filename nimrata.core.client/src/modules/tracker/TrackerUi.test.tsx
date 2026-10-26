@@ -62,7 +62,13 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
+/**
+ * Интерфейс заметок Трекера
+ */
 describe('Tracker: notes interface', () => {
+    /**
+     * Проверяет, что стартовая структура видна в дереве
+     */
     it('notesUi_startStructure_isVisibleInTree', async () => {
         const { data } = await setup();
         mount(data);
@@ -71,6 +77,9 @@ describe('Tracker: notes interface', () => {
         expect(screen.getByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что создание заметки из контекстного меню запрашивает название и добавляет заметку в дерево
+     */
     it('notesUi_createNoteFromContextMenu_asksTitleAndAddsNoteToTree', async () => {
         const { data } = await setup();
         mount(data);
@@ -93,6 +102,9 @@ describe('Tracker: notes interface', () => {
         expect(await screen.findByRole('treeitem', { name: /Идея/ })).toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что кнопка внешней ссылки есть только у заметки со ссылкой и открывает её
+     */
     it('notesUi_externalLinkButton_onlyOnNoteWithLinkAndOpensIt', async () => {
         const open = vi.spyOn(window, 'open').mockReturnValue(null);
         const { data } = await setup();
@@ -129,6 +141,9 @@ describe('Tracker: notes interface', () => {
         expect(open).toHaveBeenCalledWith('https://example.test/', '_blank', 'noopener,noreferrer');
     });
 
+    /**
+     * Проверяет, что дерево показывает заметку по вычисляемому имени со статусом
+     */
     it('notesUi_tree_showsNoteByComputedNameWithStatus', async () => {
         const { data } = await setup();
         const notes = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
@@ -155,7 +170,13 @@ function currentRoot(data: Awaited<ReturnType<typeof setup>>['data']) {
     return data.getChildren(tasks.id).find((o) => o.type === 'CurrentTasksRoot')!;
 }
 
+/**
+ * Интерфейс задач Трекера
+ */
 describe('Tracker: tasks interface', () => {
+    /**
+     * Проверяет, что создание из меню текущих задач создаёт месяц, день и задачу
+     */
     it('tasksUi_createTaskFromCurrentTasksMenu_createsMonthDayAndTask', async () => {
         const { data } = await setup();
         mount(data);
@@ -183,6 +204,9 @@ describe('Tracker: tasks interface', () => {
         expect(await screen.findByRole('treeitem', { name: /Позвонить/ })).toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что дни упорядочены по дате, а задачи по времени
+     */
     it('tasksUi_days_orderedByDateAndTasksByTime', async () => {
         const { data } = await setup();
         const root = currentRoot(data);
@@ -210,6 +234,9 @@ describe('Tracker: tasks interface', () => {
         expect(index('09:00 — Утренняя')).toBeLessThan(index('18:00 — 2026-03-02'));
     });
 
+    /**
+     * Проверяет, что таблица свойств показывает свойства задачи, но скрывает идентификатор повтора
+     */
     it('tasksUi_propertyGrid_showsTaskPropertiesButHidesRepeatId', async () => {
         const { data } = await setup();
         await data.runAction(currentRoot(data).id, 'createTask', {
@@ -227,6 +254,9 @@ describe('Tracker: tasks interface', () => {
         expect(screen.queryByText('Идентификатор повтора')).not.toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что задача с высоким приоритетом окрашена красным
+     */
     it('tasksUi_highPriorityTask_isTintedRed', async () => {
         const { data } = await setup();
         await data.runAction(currentRoot(data).id, 'createTask', {

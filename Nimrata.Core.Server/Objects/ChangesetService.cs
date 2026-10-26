@@ -5,12 +5,16 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Objects;
 
-/// <summary>Применение набора изменений: одна транзакция, проверки по типам, запись в журнал</summary>
+/// <summary>
+/// Применение набора изменений: одна транзакция, проверки по типам, запись в журнал
+/// </summary>
 public sealed class ChangesetService(NpgsqlDataSource dataSource)
 {
     private sealed record TypeRow(string Id, JsonElement Definition);
 
-    /// <summary>Применяет набор целиком или отклоняет его</summary>
+    /// <summary>
+    /// Применяет набор целиком или отклоняет его
+    /// </summary>
     /// <param name="userId">Владелец объектов и автор записей журнала</param>
     /// <param name="body">Набор в формате клиента: объект с непустым массивом <c>operations</c></param>
     /// <param name="cancellationToken">Отмена применения</param>
@@ -241,7 +245,9 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
             snapshot: null);
     }
 
-    /// <summary>Проверяет «было» для parent и возвращает нового родителя (<c>null</c> — корень)</summary>
+    /// <summary>
+    /// Проверяет «было» для parent и возвращает нового родителя (<c>null</c> — корень)
+    /// </summary>
     private static async Task<Guid?> ReadNewParentAsync(ChangesetContext context, ObjectRecord target, JsonElement change)
     {
         if (!change.TryGetProperty("old", out var expectedOld) || !change.TryGetProperty("new", out var newValue))
@@ -272,7 +278,9 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         return parent;
     }
 
-    /// <summary>Проверяет «было» для order и возвращает новый порядок</summary>
+    /// <summary>
+    /// Проверяет «было» для order и возвращает новый порядок
+    /// </summary>
     private static double ReadNewOrder(ObjectRecord target, JsonElement change)
     {
         if (!change.TryGetProperty("old", out var expectedOld)
@@ -312,14 +320,18 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         await WriteJournalAsync(context, target.Id, "delete", property: null, old: null, @new: null, snapshot);
     }
 
-    /// <summary>Объект, на который указывает операция; чужой и несуществующий неразличимы</summary>
+    /// <summary>
+    /// Объект, на который указывает операция; чужой и несуществующий неразличимы
+    /// </summary>
     private static async Task<ObjectRecord> ReadTargetAsync(ChangesetContext context, JsonElement operation)
     {
         var id = ReadGuid(operation, "id") ?? throw new ChangesetRejectedException("не указан идентификатор объекта (id).");
         return await ReadOwnObjectAsync(context, id) ?? throw new ChangesetRejectedException($"объект {id} не найден.");
     }
 
-    /// <summary>Читает объект текущего пользователя с блокировкой; чужой и несуществующий неразличимы</summary>
+    /// <summary>
+    /// Читает объект текущего пользователя с блокировкой; чужой и несуществующий неразличимы
+    /// </summary>
     private static Task<ObjectRecord?> ReadOwnObjectAsync(ChangesetContext context, Guid id) =>
         context.QueryOneAsync<ObjectRecord>(
             """
@@ -407,7 +419,9 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
 
     private static JsonElement GuidToJson(Guid id) => JsonSerializer.Deserialize<JsonElement>($"\"{id}\"");
 
-    /// <summary>Сравнение значений свойств; <c>default</c> (Undefined) и JSON null считаются «пусто»</summary>
+    /// <summary>
+    /// Сравнение значений свойств; <c>default</c> (Undefined) и JSON null считаются «пусто»
+    /// </summary>
     private static bool ValuesEqual(JsonElement left, JsonElement right)
     {
         static bool IsEmpty(JsonElement element) => element.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null;
@@ -451,7 +465,9 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
     private static JsonElement? ToJsonElement(JsonNode? node) =>
         node is null ? null : JsonSerializer.Deserialize<JsonElement>(node.ToJsonString());
 
-    /// <summary>Соединение, транзакция и общие данные применяемого набора</summary>
+    /// <summary>
+    /// Соединение, транзакция и общие данные применяемого набора
+    /// </summary>
     private sealed class ChangesetContext(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -466,7 +482,9 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         public Guid ChangesetId { get; } = changesetId;
         public IReadOnlyDictionary<string, TypeDescriptor> Types { get; } = types;
 
-        /// <summary>Сквозной номер записи журнала внутри набора (одна операция может дать несколько записей)</summary>
+        /// <summary>
+        /// Сквозной номер записи журнала внутри набора (одна операция может дать несколько записей)
+        /// </summary>
         public int NextEntrySequence() => ++entrySequence;
 
         public Task<int> ExecuteAsync(string sql, object parameters) =>
@@ -484,7 +502,9 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
 
     private sealed record PropertyDescriptor(string Kind, HashSet<string>? Values, HashSet<string>? TargetTypes);
 
-    /// <summary>Описание типа из манифеста, нужное для проверок набора</summary>
+    /// <summary>
+    /// Описание типа из манифеста, нужное для проверок набора
+    /// </summary>
     private sealed class TypeDescriptor
     {
         public TypeDescriptor(string id, JsonElement definition)
@@ -516,7 +536,9 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         public string Id { get; }
         public bool IsAbstract { get; }
 
-        /// <summary><c>null</c>: ограничений нет (список allowedChildren в манифесте не задан)</summary>
+        /// <summary>
+        /// <c>null</c>: ограничений нет (список allowedChildren в манифесте не задан)
+        /// </summary>
         public HashSet<string>? AllowedChildren { get; }
 
         public Dictionary<string, PropertyDescriptor> Properties { get; } = [];

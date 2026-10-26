@@ -1,8 +1,13 @@
 import type { DataController, DataObject } from '@platform/data/DataController';
 
-/** Куда относительно целевого узла опускается переносимый: перед ним, внутрь или после него */
+/**
+ * Куда относительно целевого узла опускается переносимый: перед ним, внутрь или после него
+ */
 export type DropPosition = 'before' | 'inside' | 'after';
 
+/**
+ * План переноса: допустим ли он и какие родитель и порядок получит узел
+ */
 export type MovePlan = { ok: true; parent: string | null; order: number } | { ok: false };
 
 /**
@@ -52,7 +57,9 @@ export function planMove(
     return { ok: true, parent, order };
 }
 
-/** Положение указателя в строке высотой `height`: верхняя и нижняя четверти — «перед»/«после» */
+/**
+ * Положение указателя в строке высотой `height`: верхняя и нижняя четверти — «перед»/«после»
+ */
 export function positionInRow(offsetY: number, height: number): DropPosition {
     if (offsetY < height / 4) return 'before';
     if (offsetY > (height * 3) / 4) return 'after';

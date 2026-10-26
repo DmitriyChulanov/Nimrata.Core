@@ -4,7 +4,9 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Auth;
 
-/// <summary>Выдача одноразовых ссылок сброса пароля и установка нового пароля по ним</summary>
+/// <summary>
+/// Выдача одноразовых ссылок сброса пароля и установка нового пароля по ним
+/// </summary>
 public sealed class PasswordResetService(
     NpgsqlDataSource dataSource,
     IEmailSender emailSender,
@@ -14,7 +16,9 @@ public sealed class PasswordResetService(
 {
     private sealed record Target(Guid Id, string Email);
 
-    /// <summary>Письмо уходит только существующему действующему пользователю; вызывающий отвечает одинаково в любом случае</summary>
+    /// <summary>
+    /// Письмо уходит только существующему действующему пользователю; вызывающий отвечает одинаково в любом случае
+    /// </summary>
     public async Task RequestByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -28,7 +32,9 @@ public sealed class PasswordResetService(
         }
     }
 
-    /// <summary>Отправляет ссылку сброса действующему пользователю по идентификатору</summary>
+    /// <summary>
+    /// Отправляет ссылку сброса действующему пользователю по идентификатору
+    /// </summary>
     public async Task<ResetStatus> SendToUserAsync(Guid id, CancellationToken cancellationToken = default)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -44,7 +50,9 @@ public sealed class PasswordResetService(
         return ResetStatus.Ok;
     }
 
-    /// <summary>Атомарно «сжигает» ссылку, меняет пароль и отзывает все refresh-токены пользователя</summary>
+    /// <summary>
+    /// Атомарно «сжигает» ссылку, меняет пароль и отзывает все refresh-токены пользователя
+    /// </summary>
     public async Task<ResetStatus> SetPasswordAsync(
         string? token, string? password, CancellationToken cancellationToken = default)
     {

@@ -5,14 +5,31 @@ import { useSelection } from '@platform/selection/useSelection';
 import type { DataController, DataObject } from '@platform/data/DataController';
 import type { PropertyDefinition } from '@platform/types/types';
 
+/**
+ * Сравнение названий по правилам русского языка
+ */
 const collator = new Intl.Collator('ru');
 
+/**
+ * Название объекта для показа: вычисляемое имя, иначе название типа
+ *
+ * @param data - контроллер данных
+ * @param object - объект
+ * @returns текст названия
+ */
 function titleOf(data: DataController, object: DataObject): string {
     const name = object.properties.name;
     if (typeof name === 'string' && name !== '') return name;
     return data.getType(object.type)?.name ?? object.type;
 }
 
+/**
+ * Потомки родителя, видимые в дереве, в порядке показа
+ *
+ * @param data - контроллер данных
+ * @param parent - идентификатор родителя; `null` — корень
+ * @returns объекты с названиями
+ */
 function visibleChildren(data: DataController, parent: string | null) {
     return data
         .getChildren(parent)
@@ -26,15 +43,25 @@ function visibleChildren(data: DataController, parent: string | null) {
         );
 }
 
+/**
+ * Свойства диалога выбора цели ссылки
+ */
 interface PickerProps {
+    /** Контроллер данных */
     data: DataController;
+    /** Описание ссылочного свойства */
     property: PropertyDefinition;
+    /** Текущая цель; `null`, если ссылки нет */
     current: string | null;
+    /** Подтверждает выбор цели */
     onPick: (id: string) => void;
+    /** Закрывает диалог без выбора */
     onCancel: () => void;
 }
 
-/** Диалог выбора цели ссылки: дерево объектов, недопустимые по `targetTypes` узлы отключены */
+/**
+ * Диалог выбора цели ссылки: дерево объектов, недопустимые по `targetTypes` узлы отключены
+ */
 function ReferencePicker({ data, property, current, onPick, onCancel }: PickerProps) {
     const [chosen, setChosen] = useState<string | null>(current);
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -109,15 +136,25 @@ function ReferencePicker({ data, property, current, onPick, onCancel }: PickerPr
     );
 }
 
+/**
+ * Свойства компонента `ReferenceEditor`
+ */
 interface EditorProps {
+    /** Контроллер данных */
     data: DataController;
+    /** Описание ссылочного свойства */
     property: PropertyDefinition;
+    /** Текущее значение: идентификатор цели */
     value: unknown;
+    /** Запрещено ли редактирование */
     disabled: boolean;
+    /** Отправляет новое значение; возвращает `false`, если оно отклонено */
     onCommit: (value: unknown) => Promise<boolean>;
 }
 
-/** Редактор ссылки на объект: название цели, выбор в диалоге, очистка и переход к цели в дереве */
+/**
+ * Редактор ссылки на объект: название цели, выбор в диалоге, очистка и переход к цели в дереве
+ */
 export function ReferenceEditor({ data, property, value, disabled, onCommit }: EditorProps) {
     const { reveal } = useSelection();
     const [picking, setPicking] = useState(false);

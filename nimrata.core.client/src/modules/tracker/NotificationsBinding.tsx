@@ -10,6 +10,9 @@ import {
 
 import type { BrowserNotifications } from './notifications';
 
+/**
+ * Свойства компонента `NotificationsBinding`
+ */
 export interface NotificationsBindingProps {
     /** Notification API; `null` — не поддерживается. По умолчанию берётся из браузера */
     browser?: BrowserNotifications | null;

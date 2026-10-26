@@ -84,13 +84,22 @@ async function renderGrid(selected: string | null = 't') {
     return { api, controller };
 }
 
+/**
+ * Таблица свойств: отображение
+ */
 describe('PropertyGrid: rendering', () => {
+    /**
+     * Проверяет, что без выделенного объекта предлагается выбрать объект
+     */
     it('propertyGrid_noSelectedObject_suggestsSelectingObject', async () => {
         await renderGrid(null);
 
         expect(screen.getByText('Объект не выбран.')).toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что свойства сгруппированы по категориям в порядке описания типа
+     */
     it('propertyGrid_properties_groupedByCategoryInTypeDescriptionOrder', async () => {
         await renderGrid();
 
@@ -101,6 +110,9 @@ describe('PropertyGrid: rendering', () => {
         expect(within(main).getByLabelText('Описание')).toHaveValue('');
     });
 
+    /**
+     * Проверяет, что ссылочное свойство показывается как текст только для чтения
+     */
     it('propertyGrid_referenceProperty_shownAsReadOnlyText', async () => {
         await renderGrid();
 
@@ -110,6 +122,9 @@ describe('PropertyGrid: rendering', () => {
         expect(within(group).queryByRole('textbox')).not.toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что свойство только для чтения не редактируется
+     */
     it('propertyGrid_readOnlyProperty_isNotEditable', async () => {
         const { api } = await renderGrid();
 
@@ -120,7 +135,13 @@ describe('PropertyGrid: rendering', () => {
     });
 });
 
+/**
+ * Таблица свойств: редактирование
+ */
 describe('PropertyGrid: editing', () => {
+    /**
+     * Проверяет, что `Enter` в строковом поле отправляет набор «было — стало»
+     */
     it('propertyGrid_string_enterSendsChangesetOldToNew', async () => {
         const { api, controller } = await renderGrid();
 
@@ -135,6 +156,9 @@ describe('PropertyGrid: editing', () => {
         expect(controller.getObject('t')?.properties.title).toBe('Вторая');
     });
 
+    /**
+     * Проверяет, что потеря фокуса многострочным текстом отправляет изменение
+     */
     it('propertyGrid_multilineText_blurSendsChange', async () => {
         const { api } = await renderGrid();
 
@@ -146,6 +170,9 @@ describe('PropertyGrid: editing', () => {
         });
     });
 
+    /**
+     * Проверяет, что целое отправляется числом, а нецелое не отправляется и показывает ошибку
+     */
     it('propertyGrid_integer_sentAsNumberNonIntegerNotSentAndShowsError', async () => {
         const { api } = await renderGrid();
         const input = screen.getByLabelText('Количество');
@@ -163,6 +190,9 @@ describe('PropertyGrid: editing', () => {
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что щелчок по флажку переключает значение
+     */
     it('propertyGrid_boolean_checkboxClickTogglesValue', async () => {
         const { api } = await renderGrid();
 
@@ -174,6 +204,9 @@ describe('PropertyGrid: editing', () => {
         expect(screen.getByLabelText('Готово')).toBeChecked();
     });
 
+    /**
+     * Проверяет, что дата вводится как ГГГГ-ММ-ДД
+     */
     it('propertyGrid_date_enteredAsYyyyMmDd', async () => {
         const { api } = await renderGrid();
 
@@ -185,6 +218,9 @@ describe('PropertyGrid: editing', () => {
         });
     });
 
+    /**
+     * Проверяет, что время вводится как ЧЧ:мм
+     */
     it('propertyGrid_time_enteredAsHhMm', async () => {
         const { api } = await renderGrid();
 
@@ -196,6 +232,9 @@ describe('PropertyGrid: editing', () => {
         });
     });
 
+    /**
+     * Проверяет, что значение перечисления выбирается из списка, а пустой выбор очищает его
+     */
     it('propertyGrid_enum_selectsValueFromListEmptyChoiceClearsValue', async () => {
         const { api } = await renderGrid();
         const select = screen.getByLabelText('Приоритет');
@@ -209,6 +248,9 @@ describe('PropertyGrid: editing', () => {
         ]);
     });
 
+    /**
+     * Проверяет, что неизменённое значение не создаёт набор
+     */
     it('propertyGrid_unchangedValue_createsNoChangeset', async () => {
         const { api } = await renderGrid();
 
@@ -218,6 +260,9 @@ describe('PropertyGrid: editing', () => {
         expect(api.changesets).toHaveLength(0);
     });
 
+    /**
+     * Проверяет, что отказ сервера возвращает значение и показывает причину
+     */
     it('propertyGrid_serverRejection_revertsValueAndShowsReason', async () => {
         const { api } = await renderGrid();
         api.rejectNext(400, 'Название слишком длинное');
@@ -230,6 +275,9 @@ describe('PropertyGrid: editing', () => {
         expect(screen.getByLabelText('Название')).toHaveValue('Первая');
     });
 
+    /**
+     * Проверяет, что при отказе сервера флажок возвращается в прежнее положение
+     */
     it('propertyGrid_serverRejection_checkboxReturnsToPreviousPosition', async () => {
         const { api } = await renderGrid();
         api.rejectNext(400, 'Нельзя завершить');
@@ -240,6 +288,9 @@ describe('PropertyGrid: editing', () => {
         expect(screen.getByLabelText('Готово')).not.toBeChecked();
     });
 
+    /**
+     * Проверяет, что смена выделенного объекта показывает его свойства
+     */
     it('propertyGrid_selectedObjectChange_showsItsProperties', async () => {
         await renderGrid();
 

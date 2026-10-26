@@ -44,7 +44,9 @@ function allTasks(data: DataController): DataObject[] {
     return all;
 }
 
-/** Задачи с названием, по возрастанию даты */
+/**
+ * Задачи с названием, по возрастанию даты
+ */
 function series(data: DataController, title: string) {
     return allTasks(data)
         .filter((t) => t.properties.title === title)
@@ -85,6 +87,9 @@ function setNow(year: number, month: number, day: number) {
     vi.setSystemTime(new Date(year, month - 1, day, 10, 0));
 }
 
+/**
+ * Повторы задач Трекера
+ */
 describe('Tracker: repeats', () => {
     beforeEach(() => {
         vi.useFakeTimers({ toFake: ['Date'] });
@@ -92,7 +97,13 @@ describe('Tracker: repeats', () => {
     });
     afterEach(() => vi.useRealTimers());
 
+    /**
+     * Включение повтора
+     */
     describe('enabling', () => {
+        /**
+         * Проверяет, что повтор «каждую неделю» добавляет задачи через 7 дней до конца следующего месяца
+         */
         it('repeats_everyWeek_adds7DaysUpToEndOfNextMonth', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -113,6 +124,9 @@ describe('Tracker: repeats', () => {
             ]);
         });
 
+        /**
+         * Проверяет, что все задачи набора имеют общие идентификатор и вид повтора
+         */
         it('repeats_allTasksOfSet_shareRepeatIdAndRepeatKind', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -128,6 +142,9 @@ describe('Tracker: repeats', () => {
             }
         });
 
+        /**
+         * Проверяет, что повтор по будням пропускает субботу и воскресенье
+         */
         it('repeats_everyWeekday_skipsSaturdayAndSunday', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Зарядка', '2026-03-04');
@@ -148,6 +165,9 @@ describe('Tracker: repeats', () => {
             }
         });
 
+        /**
+         * Проверяет, что дни создаются по необходимости в нужных месяцах, а выходные получают тип выходного дня
+         */
         it('repeats_created_createDaysOnDemandInRequiredMonthsWeekendDaysOfWeekendType', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Отчёт', '2026-03-04');
@@ -165,6 +185,9 @@ describe('Tracker: repeats', () => {
             expect(data.getObject(next.parent!)!.type).toBe('DayOff');
         });
 
+        /**
+         * Проверяет, что повтор «каждый месяц» добавляет месяц
+         */
         it('repeats_everyMonth_addsMonth', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Аренда', '2026-03-04');
@@ -174,6 +197,9 @@ describe('Tracker: repeats', () => {
             expect(dates(data, 'Аренда')).toEqual(['2026-03-04', '2026-04-04']);
         });
 
+        /**
+         * Проверяет, что повтор от 31 числа использует последний день короткого месяца
+         */
         it('repeats_everyMonthFrom31st_usesLastDayOfShorterMonth', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Баланс', '2026-03-31');
@@ -183,6 +209,9 @@ describe('Tracker: repeats', () => {
             expect(dates(data, 'Баланс')).toEqual(['2026-03-31', '2026-04-30']);
         });
 
+        /**
+         * Проверяет, что копируются свойства и цепочка категорий, но не статус
+         */
         it('repeats_copiesPropertiesAndCategoryChainButNotStatus', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Созвон', '2026-03-04', 'Работа');
@@ -205,6 +234,9 @@ describe('Tracker: repeats', () => {
             expect(categoryNames(data, copy)).toEqual(['Работа']);
         });
 
+        /**
+         * Проверяет, что копируется вложенная цепочка категорий
+         */
         it('repeats_copiesNestedCategoryChain', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Отчёт', '2026-03-04', 'Работа');
@@ -221,6 +253,9 @@ describe('Tracker: repeats', () => {
             expect(categoryNames(data, series(data, 'Отчёт')[1])).toEqual(['Работа', 'Финансы']);
         });
 
+        /**
+         * Проверяет, что выбор вида повтора идёт одним набором, а одна отмена возвращает всё
+         */
         it('repeats_kindSelection_isOneChangesetAndOneUndoRevertsAll', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -233,6 +268,9 @@ describe('Tracker: repeats', () => {
             expect(fresh(data, task).properties.repeat).toBe('none');
         });
 
+        /**
+         * Проверяет, что после 15 декабря горизонт заканчивается 31 января следующего года
+         */
         it('repeats_horizon_after15DecemberEndsOn31JanuaryOfNextYear', async () => {
             setNow(2026, 12, 15);
             const { data } = await start();
@@ -251,6 +289,9 @@ describe('Tracker: repeats', () => {
             ]);
         });
 
+        /**
+         * Проверяет, что горизонт от 31 января доходит до 28 февраля
+         */
         it('repeats_horizonAtMonthEnd_31JanuaryUpTo28February', async () => {
             setNow(2026, 1, 31);
             const { data } = await start();
@@ -267,6 +308,9 @@ describe('Tracker: repeats', () => {
             ]);
         });
 
+        /**
+         * Проверяет, что последний день горизонта включается, а следующий — нет
+         */
         it('repeats_lastDayOfHorizon_isIncludedNextDayIsNot', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Граница', '2026-04-29');
@@ -276,6 +320,9 @@ describe('Tracker: repeats', () => {
             expect(dates(data, 'Граница')).toEqual(['2026-04-29', '2026-04-30']);
         });
 
+        /**
+         * Проверяет, что задача за горизонтом получает идентификатор, но повторов не создаёт
+         */
         it('repeats_taskBeyondHorizon_getsIdButCreatesNoRepeats', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Далеко', '2026-06-10');
@@ -287,6 +334,9 @@ describe('Tracker: repeats', () => {
             expect(fresh(data, task).properties.repeatId).toBeTruthy();
         });
 
+        /**
+         * Проверяет, что прошедшие даты не создаются, а повторы начинаются с сегодняшнего дня
+         */
         it('repeats_pastDates_areNotCreatedRepeatsStartFromToday', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Старая', '2026-02-18');
@@ -300,7 +350,13 @@ describe('Tracker: repeats', () => {
         });
     });
 
+    /**
+     * Задача в выходном дне
+     */
     describe('weekend day', () => {
+        /**
+         * Проверяет, что повтор по будням для задачи в выходном дне отклоняется с сообщением
+         */
         it('repeats_everyWeekdayForTaskInWeekendDay_isRejectedWithMessage', async () => {
             const { data, api } = await start();
             const task = await addTask(data, 'Субботнее', '2026-03-07');
@@ -316,6 +372,9 @@ describe('Tracker: repeats', () => {
             expect(api.changesets).toHaveLength(posted);
         });
 
+        /**
+         * Проверяет, что для выходного дня разрешены повторы «каждую неделю» и «каждый месяц»
+         */
         it('repeats_everyWeekAndEveryMonthForWeekendDay_areAllowed', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Субботнее', '2026-03-07');
@@ -327,6 +386,9 @@ describe('Tracker: repeats', () => {
         });
     });
 
+    /**
+     * Синхронизация правок по набору повторов
+     */
     describe('synchronization', () => {
         async function weekly(title = 'Планёрка') {
             const started = await start();
@@ -335,6 +397,9 @@ describe('Tracker: repeats', () => {
             return { ...started, task };
         }
 
+        /**
+         * Проверяет, что правка свойства одного повтора распространяется на весь набор
+         */
         it.each([
             ['title', 'Новая планёрка'],
             ['comment', 'Принести отчёт'],
@@ -355,6 +420,9 @@ describe('Tracker: repeats', () => {
             for (const m of members) expect(m.properties[property]).toBe(value);
         });
 
+        /**
+         * Проверяет, что правка названия обновляет вычисляемые имена, а правка времени — порядок у всех повторов
+         */
         it('sync_nameChange_updatesComputedNamesAndTimeChangeUpdatesOrderForAll', async () => {
             const { data } = await weekly();
             const first = series(data, 'Планёрка')[0];
@@ -370,6 +438,9 @@ describe('Tracker: repeats', () => {
             }
         });
 
+        /**
+         * Проверяет, что очистка комментария тоже распространяется на набор
+         */
         it('sync_commentCleared_propagatesToo', async () => {
             const { data } = await weekly();
             const list = series(data, 'Планёрка');
@@ -382,6 +453,9 @@ describe('Tracker: repeats', () => {
             }
         });
 
+        /**
+         * Проверяет, что смена порядка внутри дня распространяется на набор
+         */
         it('sync_orderChangeInsideDay_propagatesToSet', async () => {
             const { data } = await weekly();
             const list = series(data, 'Планёрка');
@@ -392,6 +466,9 @@ describe('Tracker: repeats', () => {
             for (const m of series(data, 'Планёрка')) expect(m.order).toBe(7);
         });
 
+        /**
+         * Проверяет, что перенос в другой день не переносит остальные повторы
+         */
         it('sync_moveToAnotherDay_doesNotMoveOtherRepeats', async () => {
             const { data } = await weekly();
             const list = series(data, 'Планёрка');
@@ -416,6 +493,9 @@ describe('Tracker: repeats', () => {
             expect(after[2].parent).toBe(before[2]);
         });
 
+        /**
+         * Проверяет, что правка идёт одним набором и откатывается одной отменой
+         */
         it('sync_edit_isOneChangesetAndRevertedByOneUndo', async () => {
             const { data, api } = await weekly();
             const posted = api.changesets.length;
@@ -427,6 +507,9 @@ describe('Tracker: repeats', () => {
             for (const m of series(data, 'Планёрка')) expect(m.properties.priority).toBe('low');
         });
 
+        /**
+         * Проверяет, что уведомление и внутренняя ссылка между повторами не синхронизируются
+         */
         it('sync_editOfOtherProperties_notificationAndInternalLinkAreNotSynchronized', async () => {
             const { data } = await weekly();
             const list = series(data, 'Планёрка');
@@ -436,6 +519,9 @@ describe('Tracker: repeats', () => {
             expect(series(data, 'Планёрка')[1].properties.notifyBefore).toBeUndefined();
         });
 
+        /**
+         * Проверяет, что синхронизация не зацикливается и не трогает задачи без повтора
+         */
         it('sync_noLoopAndTasksWithoutRepeatAreUntouched', async () => {
             const { data } = await weekly();
             const other = await addTask(data, 'Планёрка', '2026-03-05');
@@ -450,6 +536,9 @@ describe('Tracker: repeats', () => {
             expect(fresh(data, other).properties.priority).toBe('low');
         });
 
+        /**
+         * Проверяет, что отказ сервера откатывает правку у всего набора
+         */
         it('sync_serverRejection_revertsEditForWholeSet', async () => {
             const { data, api } = await weekly();
             api.rejectNext(500, 'сбой');
@@ -465,7 +554,13 @@ describe('Tracker: repeats', () => {
         });
     });
 
+    /**
+     * Смена вида повтора
+     */
     describe('repeat kind change', () => {
+        /**
+         * Проверяет, что смена «каждую неделю» на «по будням» перестраивает набор с тем же идентификатором
+         */
         it('kindChange_everyWeekToEveryWeekday_rebuildsSetWithSameId', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Задача', '2026-03-04');
@@ -483,7 +578,13 @@ describe('Tracker: repeats', () => {
         });
     });
 
+    /**
+     * Отключение повтора
+     */
     describe('disabling', () => {
+        /**
+         * Проверяет, что отключение удаляет созданные повторы и очищает идентификатор повтора
+         */
         it('disable_removesAllCreatedRepeatsAndClearsRepeatId', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04', 'Работа');
@@ -498,6 +599,9 @@ describe('Tracker: repeats', () => {
             expect(left[0].properties.repeatId).toBeUndefined();
         });
 
+        /**
+         * Проверяет, что отключение у любого повтора оставляет именно эту задачу
+         */
         it('disable_onAnyRepeat_keepsExactlyThatTask', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -509,6 +613,9 @@ describe('Tracker: repeats', () => {
             expect(series(data, 'Планёрка').map((t) => t.id)).toEqual([chosen.id]);
         });
 
+        /**
+         * Проверяет, что опустевшие категории удаляются вместе с повторами, а оригинал остаётся
+         */
         it('disable_emptiedCategories_areRemovedWithRepeatsAndOriginalStays', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04', 'Работа');
@@ -526,6 +633,9 @@ describe('Tracker: repeats', () => {
             expect(categories).toHaveLength(1);
         });
 
+        /**
+         * Проверяет, что завершённые повторы в архиве остаются, но выходят из набора
+         */
         it('disable_completedArchiveRepeats_areKeptButDetachedFromSet', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -543,6 +653,9 @@ describe('Tracker: repeats', () => {
             expect(fresh(data, done).properties.repeat).toBe('none');
         });
 
+        /**
+         * Проверяет, что после отключения достройка ничего не создаёт
+         */
         it('disable_afterwards_topUpCreatesNothing', async () => {
             const { data, api } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -557,7 +670,13 @@ describe('Tracker: repeats', () => {
         });
     });
 
+    /**
+     * Достройка повторов при входе
+     */
     describe('top-up on login', () => {
+        /**
+         * Проверяет, что достройка добавляет недостающие повторы до нового горизонта
+         */
         it('topUp_addsMissingRepeatsUpToNewHorizon', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -578,6 +697,9 @@ describe('Tracker: repeats', () => {
             expect(new Set(list).size).toBe(list.length);
         });
 
+        /**
+         * Проверяет, что второй запуск не создаёт дублей и не отправляет изменений
+         */
         it('topUp_secondRun_createsNoDuplicatesAndSendsNoChanges', async () => {
             const { data, api } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -594,6 +716,9 @@ describe('Tracker: repeats', () => {
             expect(api.changesets).toHaveLength(posted);
         });
 
+        /**
+         * Проверяет, что сразу после включения достраивать нечего
+         */
         it('topUp_justAfterEnabling_hasNothingToAdd', async () => {
             const { data, api } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -605,6 +730,9 @@ describe('Tracker: repeats', () => {
             expect(api.changesets).toHaveLength(posted);
         });
 
+        /**
+         * Проверяет, что повтор по будням достраивается без выходных
+         */
         it('topUp_everyWeekday_isToppedUpWithoutWeekends', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Зарядка', '2026-03-04');
@@ -624,6 +752,9 @@ describe('Tracker: repeats', () => {
             expect(list).toContain('2026-05-04');
         });
 
+        /**
+         * Проверяет, что повтор по месяцам использует исходный день, а не укороченный
+         */
         it('topUp_everyMonth_usesOriginalDayNotClamped', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Баланс', '2026-01-31');
@@ -641,6 +772,9 @@ describe('Tracker: repeats', () => {
             ]);
         });
 
+        /**
+         * Проверяет, что набор без идентификатора и задачи без повтора игнорируются
+         */
         it('topUp_setWithoutIdAndTasksWithoutRepeat_areIgnored', async () => {
             const { data, api } = await start();
             await addTask(data, 'Обычная', '2026-03-04');
@@ -652,6 +786,9 @@ describe('Tracker: repeats', () => {
             expect(api.changesets).toHaveLength(posted);
         });
 
+        /**
+         * Проверяет, что достройка нескольких наборов идёт одним набором изменений
+         */
         it('topUp_severalSets_isOneChangeset', async () => {
             const { data, api } = await start();
             const a = await addTask(data, 'А', '2026-03-04');
@@ -668,6 +805,9 @@ describe('Tracker: repeats', () => {
             expect((dates(data, 'Б') as string[]).at(-1)).toBe('2026-05-28');
         });
 
+        /**
+         * Проверяет, что достройка сохраняет цепочку категорий и свойства
+         */
         it('topUp_keepsCategoryChainAndSameProperties', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04', 'Работа');
@@ -685,7 +825,13 @@ describe('Tracker: repeats', () => {
         });
     });
 
+    /**
+     * Завершение и откладывание повторов
+     */
     describe('Complete and Postpone', () => {
+        /**
+         * Проверяет, что завершённый повтор остаётся в наборе, а его дата не создаётся заново
+         */
         it('completeAndPostpone_completedRepeat_staysInSetAndItsDateIsNotRecreated', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -701,6 +847,9 @@ describe('Tracker: repeats', () => {
             expect(new Set(list).size).toBe(list.length);
         });
 
+        /**
+         * Проверяет, что правка активного повтора доходит и до завершённого
+         */
         it('completeAndPostpone_editOfActiveRepeat_reachesCompletedOne', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -714,6 +863,9 @@ describe('Tracker: repeats', () => {
             expect(fresh(data, second).properties.status).toBe('completed');
         });
 
+        /**
+         * Проверяет, что статус «завершена» не распространяется на набор
+         */
         it('completeAndPostpone_completedStatus_isNotPropagatedToSet', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -727,6 +879,9 @@ describe('Tracker: repeats', () => {
             expect(pending).toHaveLength(8);
         });
 
+        /**
+         * Проверяет, что повтор можно включить у завершённой задачи, а копии попадают в текущие задачи
+         */
         it('completeAndPostpone_repeatCanBeEnabledOnCompletedTask_copiesGoToCurrentTasks', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -748,6 +903,9 @@ describe('Tracker: repeats', () => {
             expect(ancestor(copy.parent)).toBe('CurrentTasksRoot');
         });
 
+        /**
+         * Проверяет, что отложенный повтор не оставляет пропуска, который достроила бы достройка
+         */
         it('completeAndPostpone_postponedRepeat_leavesNoGapForTopUpToRefill', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -764,6 +922,9 @@ describe('Tracker: repeats', () => {
             expect(new Set(list).size).toBe(list.length);
         });
 
+        /**
+         * Проверяет, что откладывание на дату существующего повтора не даёт дублей при достройке
+         */
         it('completeAndPostpone_postponedToDateOfExistingRepeat_createsNoDuplicatesOnTopUp', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
@@ -779,7 +940,13 @@ describe('Tracker: repeats', () => {
         });
     });
 
+    /**
+     * Уведомления повторов
+     */
     describe('notifications', () => {
+        /**
+         * Проверяет, что повтор со временем и упреждением уведомляет в свой день
+         */
         it('notifications_repeatWithTimeAndLeadMinutes_firesOnItsDay', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Созвон', '2026-03-04');
@@ -795,6 +962,9 @@ describe('Tracker: repeats', () => {
             expect(due[0].title).toBe('10:00');
         });
 
+        /**
+         * Проверяет, что повтор без времени не даёт уведомлений
+         */
         it('notifications_repeatWithoutTime_createsNone', async () => {
             const { data } = await start();
             const task = await addTask(data, 'Без времени', '2026-03-04');

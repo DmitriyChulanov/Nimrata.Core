@@ -49,7 +49,9 @@ async function renderTree(objects: unknown[]) {
 const names = () => screen.getAllByRole('treeitem').map((n) => n.getAttribute('aria-label'));
 const item = (name: string) => screen.getByRole('treeitem', { name });
 
-/** Тянет строку на строку; `y` — смещение указателя внутри целевой строки (высота 24) */
+/**
+ * Тянет строку на строку; `y` — смещение указателя внутри целевой строки (высота 24)
+ */
 function drag(source: string, target: string, y: number) {
     // jsdom не знает DragEvent и теряет clientY, поэтому задаём его вручную
     const at = (create: typeof createEvent.dragOver) => {
@@ -70,7 +72,13 @@ const scene = () => [
     obj('m', 'Note', null, 3, 'Лист'),
 ];
 
+/**
+ * Дерево: перенос перетаскиванием
+ */
 describe('Tree: move by dragging', () => {
+    /**
+     * Проверяет, что сброс на середину другого узла делает объект его потомком одним набором
+     */
     it('treeDnd_dropOnMiddleOfOtherNode_makesItDescendantInOneChangeset', async () => {
         const { api, controller } = await renderTree(scene());
 
@@ -85,6 +93,9 @@ describe('Tree: move by dragging', () => {
         expect(controller.getObject('n')?.parent).toBe('f');
     });
 
+    /**
+     * Проверяет, что сброс на верхнюю часть строки ставит узел перед соседом
+     */
     it('treeDnd_dropOnUpperPartOfRow_placesNodeBeforeSibling', async () => {
         await renderTree(scene());
 
@@ -93,6 +104,9 @@ describe('Tree: move by dragging', () => {
         await waitFor(() => expect(names()).toEqual(['Папка', 'Лист', 'Группа', 'Заметка']));
     });
 
+    /**
+     * Проверяет, что сброс на нижнюю часть строки ставит узел после соседа
+     */
     it('treeDnd_dropOnLowerPartOfRow_placesNodeAfterSibling', async () => {
         await renderTree(scene());
 
@@ -101,6 +115,9 @@ describe('Tree: move by dragging', () => {
         await waitFor(() => expect(names()).toEqual(['Группа', 'Заметка', 'Папка', 'Лист']));
     });
 
+    /**
+     * Проверяет, что перенос между соседями другого родителя меняет и родителя, и порядок
+     */
     it('treeDnd_moveBetweenSiblingsOfOtherParent_changesBothParentAndOrder', async () => {
         const { controller } = await renderTree([
             ...scene(),
@@ -115,6 +132,9 @@ describe('Tree: move by dragging', () => {
         expect(names()).toEqual(['Папка', 'А', 'Лист', 'Б', 'Группа', 'Заметка']);
     });
 
+    /**
+     * Проверяет, что сброс на тип, не допускающий такого потомка, не принимается
+     */
     it('treeDnd_dropOnTypeThatDisallowsSuchChild_isNotAccepted', async () => {
         const { api } = await renderTree(scene());
 
@@ -124,6 +144,9 @@ describe('Tree: move by dragging', () => {
         expect(names()).toEqual(['Папка', 'Группа', 'Заметка', 'Лист']);
     });
 
+    /**
+     * Проверяет, что перенос в себя и в собственного потомка не принимается
+     */
     it('treeDnd_moveIntoSelfAndOwnDescendant_isNotAccepted', async () => {
         const { api } = await renderTree([...scene(), obj('c', 'Folder', 'f', 0, 'Вложенная')]);
         await userEvent.setup().click(screen.getByRole('button', { name: 'Развернуть' }));
@@ -135,6 +158,9 @@ describe('Tree: move by dragging', () => {
         expect(api.changesets).toEqual([]);
     });
 
+    /**
+     * Проверяет, что недоступная цель подсвечивается как недоступная, а допустимая — нет
+     */
     it('treeDnd_unavailableTarget_isHighlightedAsUnavailableValidOneIsNot', async () => {
         await renderTree(scene());
 
@@ -147,6 +173,9 @@ describe('Tree: move by dragging', () => {
         expect(item('Заметка')).not.toHaveAttribute('aria-disabled');
     });
 
+    /**
+     * Проверяет, что отказ сервера возвращает дерево и показывает сообщение
+     */
     it('treeDnd_serverRejection_restoresTreeAndShowsMessage', async () => {
         const { api } = await renderTree(scene());
         api.rejectNext(400, 'Сервер отказал');
@@ -158,7 +187,13 @@ describe('Tree: move by dragging', () => {
     });
 });
 
+/**
+ * Дерево: перенос с клавиатуры
+ */
 describe('Tree: move by keyboard', () => {
+    /**
+     * Проверяет, что `Alt+↓` и `Alt+↑` меняют порядок среди соседей
+     */
     it('treeKeyboard_altDownAndAltUp_changeOrderAmongSiblings', async () => {
         const user = userEvent.setup();
         const { api } = await renderTree(scene());
@@ -172,6 +207,9 @@ describe('Tree: move by keyboard', () => {
         await waitFor(() => expect(names()).toEqual(['Папка', 'Группа', 'Заметка', 'Лист']));
     });
 
+    /**
+     * Проверяет, что `Alt+→` делает узел потомком предыдущего соседа, а `Alt+←` поднимает на уровень
+     */
     it('treeKeyboard_altRight_makesNodeChildOfPreviousSiblingAltLeftMovesUpALevel', async () => {
         const user = userEvent.setup();
         const { controller } = await renderTree(scene());
@@ -186,6 +224,9 @@ describe('Tree: move by keyboard', () => {
         expect(names()).toEqual(['Папка', 'Группа', 'Заметка', 'Лист']);
     });
 
+    /**
+     * Проверяет, что недопустимый перенос ничего не делает
+     */
     it('treeKeyboard_invalidMove_doesNothing', async () => {
         const user = userEvent.setup();
         const { api } = await renderTree(scene());

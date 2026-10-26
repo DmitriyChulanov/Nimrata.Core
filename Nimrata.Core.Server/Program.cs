@@ -96,4 +96,7 @@ app.MapFallbackToFile("{*path:regex(^(?!api(/|$)).*$)}", "index.html").AllowAnon
 
 app.Run();
 
+/// <summary>
+/// Точка входа сервера; открыта для тестового стенда <c>WebApplicationFactory&lt;Program&gt;</c>
+/// </summary>
 public partial class Program;

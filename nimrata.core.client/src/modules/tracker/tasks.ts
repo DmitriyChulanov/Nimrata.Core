@@ -5,9 +5,14 @@ import { cancelIfFailed } from './results';
 
 import type { ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
+/**
+ * Формат времени задачи `ЧЧ:мм`
+ */
 const TIME = /^\d{2}:\d{2}$/;
 
-/** Имя задачи: «HH:mm — Название» при наличии времени */
+/**
+ * Имя задачи: «HH:mm — Название» при наличии времени
+ */
 export function taskName(task: DataObject): string | undefined {
     const title = task.properties.title;
     if (typeof title !== 'string' || title === '') return undefined;
@@ -15,14 +20,18 @@ export function taskName(task: DataObject): string | undefined {
     return typeof time === 'string' && TIME.test(time) ? `${time} — ${title}` : title;
 }
 
-/** Порядок задачи среди соседей: без времени — 0, иначе 1 + минуты от полуночи */
+/**
+ * Порядок задачи среди соседей: без времени — 0, иначе 1 + минуты от полуночи
+ */
 export function taskOrder(task: DataObject): number {
     const time = task.properties.time;
     if (typeof time !== 'string' || !TIME.test(time)) return 0;
     return 1 + Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
 }
 
-/** Приводит имя и порядок задачи (по времени) к вычисленным значениям в том же наборе изменений */
+/**
+ * Приводит имя и порядок задачи (по времени) к вычисленным значениям в том же наборе изменений
+ */
 export function syncTask(data: DataController, id: string, tx: ChangeScope): HookResult {
     const task = data.getObject(id);
     if (!task) return;
@@ -35,7 +44,9 @@ export function syncTask(data: DataController, id: string, tx: ChangeScope): Hoo
     if (task.order !== order) return cancelIfFailed(tx.move(id, { order }));
 }
 
-/** Дата задачи (`ГГГГ-ММ-ДД`) берётся из ближайшего родителя-дня; нигде не хранится */
+/**
+ * Дата задачи (`ГГГГ-ММ-ДД`) берётся из ближайшего родителя-дня; нигде не хранится
+ */
 export function taskDate(data: DataController, task: DataObject): string | undefined {
     for (let id = task.parent; id;) {
         const parent = data.getObject(id);
@@ -49,7 +60,9 @@ export function taskDate(data: DataController, task: DataObject): string | undef
     return undefined;
 }
 
-/** Все задачи дерева (текущие и архив) */
+/**
+ * Все задачи дерева (текущие и архив)
+ */
 export function allTasks(data: DataController): DataObject[] {
     const tasks: DataObject[] = [];
     const walk = (parent: string | null) => {

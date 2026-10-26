@@ -11,7 +11,9 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Tests;
 
-/// <summary>Чтение журнала: по объекту и «все мои изменения», постранично, только свои записи</summary>
+/// <summary>
+/// Чтение журнала: по объекту и «все мои изменения», постранично, только свои записи
+/// </summary>
 public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFactory>, IAsyncLifetime
 {
     private const string Manifest = """
@@ -33,6 +35,10 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
     private HttpClient _me = null!;
     private HttpClient _other = null!;
 
+    /// <summary>
+    /// Готовит двух пользователей и клиентов для тестов журнала
+    /// </summary>
+    /// <returns>Задача подготовки</returns>
     public async Task InitializeAsync()
     {
         _directory = Path.Combine(Path.GetTempPath(), "nimrata-journal-" + Guid.NewGuid().ToString("N"));
@@ -51,6 +57,10 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
         _other = await Login(ForeignEmail, ForeignPassword);
     }
 
+    /// <summary>
+    /// Освобождает ресурсы теста
+    /// </summary>
+    /// <returns>Завершённая задача</returns>
     public Task DisposeAsync()
     {
         _me?.Dispose();
@@ -60,6 +70,12 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Входит под пользователем
+    /// </summary>
+    /// <param name="email">Адрес</param>
+    /// <param name="password">Пароль</param>
+    /// <returns>Клиент с access-токеном</returns>
     private async Task<HttpClient> Login(string email, string password)
     {
         var client = _server.CreateClient();
@@ -69,15 +85,36 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
         return client;
     }
 
+    /// <summary>
+    /// Применяет набор изменений и проверяет успех
+    /// </summary>
+    /// <param name="client">Клиент HTTP</param>
+    /// <param name="operations">Операции набора</param>
+    /// <returns>Задача применения</returns>
     private static async Task Apply(HttpClient client, params object[] operations)
     {
         var response = await client.PostAsJsonAsync("/api/changesets", new { operations = operations });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    /// <summary>
+    /// Описывает операцию создания объекта
+    /// </summary>
+    /// <param name="id">Идентификатор</param>
+    /// <param name="type">Тип</param>
+    /// <param name="parent">Родитель</param>
+    /// <param name="order">Порядок</param>
+    /// <param name="properties">Свойства</param>
+    /// <returns>Операция для набора изменений</returns>
     private static object Create(Guid id, string type, Guid? parent = null, double order = 1, object? properties = null) =>
         new { op = "create", id, type = type, parent = parent, order = order, properties = properties ?? new { } };
 
+    /// <summary>
+    /// Читает страницу журнала
+    /// </summary>
+    /// <param name="client">Клиент HTTP</param>
+    /// <param name="request">Строка запроса</param>
+    /// <returns>Тело ответа</returns>
     private static async Task<JsonElement> Journal(HttpClient client, string request = "")
     {
         var response = await client.GetAsync("/api/journal" + request);
@@ -85,12 +122,25 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    /// <summary>
+    /// Выбирает названия операций из страницы журнала
+    /// </summary>
+    /// <param name="page">Страница журнала</param>
+    /// <returns>Названия по порядку записей</returns>
     private static string[] Operations(JsonElement page) =>
         page.GetProperty("items").EnumerateArray().Select(e => e.GetProperty("operation").GetString()!).ToArray();
 
+    /// <summary>
+    /// Выбирает идентификаторы объектов из страницы журнала
+    /// </summary>
+    /// <param name="page">Страница журнала</param>
+    /// <returns>Идентификаторы по порядку записей</returns>
     private static Guid[] Objects(JsonElement page) =>
         page.GetProperty("items").EnumerateArray().Select(e => e.GetProperty("objectId").GetGuid()).ToArray();
 
+    /// <summary>
+    /// Проверяет, что записи по объекту идут от новых к старым
+    /// </summary>
     [Fact]
     public async Task Journal_ByObject_EntriesNewestFirst()
     {
@@ -116,6 +166,9 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(JsonValueKind.Null, move.GetProperty("new").GetProperty("parent").ValueKind);
     }
 
+    /// <summary>
+    /// Проверяет, что общий журнал содержит все свои объекты и не содержит чужих
+    /// </summary>
     [Fact]
     public async Task Journal_AllMine_IncludesAllObjectsAndNoForeignOnes()
     {
@@ -131,6 +184,9 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal([foreignObject], Objects(foreignJournal));
     }
 
+    /// <summary>
+    /// Проверяет, что по чужому объекту журнал пуст
+    /// </summary>
     [Fact]
     public async Task Journal_ByForeignObject_IsEmpty()
     {
@@ -143,6 +199,9 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(0, page.GetProperty("total").GetInt32());
     }
 
+    /// <summary>
+    /// Проверяет, что после удаления объекта в журнале остаётся его снимок
+    /// </summary>
     [Fact]
     public async Task Journal_DeletedObject_KeepsSnapshot()
     {
@@ -158,6 +217,9 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal("x", snapshot.GetProperty("properties").GetProperty("title").GetString());
     }
 
+    /// <summary>
+    /// Проверяет постраничное чтение журнала
+    /// </summary>
     [Fact]
     public async Task Journal_Paged_ReturnsRequestedPage()
     {
@@ -172,6 +234,9 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal([ids[2], ids[1]], Objects(second));
     }
 
+    /// <summary>
+    /// Проверяет, что без входа журнал отвечает 401
+    /// </summary>
     [Fact]
     public async Task Journal_WithoutLogin_Returns401()
     {
@@ -179,6 +244,9 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что недопустимые параметры страницы дают 400
+    /// </summary>
     [Fact]
     public async Task Journal_InvalidParameter_Returns400()
     {
@@ -186,6 +254,9 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
         Assert.Equal(HttpStatusCode.BadRequest, (await _me.GetAsync("/api/journal?skip=-1")).StatusCode);
     }
 
+    /// <summary>
+    /// Проверяет, что журнал нельзя изменить через API
+    /// </summary>
     [Fact]
     public async Task Journal_ModifyingViaApi_IsNotAllowed()
     {

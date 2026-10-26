@@ -5,12 +5,16 @@ using Npgsql;
 
 namespace Nimrata.Core.Server.Objects;
 
-/// <summary>Чтение типов платформы, синхронизированных из манифестов модулей</summary>
+/// <summary>
+/// Чтение типов платформы, синхронизированных из манифестов модулей
+/// </summary>
 public sealed class TypesService(NpgsqlDataSource dataSource)
 {
     private sealed record TypeRow(string Id, string ModuleId, int ModuleVersion, JsonElement Definition);
 
-    /// <summary>Определения всех типов, дополненные полями <c>id</c>, <c>module</c> и <c>moduleVersion</c></summary>
+    /// <summary>
+    /// Определения всех типов, дополненные полями <c>id</c>, <c>module</c> и <c>moduleVersion</c>
+    /// </summary>
     public async Task<IReadOnlyList<JsonObject>> ListAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

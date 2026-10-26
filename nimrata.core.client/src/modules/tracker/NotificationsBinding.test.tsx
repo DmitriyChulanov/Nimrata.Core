@@ -61,10 +61,16 @@ async function setup(
     return data;
 }
 
+/**
+ * Уведомления Трекера в интерфейсе
+ */
 describe('Tracker: notifications in the interface', () => {
     beforeEach(() => vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] }));
     afterEach(() => vi.useRealTimers());
 
+    /**
+     * Проверяет, что разрешение запрашивается только по кнопке и один раз
+     */
     it('notificationsUi_permission_isNotRequestedAutomaticallyOnlyOnButtonOnce', async () => {
         const browser = fakeBrowser('default', 'granted');
         await setup(browser);
@@ -77,6 +83,9 @@ describe('Tracker: notifications in the interface', () => {
         expect(screen.queryByRole('button', { name: 'Включить уведомления' })).toBeNull();
     });
 
+    /**
+     * Проверяет, что после отказа кнопка пропадает и запрос не повторяется
+     */
     it('notificationsUi_afterDenial_buttonDisappearsAndRequestIsNotRepeated', async () => {
         const browser = fakeBrowser('default', 'denied');
         await setup(browser);
@@ -91,16 +100,25 @@ describe('Tracker: notifications in the interface', () => {
         expect(browser.requestPermission).toHaveBeenCalledTimes(1);
     });
 
+    /**
+     * Проверяет, что при принятом решении о разрешении кнопки нет
+     */
     it('notificationsUi_permissionAlreadyDecided_hasNoButton', async () => {
         await setup(fakeBrowser('denied', 'denied'));
         expect(screen.queryByRole('button', { name: 'Включить уведомления' })).toBeNull();
     });
 
+    /**
+     * Проверяет, что без Notification API ничего не показывается и приложение не падает
+     */
     it('notificationsUi_withoutNotificationApi_showsNothingAndDoesNotCrash', async () => {
         await setup(null);
         expect(screen.queryByRole('button')).toBeNull();
     });
 
+    /**
+     * Проверяет, что при выданном разрешении показывается уведомление о задаче
+     */
     it('notificationsUi_permissionGranted_showsTaskNotification', async () => {
         const browser = fakeBrowser('granted', 'granted');
         await setup(browser);
@@ -108,6 +126,9 @@ describe('Tracker: notifications in the interface', () => {
         expect(browser.show).toHaveBeenCalledWith('09:00', 'Созвон');
     });
 
+    /**
+     * Проверяет, что показанное запоминается по пользователю и не дублируется после перемонтирования
+     */
     it('notificationsUi_withUser_shownIsRememberedAndNotDuplicatedAfterRemount', async () => {
         localStorage.clear();
         const browser = fakeBrowser('granted', 'granted');
@@ -128,6 +149,9 @@ describe('Tracker: notifications in the interface', () => {
         expect(browser.show).toHaveBeenCalledTimes(1);
     });
 
+    /**
+     * Проверяет, что без разрешения уведомления не показываются, а приложение работает
+     */
     it('notificationsUi_withoutPermission_showsNothingAndAppWorks', async () => {
         const browser = fakeBrowser('denied', 'denied');
         await setup(browser);

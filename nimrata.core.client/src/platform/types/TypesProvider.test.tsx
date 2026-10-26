@@ -48,6 +48,9 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
+/**
+ * Проверяет, что после входа типы загружаются с токеном и отдаются по идентификатору
+ */
 it('typesProvider_afterLogin_loadsTypesWithTokenAndServesThemById', async () => {
     const fetchMock = vi
         .fn()
@@ -69,6 +72,9 @@ it('typesProvider_afterLogin_loadsTypesWithTokenAndServesThemById', async () => 
     expect(new Headers(typesCall![1].headers).get('Authorization')).toBe('Bearer tok');
 });
 
+/**
+ * Проверяет, что без входа типы не запрашиваются
+ */
 it('typesProvider_withoutLogin_doesNotRequestTypes', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -80,6 +86,9 @@ it('typesProvider_withoutLogin_doesNotRequestTypes', async () => {
     expect(screen.getByTestId('count')).toHaveTextContent('0');
 });
 
+/**
+ * Проверяет, что ошибка загрузки переводит хранилище в состояние ошибки
+ */
 it('typesProvider_loadError_movesStoreToErrorState', async () => {
     const fetchMock = vi
         .fn()

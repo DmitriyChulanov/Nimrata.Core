@@ -20,7 +20,13 @@ const rightPanel = () => screen.getByRole('region', { name: 'Свойства' }
 const leftHandle = () => screen.getByRole('separator', { name: 'Ширина дерева' });
 const rightHandle = () => screen.getByRole('separator', { name: 'Ширина свойств' });
 
+/**
+ * Рабочая область
+ */
 describe('Workspace', () => {
+    /**
+     * Проверяет, что изменение ширины сообщает новые ширины панелей
+     */
     it('workspace_widthChange_reportsNewPanelWidths', async () => {
         const onWidthsChange = vi.fn();
         render(
@@ -39,6 +45,9 @@ describe('Workspace', () => {
         expect(onWidthsChange).toHaveBeenLastCalledWith({ left: 320, right: 320 });
     });
 
+    /**
+     * Проверяет, что показываются три панели: дерево, вкладки и свойства
+     */
     it('workspace_renders_threePanelsTreeTabsAndProperties', () => {
         renderWorkspace();
 
@@ -49,6 +58,9 @@ describe('Workspace', () => {
         expect(rightPanel()).toHaveStyle({ width: '320px' });
     });
 
+    /**
+     * Проверяет, что перетаскивание левой границы меняет ширину дерева
+     */
     it('workspace_dragLeftBorder_changesTreeWidth', () => {
         renderWorkspace();
 
@@ -60,6 +72,9 @@ describe('Workspace', () => {
         expect(leftHandle()).toHaveAttribute('aria-valuenow', '380');
     });
 
+    /**
+     * Проверяет, что перетаскивание правой границы влево расширяет таблицу свойств
+     */
     it('workspace_dragRightBorderLeft_widensPropertyGrid', () => {
         renderWorkspace();
 
@@ -70,6 +85,9 @@ describe('Workspace', () => {
         expect(rightPanel()).toHaveStyle({ width: '380px' });
     });
 
+    /**
+     * Проверяет, что после отпускания кнопки движение мыши ширину не меняет
+     */
     it('workspace_afterButtonRelease_mouseMoveDoesNotChangeWidth', () => {
         renderWorkspace();
 
@@ -80,6 +98,9 @@ describe('Workspace', () => {
         expect(leftPanel()).toHaveStyle({ width: '300px' });
     });
 
+    /**
+     * Проверяет, что ширина не опускается ниже минимума
+     */
     it('workspace_width_doesNotGoBelowMinimum', () => {
         renderWorkspace();
 
@@ -90,6 +111,9 @@ describe('Workspace', () => {
         expect(leftPanel()).toHaveStyle({ width: '120px' });
     });
 
+    /**
+     * Проверяет, что границы можно двигать стрелками на клавиатуре
+     */
     it('workspace_borders_canBeMovedWithArrowKeys', async () => {
         const user = userEvent.setup();
         renderWorkspace();

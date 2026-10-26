@@ -89,19 +89,30 @@ async function setup(selected = 't') {
 
 const row = (label: string) => screen.getByText(label).closest('.property-grid-row') as HTMLElement;
 
-/** Раскрывает в диалоге папку «Люди» и вложенную папку */
+/**
+ * Раскрывает в диалоге папку «Люди» и вложенную папку
+ */
 async function expandDialog(dialog: HTMLElement) {
     await userEvent.click(within(dialog).getAllByRole('button', { name: 'Развернуть' })[0]);
     await userEvent.click(within(dialog).getAllByRole('button', { name: 'Развернуть' })[0]);
 }
 
+/**
+ * Ссылочное свойство: значение
+ */
 describe('Reference property: value', () => {
+    /**
+     * Проверяет, что значение показывается именем объекта
+     */
     it('referenceEditor_value_showsObjectName', async () => {
         await setup();
 
         expect(within(row('Владелец')).getByText('Иван')).toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что ссылка на удалённый объект показывается как недоступная и без перехода
+     */
     it('referenceEditor_referenceToDeletedObject_shownAsUnavailableWithoutNavigation', async () => {
         await setup('lost');
 
@@ -111,7 +122,13 @@ describe('Reference property: value', () => {
     });
 });
 
+/**
+ * Ссылочное свойство: выбор в диалоге
+ */
 describe('Reference property: selection in dialog', () => {
+    /**
+     * Проверяет, что выбор применяется набором изменений
+     */
     it('referenceEditor_choice_isAppliedByChangeset', async () => {
         const { api } = await setup();
 
@@ -131,6 +148,9 @@ describe('Reference property: selection in dialog', () => {
         expect(within(row('Владелец')).getByText('Пётр')).toBeInTheDocument();
     });
 
+    /**
+     * Проверяет, что диалог раскрывает папки и скрывает скрытые типы
+     */
     it('referenceEditor_dialog_expandsFoldersAndHidesHiddenTypes', async () => {
         const { api } = await setup();
 
@@ -145,6 +165,9 @@ describe('Reference property: selection in dialog', () => {
         expect(api.changesets[0].operations[0]).toMatchObject({ changes: { any: { new: 'p3' } } });
     });
 
+    /**
+     * Проверяет, что при `targetTypes` объекты других типов выбрать нельзя
+     */
     it('referenceEditor_targetTypes_otherTypesCannotBeChosen', async () => {
         const { api } = await setup();
 
@@ -160,6 +183,9 @@ describe('Reference property: selection in dialog', () => {
         expect(api.changesets).toHaveLength(0);
     });
 
+    /**
+     * Проверяет, что без `targetTypes` доступен любой объект
+     */
     it('referenceEditor_withoutTargetTypes_anyObjectIsAvailable', async () => {
         const { api } = await setup();
 
@@ -171,6 +197,9 @@ describe('Reference property: selection in dialog', () => {
         expect(api.changesets[0].operations[0]).toMatchObject({ changes: { any: { new: 'f' } } });
     });
 
+    /**
+     * Проверяет, что отмена закрывает диалог без изменений
+     */
     it('referenceEditor_cancel_closesDialogWithoutChanges', async () => {
         const { api } = await setup();
 
@@ -181,6 +210,9 @@ describe('Reference property: selection in dialog', () => {
         expect(api.changesets).toHaveLength(0);
     });
 
+    /**
+     * Проверяет, что очистка отправляет `null`
+     */
     it('referenceEditor_clear_sendsNull', async () => {
         const { api } = await setup();
 
@@ -192,7 +224,13 @@ describe('Reference property: selection in dialog', () => {
     });
 });
 
+/**
+ * Ссылочное свойство: переход
+ */
 describe('Reference property: navigation', () => {
+    /**
+     * Проверяет, что переход выделяет объект в дереве и раскрывает его родителей
+     */
     it('referenceEditor_navigate_selectsObjectInTreeAndExpandsParents', async () => {
         await setup();
         await userEvent.click(screen.getByRole('button', { name: 'Выбрать: Связь' }));

@@ -4,14 +4,28 @@ import './Workspace.css';
 
 import type { KeyboardEvent, ReactNode } from 'react';
 
+/**
+ * Минимальная ширина боковой панели в пикселях
+ */
 const MIN_WIDTH = 120;
+/**
+ * Шаг изменения ширины панели клавишами со стрелками в пикселях
+ */
 const KEY_STEP = 20;
 
+/**
+ * Ширины боковых панелей в пикселях
+ */
 export interface WorkspaceWidths {
+    /** Ширина левой панели */
     left: number;
+    /** Ширина правой панели */
     right: number;
 }
 
+/**
+ * Свойства компонента `Workspace`
+ */
 export interface WorkspaceProps {
     /** Дерево объектов */
     left: ReactNode;
@@ -19,14 +33,20 @@ export interface WorkspaceProps {
     center: ReactNode;
     /** Таблица свойств */
     right: ReactNode;
+    /** Начальные ширины боковых панелей */
     initialWidths?: WorkspaceWidths;
     /** Вызывается после каждого изменения ширины панелей (для запоминания раскладки) */
     onWidthsChange?: (widths: WorkspaceWidths) => void;
 }
 
+/**
+ * Боковая панель, ширину которой можно менять
+ */
 type Side = keyof WorkspaceWidths;
 
-/** Основной экран: три панели, ширина боковых меняется перетаскиванием границ */
+/**
+ * Основной экран: три панели, ширина боковых меняется перетаскиванием границ
+ */
 export function Workspace({
     left,
     center,

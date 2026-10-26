@@ -44,7 +44,13 @@ async function renderColored(objects: unknown[]) {
 const colorOf = (name: string) =>
     screen.getByRole('treeitem', { name }).getAttribute('data-rule-color');
 
+/**
+ * Дерево: правила цвета
+ */
 describe('Tree: color rules', () => {
+    /**
+     * Проверяет, что узел окрашивается, когда значения свойств удовлетворяют правилу
+     */
     it('treeColors_node_isPaintedWhenPropertyValuesSatisfyRule', async () => {
         await renderColored([
             task('a', 0, { priority: 'high' }),
@@ -57,24 +63,36 @@ describe('Tree: color rules', () => {
         expect(colorOf('p')).toBeNull();
     });
 
+    /**
+     * Проверяет, что узел без подходящего правила не окрашивается
+     */
     it('treeColors_nodeWithoutMatchingRule_isNotPainted', async () => {
         await renderColored([task('a', 0, { priority: 'none' })]);
 
         expect(colorOf('a')).toBeNull();
     });
 
+    /**
+     * Проверяет, что при нескольких подходящих правилах выигрывает первое в манифесте
+     */
     it('treeColors_severalMatchingRules_firstInManifestWins', async () => {
         await renderColored([task('a', 0, { priority: 'high', status: 'completed' })]);
 
         expect(colorOf('a')).toBe('red');
     });
 
+    /**
+     * Проверяет, что цвет вне палитры задаётся напрямую
+     */
     it('treeColors_colorOutsidePalette_isSetDirectly', async () => {
         await renderColored([task('a', 0, { priority: 'low' })]);
 
         expect(screen.getByRole('treeitem', { name: 'a' })).toHaveStyle({ color: '#123456' });
     });
 
+    /**
+     * Проверяет, что цвет меняется вместе со свойством без перезагрузки
+     */
     it('treeColors_colorChangesWithProperty_withoutReload', async () => {
         const controller = await renderColored([task('a', 0, { priority: 'medium' })]);
         expect(colorOf('a')).toBe('orange');

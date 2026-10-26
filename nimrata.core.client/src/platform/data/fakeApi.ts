@@ -2,7 +2,9 @@ import { ApiError } from '@platform/api/apiClient';
 
 import type { ApiClient } from '@platform/api/apiClient';
 
-/** Поддельный API-клиент в памяти для тестов `DataController`: отдаёт типы и объекты, записывает наборы изменений */
+/**
+ * Поддельный API-клиент в памяти для тестов `DataController`: отдаёт типы и объекты, записывает наборы изменений
+ */
 export interface FakeApi extends ApiClient {
     types: unknown[];
     objects: unknown[];
@@ -12,13 +14,21 @@ export interface FakeApi extends ApiClient {
     rejectNext(status: number, message: string): void;
 }
 
+/**
+ * Известный подставному API объект: тип и родитель
+ */
 interface Known {
     type: string;
+    /** Идентификатор родителя; `null` — корень */
     parent: string | null;
 }
 
+/**
+ * Часть описания типа, нужная проверке допустимости родителя
+ */
 interface TypeLike {
     id: string;
+    /** Допустимые типы потомков; отсутствие — без ограничений */
     allowedChildren?: string[];
 }
 
@@ -41,6 +51,13 @@ function checkParent(
     }
 }
 
+/**
+ * Подставной API-клиент для тестов: хранит типы и объекты в памяти и применяет наборы изменений
+ *
+ * @param types - описания типов, отдаваемые по `/types`
+ * @param objects - объекты, отдаваемые по `/objects`
+ * @returns клиент с возможностью отклонить следующий набор
+ */
 export function createFakeApi(types: unknown[] = [], objects: unknown[] = []): FakeApi {
     let rejection: ApiError | null = null;
     // Состояние объектов после принятых наборов: поверх исходных `objects`; `null` — удалён

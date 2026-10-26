@@ -1,4 +1,6 @@
-/** Генерирует UUIDv7 (RFC 9562): 48 бит времени в миллисекундах и случайный хвост */
+/**
+ * Генерирует UUIDv7 (RFC 9562): 48 бит времени в миллисекундах и случайный хвост
+ */
 export function uuid7(now: number = Date.now()): string {
     const bytes = new Uint8Array(16);
     crypto.getRandomValues(bytes);

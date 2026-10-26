@@ -11,11 +11,23 @@ import type { ReactNode } from 'react';
 import type { DataController } from '@platform/data/DataController';
 import type { PropertyDefinition } from '@platform/types/types';
 
+/**
+ * Название категории для свойств без категории
+ */
 const OTHER_CATEGORY = 'Прочее';
 
-/** Результат разбора введённого текста: значение (`null` — очистить) либо причина отказа */
+/**
+ * Результат разбора введённого текста: значение (`null` — очистить) либо причина отказа
+ */
 type Parsed = { ok: true; value: unknown } | { ok: false; error: string };
 
+/**
+ * Разбирает введённый текст по виду свойства
+ *
+ * @param property - описание свойства
+ * @param text - введённый текст
+ * @returns значение для записи (`null` — очистить) либо причина отказа
+ */
 function parseInput(property: PropertyDefinition, text: string): Parsed {
     if (text.trim() === '') return { ok: true, value: null };
     switch (property.kind) {
@@ -39,10 +51,22 @@ function parseInput(property: PropertyDefinition, text: string): Parsed {
     }
 }
 
+/**
+ * Текст значения для поля ввода
+ *
+ * @param value - значение свойства
+ * @returns строка; пустая, если значения нет
+ */
 function toText(value: unknown): string {
     return value === undefined || value === null ? '' : String(value);
 }
 
+/**
+ * Группирует свойства по категориям; «Прочее» всегда последней
+ *
+ * @param properties - свойства типа
+ * @returns пары название категории и её свойства
+ */
 function groupByCategory(properties: PropertyDefinition[]) {
     const groups = new Map<string, PropertyDefinition[]>();
     for (const p of properties) {
@@ -58,17 +82,27 @@ function groupByCategory(properties: PropertyDefinition[]) {
     return [...groups];
 }
 
+/**
+ * Общие свойства редакторов значения
+ */
 interface EditorProps {
+    /** Описание редактируемого свойства */
     property: PropertyDefinition;
+    /** Текущее значение свойства */
     value: unknown;
+    /** Запрещено ли редактирование */
     disabled: boolean;
+    /** Идентификатор элемента ввода для связи с подписью */
     inputId: string;
     /** Отправляет значение; возвращает `false`, если оно отклонено */
     onCommit: (value: unknown) => Promise<boolean>;
+    /** Сообщает о некорректном вводе */
     onInvalid: (message: string) => void;
 }
 
-/** Строка, многострочный текст, целое, дата, время: правка черновика, отправка по Enter или уходу фокуса */
+/**
+ * Строка, многострочный текст, целое, дата, время: правка черновика, отправка по Enter или уходу фокуса
+ */
 function TextEditor({ property, value, disabled, inputId, onCommit, onInvalid }: EditorProps) {
     const [draft, setDraft] = useState<string | null>(null);
     const submitted = useRef<string | null>(null);
@@ -117,6 +151,12 @@ function TextEditor({ property, value, disabled, inputId, onCommit, onInvalid }:
     );
 }
 
+/**
+ * Выбирает редактор по виду свойства
+ *
+ * @param props - свойства редактора и контроллер данных
+ * @returns редактор значения
+ */
 function PropertyEditor(props: EditorProps & { data: DataController }) {
     const { property, value, disabled, inputId, onCommit, data } = props;
 
@@ -162,6 +202,12 @@ function PropertyEditor(props: EditorProps & { data: DataController }) {
     }
 }
 
+/**
+ * Строка таблицы свойств: подпись и редактор
+ *
+ * @param props - свойство, значение, контроллер данных и обработчики
+ * @returns строка таблицы
+ */
 function Row({
     property,
     value,
@@ -201,7 +247,9 @@ function Row({
     );
 }
 
-/** Таблица свойств выбранного объекта: категории, редакторы по виду свойства, правка наборами изменений */
+/**
+ * Таблица свойств выбранного объекта: категории, редакторы по виду свойства, правка наборами изменений
+ */
 export function PropertyGrid() {
     const data = useData();
     const { selectedId } = useSelection();

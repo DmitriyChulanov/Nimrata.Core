@@ -15,18 +15,27 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
+/**
+ * Проверяет, что сохранённая раскладка восстанавливается для того же пользователя
+ */
 it('layoutStorage_savedLayout_isRestoredForSameUser', () => {
     saveLayout('u1', layout);
 
     expect(loadLayout('u1')).toEqual(layout);
 });
 
+/**
+ * Проверяет, что раскладки разных пользователей не пересекаются
+ */
 it('layoutStorage_differentUsers_layoutsDoNotIntersect', () => {
     saveLayout('u1', layout);
 
     expect(loadLayout('u2')).toBeNull();
 });
 
+/**
+ * Проверяет, что повреждённое содержимое даёт пустую раскладку
+ */
 it('layoutStorage_corruptedContent_givesEmptyLayout', () => {
     localStorage.setItem('nimrata.layout.u1', '{не json');
     expect(loadLayout('u1')).toBeNull();
@@ -35,6 +44,9 @@ it('layoutStorage_corruptedContent_givesEmptyLayout', () => {
     expect(loadLayout('u1')).toBeNull();
 });
 
+/**
+ * Проверяет, что недоступное хранилище не бросает исключение
+ */
 it('layoutStorage_unavailableStorage_doesNotThrow', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
         throw new Error('закрыто');

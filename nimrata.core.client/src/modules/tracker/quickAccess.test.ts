@@ -44,7 +44,13 @@ function entries(data: DataController) {
     return data.getChildren(null).filter((o) => o.type === ENTRY);
 }
 
+/**
+ * Быстрый доступ Трекера
+ */
 describe('Tracker: quick access', () => {
+    /**
+     * Проверяет, что запись — механизм, скрытый в дереве, со ссылкой на цель
+     */
     it('quickAccess_entryType_isMechanismHiddenInTreeWithTargetReference', () => {
         const type = types.find((t) => t.id === ENTRY)!;
         expect(type.automation).toBe(true);
@@ -52,6 +58,9 @@ describe('Tracker: quick access', () => {
         expect(type.properties?.find((p) => p.id === 'target')?.kind).toBe('reference');
     });
 
+    /**
+     * Проверяет, что добавление у заметки создаёт запись с названием цели
+     */
     it('quickAccess_addOnNote_createsEntryNamedAfterTarget', async () => {
         const { data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Купить молоко');
@@ -65,6 +74,9 @@ describe('Tracker: quick access', () => {
         expect(entry.properties.name).toBe('Купить молоко');
     });
 
+    /**
+     * Проверяет, что добавление у группы заметок создаёт запись с названием группы
+     */
     it('quickAccess_addOnNoteGroup_createsEntryNamedAfterGroup', async () => {
         const { data, notesRoot } = await start();
         const group = await addGroup(data, notesRoot.id, 'Работа');
@@ -76,6 +88,9 @@ describe('Tracker: quick access', () => {
         ]);
     });
 
+    /**
+     * Проверяет, что повторное добавление не создаёт дубль
+     */
     it('quickAccess_addAgain_createsNoDuplicate', async () => {
         const { data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Одна');
@@ -86,6 +101,9 @@ describe('Tracker: quick access', () => {
         expect(entries(data)).toHaveLength(1);
     });
 
+    /**
+     * Проверяет, что «Добавить» доступно, пока записи нет, а «Убрать» — только когда она есть
+     */
     it('quickAccess_addAvailableWhileNoEntry_removeOnlyWhenPresent', async () => {
         const { data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Одна');
@@ -99,6 +117,9 @@ describe('Tracker: quick access', () => {
         expect(ids()).toContain('removeFromQuickAccess');
     });
 
+    /**
+     * Проверяет, что «Убрать» удаляет все записи цели и не трогает остальные
+     */
     it('quickAccess_remove_deletesAllEntriesReferencingTargetAndLeavesOthers', async () => {
         const { data, notesRoot } = await start();
         const a = await addNote(data, notesRoot.id, 'A');
@@ -119,6 +140,9 @@ describe('Tracker: quick access', () => {
         expect(entries(data).map((e) => e.properties.target)).toEqual([b.id]);
     });
 
+    /**
+     * Проверяет, что переименование заметки обновляет название записи
+     */
     it('quickAccess_noteRenamed_updatesEntryName', async () => {
         const { data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Старое');
@@ -129,6 +153,9 @@ describe('Tracker: quick access', () => {
         expect(entries(data)[0].properties.name).toBe('Новое');
     });
 
+    /**
+     * Проверяет, что смена статуса заметки обновляет название записи вместе с заметкой
+     */
     it('quickAccess_noteStatusChanged_updatesEntryNameWithNote', async () => {
         const { api, data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Дело');
@@ -141,6 +168,9 @@ describe('Tracker: quick access', () => {
         expect(api.changesets).toHaveLength(sent + 1);
     });
 
+    /**
+     * Проверяет, что переименование группы обновляет название записи
+     */
     it('quickAccess_groupRenamed_updatesEntryName', async () => {
         const { data, notesRoot } = await start();
         const group = await addGroup(data, notesRoot.id, 'Работа');
@@ -151,6 +181,9 @@ describe('Tracker: quick access', () => {
         expect(entries(data)[0].properties.name).toBe('Дом');
     });
 
+    /**
+     * Проверяет, что удаление заметки удаляет её запись в том же наборе изменений
+     */
     it('quickAccess_noteDeleted_deletesItsEntryInSameChangeset', async () => {
         const { api, data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Одна');
@@ -164,6 +197,9 @@ describe('Tracker: quick access', () => {
         expect(api.changesets).toHaveLength(sent + 1);
     });
 
+    /**
+     * Проверяет, что удаление группы удаляет записи группы и всех вложенных заметок и групп
+     */
     it('quickAccess_groupDeleted_deletesEntriesOfGroupAndAllNestedNotesAndGroups', async () => {
         const { api, data, notesRoot } = await start();
         const group = await addGroup(data, notesRoot.id, 'Внешняя');
@@ -183,6 +219,9 @@ describe('Tracker: quick access', () => {
         expect(api.changesets).toHaveLength(sent + 1);
     });
 
+    /**
+     * Проверяет, что отмена удаления цели возвращает и запись
+     */
     it('quickAccess_undoTargetDeletion_restoresEntryToo', async () => {
         const { data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Одна');
