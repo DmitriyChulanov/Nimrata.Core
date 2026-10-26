@@ -1,10 +1,16 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
+
+import { ApiError, menuRegistry, tabRegistry, useExtensions } from '@platform';
+import { createFakeApi } from '@platform/data/fakeApi';
 
 import { App } from './App';
 import { todayIso } from './extensions/tasks/dates';
 import notesManifest from './extensions/notes/manifest.json';
 import tasksManifest from './extensions/tasks/manifest.json';
+
+import type { ExtensionsValue } from '@platform';
 
 function jsonResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {
@@ -18,50 +24,89 @@ afterEach(() => {
 });
 
 const types = [
-    ...tasksManifest.types.map((t) => ({ ...t, extension: 'tasks', extensionVersion: 12 })),
-    ...notesManifest.types.map((t) => ({ ...t, extension: 'notes', extensionVersion: 12 })),
+    ...tasksManifest.types.map((t) => ({ ...t, extension: 'tasks', extensionVersion: 13 })),
+    ...notesManifest.types.map((t) => ({ ...t, extension: 'notes', extensionVersion: 13 })),
 ];
 
-function stubApi(objects: unknown[], rejectChangesets?: string) {
-    const fetchMock = vi
-        .fn()
-        .mockImplementation((url: string) =>
-            Promise.resolve(
-                url === '/api/types'
-                    ? jsonResponse(types)
-                    : url === '/api/objects'
-                      ? jsonResponse(objects)
-                      : url === '/api/changesets'
-                        ? rejectChangesets
-                            ? jsonResponse({ message: rejectChangesets }, 422)
-                            : jsonResponse({ id: 'j1' })
-                        : jsonResponse({ accessToken: 'tok' }),
-            ),
-        );
+/**
+ * Поднимает «сервер» на подставном API: `/api/types`, `/api/objects`, `/api/changesets`,
+ * `/api/extensions`; вход (`/api/auth/*`) отвечает токеном
+ */
+function stubServer(objects: unknown[], connected = { tasks: true, notes: true }) {
+    const api = createFakeApi(types, objects, {
+        extensions: [
+            { id: 'tasks', name: 'Трекер задач', connected: connected.tasks },
+            { id: 'notes', name: 'Трекер заметок', connected: connected.notes },
+        ],
+    });
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+        if (!url.startsWith('/api/') || url.startsWith('/api/auth')) {
+            return jsonResponse({ accessToken: 'tok' });
+        }
+        const path = url.slice('/api/'.length);
+        const body: unknown = init?.body ? JSON.parse(String(init.body)) : undefined;
+        try {
+            const method = init?.method ?? 'GET';
+            const result =
+                method === 'POST'
+                    ? await api.post(path, body)
+                    : method === 'PUT'
+                      ? await api.put(path, body)
+                      : await api.get(path);
+            return jsonResponse(result);
+        } catch (error) {
+            if (error instanceof ApiError) {
+                return jsonResponse({ detail: error.message, code: error.code }, error.status);
+            }
+            throw error;
+        }
+    });
     vi.stubGlobal('fetch', fetchMock);
-    return fetchMock;
+    return { api, fetchMock };
 }
 
-const changesets = (fetchMock: ReturnType<typeof stubApi>) =>
-    fetchMock.mock.calls.filter(([url]) => url === '/api/changesets');
+/**
+ * Для ручной проверки переключения: вкладка-проба отдаёт наружу значение `useExtensions`
+ * (интерфейс Редактора расширений — отдельный тикет)
+ */
+const probe: { value?: ExtensionsValue } = {};
+tabRegistry.register({
+    id: 'extensions-probe',
+    title: 'Проба расширений',
+    component: function ExtensionsProbe() {
+        probe.value = useExtensions();
+        return <p>Экран пробы</p>;
+    },
+});
+menuRegistry.register({
+    path: ['Вид', 'Проба расширений'],
+    run: (c) => c.openTab('extensions-probe'),
+});
+
+async function openProbe() {
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('menuitem', { name: 'Вид' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Проба расширений' }));
+    await screen.findByText('Экран пробы');
+}
 
 /**
  * Проверяет, что первый вход без корней создаёт стартовую структуру каждого расширения своим набором изменений
  */
 it('extensions_firstLoginWithoutRoots_createsEachExtensionStartStructureInItsOwnChangeset', async () => {
-    const fetchMock = stubApi([]);
+    const { api } = stubServer([]);
     render(<App />);
 
     expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     expect(screen.getByRole('treeitem', { name: /Задачи/ })).toBeInTheDocument();
-    expect(changesets(fetchMock)).toHaveLength(2);
+    expect(api.changesets).toHaveLength(2);
 });
 
 /**
  * Проверяет, что вход при готовых корнях не создаёт дублей и не отправляет наборов
  */
 it('extensions_loginWithExistingRoots_createsNoDuplicatesAndSendsNoChangesets', async () => {
-    const fetchMock = stubApi([
+    const { api } = stubServer([
         { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
         { id: 'n', type: 'NotesRoot', parent: null, order: 1, properties: {} },
         { id: 's', type: 'SelectTodayMechanism', parent: null, order: 2, properties: {} },
@@ -70,17 +115,19 @@ it('extensions_loginWithExistingRoots_createsNoDuplicatesAndSendsNoChangesets', 
 
     expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     expect(screen.getAllByRole('treeitem', { name: /Заметки/ })).toHaveLength(1);
-    expect(changesets(fetchMock)).toHaveLength(0);
+    expect(api.changesets).toHaveLength(0);
 });
 
 /**
- * Проверяет, что отказ сервера на стартовой структуре показывается пользователю
+ * Проверяет, что отказ сервера на стартовой структуре показывается, а второе расширение всё равно запускается
  */
-it('extensions_serverRejectsStartStructure_showsErrorToUser', async () => {
-    stubApi([], 'тип "CurrentTasksRoot" нельзя разместить внутри типа "TasksRoot".');
+it('extensions_serverRejectsStartStructure_showsErrorAndOtherExtensionStillStarts', async () => {
+    const { api } = stubServer([]);
+    api.rejectNext(422, 'тип "CurrentTasksRoot" нельзя разместить внутри типа "TasksRoot".');
     render(<App />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('нельзя разместить');
+    expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
 });
 
 /**
@@ -89,26 +136,76 @@ it('extensions_serverRejectsStartStructure_showsErrorToUser', async () => {
 it('extensions_serverRejectsRepeatsTopUp_showsErrorToUser', async () => {
     const today = todayIso();
     const month = `${today.slice(0, 8)}01`;
-    stubApi(
-        [
-            { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
-            { id: 'c', type: 'CurrentTasksRoot', parent: 't', order: 0, properties: {} },
-            { id: 'x', type: 'CompletedTasksRoot', parent: 't', order: 1, properties: {} },
-            { id: 'n', type: 'NotesRoot', parent: null, order: 1, properties: {} },
-            { id: 's', type: 'SelectTodayMechanism', parent: null, order: 2, properties: {} },
-            { id: 'm', type: 'Month', parent: 'c', order: 0, properties: { date: month } },
-            { id: 'd', type: 'Day', parent: 'm', order: 0, properties: { date: today } },
-            {
-                id: 'k',
-                type: 'Task',
-                parent: 'd',
-                order: 0,
-                properties: { title: 'Ежедневно', repeat: 'weekly', repeatId: 'r1' },
-            },
-        ],
-        'сервер недоступен для достройки',
-    );
+    const { api } = stubServer([
+        { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
+        { id: 'c', type: 'CurrentTasksRoot', parent: 't', order: 0, properties: {} },
+        { id: 'x', type: 'CompletedTasksRoot', parent: 't', order: 1, properties: {} },
+        { id: 'n', type: 'NotesRoot', parent: null, order: 1, properties: {} },
+        { id: 's', type: 'SelectTodayMechanism', parent: null, order: 2, properties: {} },
+        { id: 'm', type: 'Month', parent: 'c', order: 0, properties: { date: month } },
+        { id: 'd', type: 'Day', parent: 'm', order: 0, properties: { date: today } },
+        {
+            id: 'k',
+            type: 'Task',
+            parent: 'd',
+            order: 0,
+            properties: { title: 'Ежедневно', repeat: 'weekly', repeatId: 'r1' },
+        },
+    ]);
+    api.rejectNext(422, 'сервер недоступен для достройки');
     render(<App />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('сервер недоступен для достройки');
+});
+
+/**
+ * Проверяет, что при отключённом «Трекере задач» его корней нет, уведомления не работают, а подключение достраивает всё
+ */
+it('extensions_tasksDisconnected_noRootsNoNotificationsAndConnectingStartsThem', async () => {
+    vi.stubGlobal('Notification', { permission: 'default', requestPermission: vi.fn() });
+    const { api } = stubServer([], { tasks: false, notes: true });
+    render(<App />);
+
+    expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
+    expect(screen.queryByRole('treeitem', { name: /Задачи/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Включить уведомления' })).not.toBeInTheDocument();
+    expect(api.changesets).toHaveLength(1);
+
+    await openProbe();
+    await act(async () => {
+        expect(await probe.value!.setConnected('tasks', true)).toEqual({ ok: true });
+    });
+
+    expect(await screen.findByRole('treeitem', { name: /Задачи/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Включить уведомления' })).toBeInTheDocument();
+    expect(api.changesets).toHaveLength(2);
+});
+
+/**
+ * Проверяет, что отключение скрывает дерево расширения без перезагрузки страницы, а подключение возвращает его без дубликатов
+ */
+it('extensions_disconnectAndReconnect_hidesAndRestoresTreeWithoutDuplicates', async () => {
+    const { api } = stubServer([]);
+    render(<App />);
+    expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
+    await openProbe();
+
+    await act(async () => {
+        expect(await probe.value!.setConnected('notes', false)).toEqual({ ok: true });
+    });
+    await waitFor(() =>
+        expect(screen.queryByRole('treeitem', { name: /Заметки/ })).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole('treeitem', { name: /Задачи/ })).toBeInTheDocument();
+    // вкладки платформы остаются
+    expect(screen.getByText('Экран пробы')).toBeInTheDocument();
+
+    const sent = api.changesets.length;
+    await act(async () => {
+        expect(await probe.value!.setConnected('notes', true)).toEqual({ ok: true });
+    });
+
+    expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
+    expect(screen.getAllByRole('treeitem', { name: /Заметки/ })).toHaveLength(1);
+    expect(api.changesets).toHaveLength(sent);
 });

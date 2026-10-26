@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import {
     AuthProvider,
     Button,
     DataProvider,
+    ExtensionsProvider,
     LoginScreen,
     MainMenu,
     PropertyGrid,
@@ -35,8 +36,6 @@ import {
 import '@/extensions';
 
 import './App.css';
-
-import type { DataController } from '@platform';
 
 registerAutomation(tabRegistry, menuRegistry);
 registerJournal(tabRegistry, menuRegistry);
@@ -80,63 +79,30 @@ function Main() {
 const revealBridge = createRevealBridge();
 
 /**
- * Загрузка данных и стартовая структура каждого расширения; ошибка любого шага не теряется
- */
-async function prepareData(controller: DataController): Promise<string | null> {
-    await controller.load();
-    if (controller.getSnapshot().status !== 'ready') return null; // ошибку загрузки показывает Main
-    for (const extension of extensionRegistry.list()) {
-        const start = await extension.ensureStart(controller);
-        if (!start.ok) return start.error;
-    }
-    return null;
-}
-
-/**
- * Контекст данных пользователя: контроллер, подключение расширений, подготовка данных и основной экран
+ * Контекст данных пользователя: контроллер, подключённые расширения (их жизненным циклом и
+ * загрузкой данных управляет `ExtensionsProvider`) и основной экран
  *
  * @param props - идентификатор вошедшего пользователя
- * @returns основной экран внутри провайдеров данных и выделения
+ * @returns основной экран внутри провайдеров данных, выделения и расширений
  */
 function Application({ userId }: { userId: string }) {
     const api = useApi();
     const [controller] = useState(() => createDataController({ api }));
-    const [prepareError, setPrepareError] = useState<string | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        const unregisters = extensionRegistry
-            .list()
-            .map((extension) => extension.register(controller, { reveal: revealBridge.reveal }));
-        prepareData(controller).then(
-            (error) => {
-                if (!cancelled) setPrepareError(error);
-            },
-            (error: unknown) => {
-                if (!cancelled)
-                    setPrepareError(error instanceof Error ? error.message : String(error));
-            },
-        );
-        return () => {
-            cancelled = true;
-            unregisters.forEach((unregister) => unregister());
-        };
-    }, [controller]);
 
     return (
         <DataProvider controller={controller}>
             <SelectionProvider>
                 <RevealBinding bridge={revealBridge} />
                 <UndoControls registry={menuRegistry} />
-                {extensionRegistry
-                    .list()
-                    .flatMap((extension) =>
-                        (extension.bindings ?? []).map((Binding, index) => (
-                            <Binding key={`${extension.id}:${index}`} userId={userId} />
-                        )),
-                    )}
-                {prepareError && <p role="alert">{prepareError}</p>}
-                <Main />
+                <ExtensionsProvider
+                    api={api}
+                    controller={controller}
+                    registry={extensionRegistry}
+                    userId={userId}
+                    reveal={revealBridge.reveal}
+                >
+                    <Main />
+                </ExtensionsProvider>
             </SelectionProvider>
         </DataProvider>
     );

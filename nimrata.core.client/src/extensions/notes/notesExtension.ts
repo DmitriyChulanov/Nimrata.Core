@@ -1,4 +1,4 @@
-import { cancelIfFailed, createNode, registerOpenExternalLink } from '@platform';
+import { cancelIfFailed, createNode, ensureCreated, registerOpenExternalLink } from '@platform';
 
 import { NOTE, NOTES_ROOT, NOTE_GROUP } from './constants';
 import { registerQuickAccess } from './quickAccess';
@@ -104,10 +104,12 @@ export function registerNotes(data: DataController): () => void {
  * @param data - контроллер данных с загруженными объектами
  * @returns результат; при отказе — причина
  */
-export async function ensureNotesStart(data: DataController): Promise<ChangeResult> {
-    if (data.getChildren(null).some((o) => o.type === NOTES_ROOT)) return { ok: true };
-    return data.perform((tx) => {
-        createNode(tx, null, NOTES_ROOT);
+export function ensureNotesStart(data: DataController): Promise<ChangeResult> {
+    return ensureCreated(data, async () => {
+        if (data.getChildren(null).some((o) => o.type === NOTES_ROOT)) return { ok: true };
+        return data.perform((tx) => {
+            createNode(tx, null, NOTES_ROOT);
+        });
     });
 }
 

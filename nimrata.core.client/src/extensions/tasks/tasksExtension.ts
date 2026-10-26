@@ -1,4 +1,9 @@
-import { createNode, registerOpenExternalLink, registerOpenInternalLink } from '@platform';
+import {
+    createNode,
+    ensureCreated,
+    registerOpenExternalLink,
+    registerOpenInternalLink,
+} from '@platform';
 
 import { registerCompletion } from './completion';
 import {
@@ -71,10 +76,11 @@ export function registerTasks(data: DataController, options: ExtensionOptions = 
  * @returns результат; при отказе — причина
  */
 export async function ensureTasksStart(data: DataController): Promise<ChangeResult> {
-    const needTasks = !data.getChildren(null).some((o) => o.type === TASKS_ROOT);
-    const needSelectToday = needsSelectToday(data);
-    if (needTasks || needSelectToday) {
-        const created = await data.perform((tx) => {
+    const created = await ensureCreated(data, async () => {
+        const needTasks = !data.getChildren(null).some((o) => o.type === TASKS_ROOT);
+        const needSelectToday = needsSelectToday(data);
+        if (!needTasks && !needSelectToday) return { ok: true };
+        return data.perform((tx) => {
             if (needTasks) {
                 const tasks = createNode(tx, null, TASKS_ROOT);
                 createNode(tx, tasks, CURRENT_TASKS_ROOT);
@@ -82,8 +88,8 @@ export async function ensureTasksStart(data: DataController): Promise<ChangeResu
             }
             if (needSelectToday) createNode(tx, null, SELECT_TODAY);
         });
-        if (!created.ok) return created;
-    }
+    });
+    if (!created.ok) return created;
     return ensureRepeats(data);
 }
 

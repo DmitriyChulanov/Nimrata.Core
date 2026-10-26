@@ -84,7 +84,7 @@ describe('Tasks: start structure', () => {
 
         const result = await ensureTasksStart(data);
 
-        expect(result).toEqual({ ok: false, error: 'нельзя' });
+        expect(result).toMatchObject({ ok: false, error: 'нельзя' });
         expect(data.getChildren(null)).toEqual([]);
     });
 
@@ -101,6 +101,49 @@ describe('Tasks: start structure', () => {
 
         expect(result.ok).toBe(false);
         expect(api.changesets).toHaveLength(0);
+    });
+});
+
+/**
+ * Гонка при создании корней Трекера задач
+ */
+describe('Tasks: start structure under race', () => {
+    /**
+     * Проверяет, что отказ singleton_exists (корни уже созданы где-то ещё) считается «уже есть»
+     */
+    it('startStructure_singletonExists_isAlreadyThereNotError', async () => {
+        const { api, data } = await start();
+        api.objects = [
+            { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
+            { id: 'c', type: 'CurrentTasksRoot', parent: 't', order: 0, properties: {} },
+            { id: 'x', type: 'CompletedTasksRoot', parent: 't', order: 1, properties: {} },
+            { id: 's', type: 'SelectTodayMechanism', parent: null, order: 1, properties: {} },
+        ];
+
+        const result = await ensureTasksStart(data);
+
+        expect(result.ok).toBe(true);
+        expect(api.changesets).toHaveLength(0);
+        expect(
+            data
+                .getChildren(null)
+                .map((o) => o.type)
+                .sort(),
+        ).toEqual(['SelectTodayMechanism', 'TasksRoot']);
+    });
+
+    /**
+     * Проверяет, что 409 без кода перезагружает данные и повторяет создание один раз
+     */
+    it('startStructure_conflictWithoutCode_reloadsAndRetriesOnce', async () => {
+        const { api, data } = await start();
+        api.rejectNext(409, 'расхождение');
+
+        const result = await ensureTasksStart(data);
+
+        expect(result.ok).toBe(true);
+        expect(api.changesets).toHaveLength(1);
+        expect(data.getChildren(null)).toHaveLength(2);
     });
 });
 

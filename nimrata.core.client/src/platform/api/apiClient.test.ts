@@ -117,6 +117,35 @@ describe('ApiClient', () => {
     });
 
     /**
+     * Проверяет, что машинный код отказа из поля `code` ProblemDetails попадает в `ApiError`
+     */
+    it('request_errorResponseWithCode_exposesCodeInApiError', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValue(
+                jsonResponse({ detail: 'Такой объект уже есть.', code: 'singleton_exists' }, 409),
+            );
+        const api = createApiClient({ fetch: fetchMock });
+
+        const error = await api.post('/changesets', {}).catch((e: unknown) => e);
+
+        expect((error as ApiError).code).toBe('singleton_exists');
+        expect((error as ApiError).message).toBe('Такой объект уже есть.');
+    });
+
+    /**
+     * Проверяет, что без поля `code` в ошибке кода нет
+     */
+    it('request_errorResponseWithoutCode_hasNoCode', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ title: 'Конфликт' }, 409));
+        const api = createApiClient({ fetch: fetchMock });
+
+        const error = await api.get('/x').catch((e: unknown) => e);
+
+        expect((error as ApiError).code).toBeUndefined();
+    });
+
+    /**
      * Проверяет, что ответ-ошибка без JSON использует код в сообщении
      */
     it('request_errorResponseWithoutJsonBody_usesStatusInMessage', async () => {

@@ -72,8 +72,42 @@ describe('Notes: start structure', () => {
 
         const result = await ensureNotesStart(data);
 
-        expect(result).toEqual({ ok: false, error: 'нельзя' });
+        expect(result).toMatchObject({ ok: false, error: 'нельзя' });
         expect(data.getChildren(null)).toEqual([]);
+    });
+});
+
+/**
+ * Гонка при создании корня заметок
+ */
+describe('Notes: start structure under race', () => {
+    /**
+     * Проверяет, что отказ singleton_exists (корень уже создан где-то ещё) считается «уже есть»
+     */
+    it('startStructure_singletonExists_isAlreadyThereNotError', async () => {
+        const { api, data } = await start();
+        // сервер уже содержит корень, клиент о нём не знает
+        api.objects = [{ id: 'n', type: 'NotesRoot', parent: null, order: 0, properties: {} }];
+
+        const result = await ensureNotesStart(data);
+
+        expect(result.ok).toBe(true);
+        expect(api.changesets).toHaveLength(0);
+        expect(data.getChildren(null).map((o) => o.id)).toEqual(['n']);
+    });
+
+    /**
+     * Проверяет, что 409 без кода перезагружает данные и повторяет создание один раз
+     */
+    it('startStructure_conflictWithoutCode_reloadsAndRetriesOnce', async () => {
+        const { api, data } = await start();
+        api.rejectNext(409, 'расхождение');
+
+        const result = await ensureNotesStart(data);
+
+        expect(result.ok).toBe(true);
+        expect(api.changesets).toHaveLength(1);
+        expect(data.getChildren(null).map((o) => o.type)).toEqual(['NotesRoot']);
     });
 });
 

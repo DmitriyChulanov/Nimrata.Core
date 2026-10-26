@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createDataController, extensionRegistry } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
@@ -94,5 +94,51 @@ describe('built-in extensions', () => {
 
         expect((await data.runAction(current.id, 'createTask', { title: 'А' })).ok).toBe(false);
         expect((await data.runAction(notesRoot.id, 'createNote', { title: 'Б' })).ok).toBe(true);
+    });
+});
+
+/**
+ * Данные отключённого расширения для остальных расширений
+ */
+describe('hidden extension data', () => {
+    /**
+     * Проверяет, что ссылка задачи на заметку отключённого «Трекера заметок» ведёт себя как ссылка
+     * на отсутствующий объект, а после подключения снова работает
+     */
+    it('internalLink_targetInDisconnectedExtension_actsAsMissingObject', async () => {
+        const reveal = vi.fn();
+        const api = createFakeApi(
+            types,
+            [
+                { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
+                { id: 'c', type: 'CurrentTasksRoot', parent: 't', order: 0, properties: {} },
+                { id: 'n', type: 'NotesRoot', parent: null, order: 1, properties: {} },
+                {
+                    id: 'k',
+                    type: 'Task',
+                    parent: 'c',
+                    order: 0,
+                    properties: { title: 'А', internalLink: 'n' },
+                },
+            ],
+            {
+                extensions: [
+                    { id: 'tasks', connected: true },
+                    { id: 'notes', connected: false },
+                ],
+            },
+        );
+        const data = createDataController({ api });
+        extensionRegistry.list().forEach((e) => e.register(data, { reveal }));
+        await data.load();
+
+        const hidden = await data.runAction('k', 'openInternalLink');
+        await api.put('extensions/notes/connection', { connected: true });
+        await data.load();
+        const visible = await data.runAction('k', 'openInternalLink');
+
+        expect(hidden).toMatchObject({ ok: false, error: 'Объект по ссылке недоступен.' });
+        expect(visible.ok).toBe(true);
+        expect(reveal).toHaveBeenCalledWith('n');
     });
 });

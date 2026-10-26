@@ -181,7 +181,7 @@ describe('DataController: after-operation hooks and shared changeset', () => {
         });
         api.rejectNext(400, 'отказ');
         const result = await data.create({ type: 'Folder', parent: null });
-        expect(result).toEqual({ ok: false, error: 'отказ' });
+        expect(result).toMatchObject({ ok: false, error: 'отказ' });
         expect(data.getObject('t1')?.parent).toBe('root');
         expect(data.getChildren(null)).toHaveLength(2);
     });

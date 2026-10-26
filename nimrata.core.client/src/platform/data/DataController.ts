@@ -41,11 +41,22 @@ export interface DataSnapshot {
 /**
  * Результат изменения: успех либо причина отказа, пригодная для показа пользователю
  */
-export type ChangeResult = { ok: true } | { ok: false; error: string };
+export type ChangeResult = { ok: true } | ChangeFailure;
+/**
+ * Отказ изменения; при отказе сервера несёт его HTTP-код и машинный код ответа (если они были)
+ */
+export interface ChangeFailure {
+    ok: false;
+    error: string;
+    /** HTTP-код отказа сервера */
+    status?: number;
+    /** Машинный код отказа (`singleton_exists`, `extension_disabled`) */
+    code?: string;
+}
 /**
  * Результат создания объекта: идентификатор нового объекта либо причина отказа
  */
-export type CreateResult = { ok: true; id: string } | { ok: false; error: string };
+export type CreateResult = { ok: true; id: string } | ChangeFailure;
 
 /**
  * Данные создаваемого объекта
@@ -611,7 +622,9 @@ export function createDataController(options: DataControllerOptions): DataContro
                     error: errorMessage(error),
                     needsReload: error instanceof ApiError && error.status === 409,
                 });
-                return { ok: false, error: errorMessage(error) };
+                return error instanceof ApiError
+                    ? { ok: false, error: error.message, status: error.status, code: error.code }
+                    : { ok: false, error: errorMessage(error) };
             }
         };
         const result = queue.then(step);

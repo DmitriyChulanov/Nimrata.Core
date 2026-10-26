@@ -134,7 +134,9 @@ it('app_afterLogin_showsThreePanelsAndSelectedObjectInProperties', async () => {
                         ? jsonResponse(types)
                         : url === '/api/objects'
                           ? jsonResponse(objects)
-                          : jsonResponse({ accessToken: 'tok' }),
+                          : url === '/api/extensions'
+                            ? jsonResponse([])
+                            : jsonResponse({ accessToken: 'tok' }),
                 ),
             ),
     );
@@ -177,7 +179,7 @@ it('app_platformTabAndMenuItem_workWithoutExtensionsAndRoleHidesItems', async ()
             .fn()
             .mockImplementation((url: string) =>
                 Promise.resolve(
-                    url === '/api/types' || url === '/api/objects'
+                    url === '/api/types' || url === '/api/objects' || url === '/api/extensions'
                         ? jsonResponse([])
                         : url === '/api/auth/me'
                           ? jsonResponse({ id: 'u1', email: 'a@b.test', isAdmin: false })
@@ -203,7 +205,10 @@ function stubSession(isAdmin: boolean) {
             .fn()
             .mockImplementation((url: string) =>
                 Promise.resolve(
-                    url === '/api/types' || url === '/api/objects' || url === '/api/admin/users'
+                    url === '/api/types' ||
+                        url === '/api/objects' ||
+                        url === '/api/admin/users' ||
+                        url === '/api/extensions'
                         ? jsonResponse([])
                         : url === '/api/auth/me'
                           ? jsonResponse({ id: 'u1', email: 'a@b.test', isAdmin })

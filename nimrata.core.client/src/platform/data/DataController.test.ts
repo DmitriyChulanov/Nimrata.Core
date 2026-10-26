@@ -164,7 +164,7 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         });
         api.rejectNext(422, 'Операция 1: значение не подходит.');
         const result = await data.setProperty('a', 'title', 'Плохо');
-        expect(result).toEqual({ ok: false, error: 'Операция 1: значение не подходит.' });
+        expect(result).toMatchObject({ ok: false, error: 'Операция 1: значение не подходит.' });
         expect(data.getObject('a')?.properties).toEqual({ title: 'A' });
         expect(data.getSnapshot().error).toBe('Операция 1: значение не подходит.');
         expect(data.getSnapshot().needsReload).toBe(false);
@@ -218,6 +218,28 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         const blocked = await data.setProperty('a', 'title', 'Z');
         expect(blocked.ok).toBe(false);
         expect(api.changesets).toHaveLength(0);
+    });
+
+    /**
+     * Проверяет, что результат отказа сервера несёт HTTP-код и машинный код ответа
+     */
+    it('rejection_serverRefusal_resultCarriesStatusAndCode', async () => {
+        const { api, data } = await loaded();
+        api.rejectNext(409, 'уже есть', 'singleton_exists');
+        const result = await data.setProperty('a', 'title', 'X');
+        expect(result).toEqual({
+            ok: false,
+            error: 'уже есть',
+            status: 409,
+            code: 'singleton_exists',
+        });
+
+        await data.load();
+        api.rejectNext(422, 'нет');
+        expect(await data.setProperty('a', 'title', 'Y')).toMatchObject({
+            ok: false,
+            status: 422,
+        });
     });
 
     /**

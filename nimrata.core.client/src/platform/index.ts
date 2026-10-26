@@ -15,6 +15,7 @@ export type {
     ActionContext,
     ActionRegistrationOptions,
     ActionHandler,
+    ChangeFailure,
     ChangeResult,
     ChangeScope,
     CreateInput,
@@ -72,6 +73,7 @@ export { registerUsersAdmin, USERS_TAB_ID } from './users/registerUsersAdmin';
 export { uuid7 } from './data/uuid7';
 export { cancelIfFailed, createNode, orThrow } from './extensionApi/changes';
 export { registerOpenExternalLink, registerOpenInternalLink } from './extensionApi/links';
+export { ensureCreated, SINGLETON_EXISTS } from './extensionApi/ensureStart';
 export { createExtensionRegistry, extensionRegistry } from './extensionApi/registry';
 export type {
     ExtensionBindingProps,
@@ -79,6 +81,12 @@ export type {
     ExtensionOptions,
     ExtensionRegistry,
 } from './extensionApi/registry';
+export { ExtensionsProvider } from './extensionCatalog/ExtensionsProvider';
+export type { ExtensionsProviderProps } from './extensionCatalog/ExtensionsProvider';
+export { useExtensions } from './extensionCatalog/useExtensions';
+export type { ExtensionsStatus, ExtensionsValue } from './extensionCatalog/ExtensionsContext';
+export { fetchExtensionCatalog, putExtensionConnection } from './extensionCatalog/catalog';
+export type { ExtensionInfo } from './extensionCatalog/catalog';
 export { RevealBinding } from './extensionApi/RevealBinding';
 export { createRevealBridge } from './extensionApi/revealBridge';
 export type { RevealBridge } from './extensionApi/revealBridge';
