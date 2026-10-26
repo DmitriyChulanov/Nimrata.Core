@@ -1,6 +1,9 @@
 import { useState } from 'react';
 
 import { createApiClient } from '@platform/api/apiClient';
+import { Button, TextField } from '@platform/ui';
+
+import './AuthCard.css';
 
 import type { FormEvent } from 'react';
 
@@ -52,9 +55,9 @@ export function ResetPasswordScreen({ token, onDone }: ResetPasswordScreenProps)
             <main className="auth-card">
                 <h1>Новый пароль</h1>
                 <p role="status">Пароль изменён. Теперь можно войти с новым паролем.</p>
-                <button type="button" onClick={onDone}>
+                <Button variant="primary" onClick={onDone}>
                     Перейти ко входу
-                </button>
+                </Button>
             </main>
         );
     }
@@ -63,35 +66,27 @@ export function ResetPasswordScreen({ token, onDone }: ResetPasswordScreenProps)
         <main className="auth-card">
             <h1>Новый пароль</h1>
             <form onSubmit={(event) => void submit(event)}>
-                <p>
-                    <label>
-                        Новый пароль
-                        <input
-                            type="password"
-                            autoComplete="new-password"
-                            required
-                            minLength={MIN_PASSWORD_LENGTH}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
-                    </label>
-                </p>
-                <p>
-                    <label>
-                        Повторите пароль
-                        <input
-                            type="password"
-                            autoComplete="new-password"
-                            required
-                            value={repeat}
-                            onChange={(e) => setRepeat(e.target.value)}
-                        />
-                    </label>
-                </p>
+                <TextField
+                    label="Новый пароль"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    minLength={MIN_PASSWORD_LENGTH}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                />
+                <TextField
+                    label="Повторите пароль"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    value={repeat}
+                    onChange={(e) => setRepeat(e.target.value)}
+                />
                 {error && <p role="alert">{error}</p>}
-                <button type="submit" disabled={busy}>
+                <Button type="submit" variant="primary" disabled={busy}>
                     Сменить пароль
-                </button>
+                </Button>
             </form>
         </main>
     );

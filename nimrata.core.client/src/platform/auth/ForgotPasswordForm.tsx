@@ -1,6 +1,9 @@
 import { useState } from 'react';
 
 import { createApiClient } from '@platform/api/apiClient';
+import { Button, TextField } from '@platform/ui';
+
+import './AuthCard.css';
 
 import type { FormEvent } from 'react';
 
@@ -45,29 +48,25 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                 </p>
             ) : (
                 <form onSubmit={(event) => void submit(event)}>
-                    <p>
-                        <label>
-                            Электронная почта
-                            <input
-                                type="email"
-                                autoComplete="username"
-                                required
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                            />
-                        </label>
-                    </p>
+                    <TextField
+                        label="Электронная почта"
+                        type="email"
+                        autoComplete="username"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                    />
                     {error && <p role="alert">{error}</p>}
-                    <button type="submit" disabled={busy}>
+                    <Button type="submit" variant="primary" disabled={busy}>
                         Отправить ссылку
-                    </button>
+                    </Button>
                 </form>
             )}
-            <p>
-                <button type="button" onClick={onBack}>
+            <div className="auth-card__links">
+                <Button variant="ghost" onClick={onBack}>
                     Вернуться ко входу
-                </button>
-            </p>
+                </Button>
+            </div>
         </main>
     );
 }

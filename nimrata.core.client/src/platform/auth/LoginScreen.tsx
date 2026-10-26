@@ -1,7 +1,9 @@
 import { useState } from 'react';
 
 import { ApiError } from '@platform/api/apiClient';
+import { Button, TextField } from '@platform/ui';
 
+import './AuthCard.css';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
 
 import type { FormEvent } from 'react';
@@ -49,40 +51,32 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
         <main className="auth-card">
             <h1>Вход в Nimrata</h1>
             <form onSubmit={(event) => void submit(event)}>
-                <p>
-                    <label>
-                        Электронная почта
-                        <input
-                            type="email"
-                            autoComplete="username"
-                            required
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                        />
-                    </label>
-                </p>
-                <p>
-                    <label>
-                        Пароль
-                        <input
-                            type="password"
-                            autoComplete="current-password"
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
-                    </label>
-                </p>
+                <TextField
+                    label="Электронная почта"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                />
+                <TextField
+                    label="Пароль"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                />
                 {error && <p role="alert">{error}</p>}
-                <button type="submit" disabled={busy}>
+                <Button type="submit" variant="primary" disabled={busy}>
                     Войти
-                </button>
+                </Button>
             </form>
-            <p>
-                <button type="button" onClick={() => setForgot(true)}>
+            <div className="auth-card__links">
+                <Button variant="ghost" onClick={() => setForgot(true)}>
                     Забыли пароль?
-                </button>
-            </p>
+                </Button>
+            </div>
         </main>
     );
 }

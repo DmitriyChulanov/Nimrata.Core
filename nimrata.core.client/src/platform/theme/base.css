@@ -117,50 +117,6 @@ code {
     color: var(--danger);
 }
 
-/* Карточка экранов входа, восстановления и смены пароля */
-.auth-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    width: 360px;
-    max-width: calc(100% - 2 * var(--space-4));
-    margin: 12vh auto 0;
-    padding: var(--space-5);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow);
-}
-
-.auth-card h1 {
-    font-size: var(--text-xl);
-}
-
-.auth-card form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-}
-
-.auth-card label {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-}
-
-.auth-card label input {
-    font-size: var(--text-md);
-    color: var(--text);
-}
-
-.auth-card button[type='button'] {
-    background: none;
-    border-color: transparent;
-    color: var(--accent);
-}
-
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

@@ -1,0 +1,35 @@
+/* Карточка экранов входа, восстановления и смены пароля */
+.auth-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 360px;
+    max-width: calc(100% - 2 * var(--space-4));
+    margin: 12vh auto 0;
+    padding: var(--space-5);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+}
+
+.auth-card h1 {
+    font-size: var(--text-xl);
+}
+
+.auth-card form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.auth-card [role='alert'],
+.auth-card [role='status'] {
+    font-size: var(--text-sm);
+}
+
+.auth-card .auth-card__links {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
