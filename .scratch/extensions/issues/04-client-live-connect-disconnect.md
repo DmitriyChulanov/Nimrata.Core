@@ -4,7 +4,7 @@
 
 **Blocked by:** 03
 
-**Status:** needs-triage
+**Status:** resolved
 
 - [x] Клиент загружает каталог расширений и подключает только подключённые; `App` не знает о конкретных расширениях
 - [x] Переключение: снятие или регистрация хуков и действий, перезагрузка данных (`load()`), очистка Undo/Redo, сброс выделения и вкладок на недоступные объекты; вкладки платформы остаются
@@ -13,3 +13,28 @@
 - [x] Ссылки на скрытые объекты ведут себя как на отсутствующие («Объект по ссылке недоступен»)
 - [x] `fakeApi` и существующие тесты обновлены под новые эндпоинты; тесты переключения (данные скрыты и возвращаются, Undo очищен, нет дубликатов корней)
 - [x] Запись в `CHANGELOG.md` клиента
+
+## Answer
+
+Реализовано на ветке `integration/extensions`. 514 тестов клиента, lint и tsc проходят. Вживую (сервер + Vite + Postgres) не проверялось; поведение сервера смоделировано в `fakeApi` по контракту тикета 03.
+
+### API для тикета 05 (всё из `@platform`)
+
+```ts
+useExtensions(): ExtensionsValue // бросает ошибку вне ExtensionsProvider
+interface ExtensionsValue {
+  status: 'loading' | 'ready' | 'error'; // 'error' — только сбой каталога
+  error: string | null;
+  extensions: ExtensionInfo[]; // {id,name,description,icon,defaultEnabled,connected}
+  switchingId: string | null;
+  setConnected(id: string, connected: boolean): Promise<ChangeResult>;
+  reload(): Promise<void>;
+}
+```
+
+`ExtensionsProvider` стоит в `App` вокруг `Main` и сам показывает глобальный alert ошибки. Повторное переключение во время идущего отклоняется.
+
+### Известные ограничения
+
+- Вкладки при переключении не сбрасываются (все вкладки сейчас платформенные).
+- `ExtensionsProvider` под `StrictMode` отдельно тестами не покрыт.
