@@ -16,10 +16,10 @@ const types = [
         name: 'Папка',
         module: 't',
         moduleVersion: 1,
-        icon: '📁',
+        icon: 'folder',
         allowedChildren: ['Note', 'Folder', 'Base'],
     },
-    { id: 'Note', name: 'Заметка', module: 't', moduleVersion: 1, icon: '📝' },
+    { id: 'Note', name: 'Заметка', module: 't', moduleVersion: 1, icon: 'file-text' },
     { id: 'Base', name: 'Основа', module: 't', moduleVersion: 1, abstract: true },
     { id: 'Hidden', name: 'Механизм', module: 't', moduleVersion: 1, hiddenInTree: true },
 ];
@@ -60,7 +60,7 @@ describe('Tree: rendering', () => {
         await renderTree([obj('r', 'Folder', null, 0, 'Мои папки')]);
 
         const item = screen.getByRole('treeitem', { name: 'Мои папки' });
-        expect(within(item).getByText('📁')).toBeInTheDocument();
+        expect(item.querySelector('svg.lucide-folder')).not.toBeNull();
     });
 
     /**

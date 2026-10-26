@@ -94,7 +94,7 @@ export interface TypeDefinition {
     sealed?: boolean;
     /** Объекты типа не показываются в дереве */
     hiddenInTree?: boolean;
-    /** Иконка узла в дереве (символ или эмодзи); без неё показывается значок по умолчанию */
+    /** Иконка узла в дереве (имя из реестра иконок); без неё или при неизвестном имени показывается значок по умолчанию */
     icon?: string;
     automation?: boolean;
     allowedChildren?: string[];

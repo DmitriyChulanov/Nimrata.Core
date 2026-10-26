@@ -4,7 +4,7 @@ import {
     AuthProvider,
     DataProvider,
     LoginScreen,
-    LogoutIcon,
+    Icon,
     MainMenu,
     PropertyGrid,
     ResetPasswordScreen,
@@ -156,7 +156,7 @@ function Session() {
                     <h1>Nimrata</h1>
                     <MainMenu registry={menuRegistry} role={user.role} />
                     <button type="button" className="app-logout" onClick={() => void logout()}>
-                        <LogoutIcon />
+                        <Icon name="log-out" />
                         Выйти
                     </button>
                 </header>

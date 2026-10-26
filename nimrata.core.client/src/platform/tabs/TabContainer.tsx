@@ -1,4 +1,4 @@
-import { CloseIcon } from '@platform/icons/Icons';
+import { Icon } from '@platform/icons/Icon';
 
 import { useTabs } from './useTabs';
 import './Tabs.css';
@@ -32,7 +32,7 @@ export function TabContainer() {
                                 aria-label={`Закрыть вкладку ${title}`}
                                 onClick={() => closeTab(tab.id)}
                             >
-                                <CloseIcon width={12} height={12} />
+                                <Icon name="x" size="sm" />
                             </button>
                         </span>
                     );

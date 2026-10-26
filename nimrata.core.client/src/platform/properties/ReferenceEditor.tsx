@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { Icon } from '@platform/icons/Icon';
 import { useSelection } from '@platform/selection/useSelection';
 
 import type { DataController, DataObject } from '@platform/data/DataController';
@@ -115,12 +116,12 @@ function ReferencePicker({ data, property, current, onPick, onCancel }: PickerPr
                                         toggle(object.id);
                                     }}
                                 >
-                                    {isOpen ? '▾' : '▸'}
+                                    <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} />
                                 </button>
                             ) : (
                                 <span aria-hidden="true" />
                             )}
-                            <span aria-hidden="true">{data.getType(object.type)?.icon ?? '•'}</span>
+                            <Icon name={data.getType(object.type)?.icon} />
                             <span>{title}</span>
                         </div>
                     );

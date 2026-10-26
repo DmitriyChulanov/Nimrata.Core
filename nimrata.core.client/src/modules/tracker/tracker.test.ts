@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createDataController } from '@platform';
+import { createDataController, ICON_REGISTRY } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
@@ -314,6 +314,14 @@ describe('Tracker: user isolation', () => {
  * Согласованность манифеста Трекера с логикой
  */
 describe('Tracker manifest: consistency with logic', () => {
+    /**
+     * Проверяет, что значок каждого типа узла есть в реестре иконок
+     */
+    it('manifest_everyNodeTypeIcon_existsInRegistry', () => {
+        const unknown = manifest.types.filter((t) => !Object.hasOwn(ICON_REGISTRY, t.icon));
+        expect(unknown.map((t) => t.id)).toEqual([]);
+    });
+
     /**
      * Проверяет, что у каждого типа узла есть значок
      */

@@ -15,10 +15,10 @@ const types = [
         name: 'Папка',
         module: 't',
         moduleVersion: 1,
-        icon: '📁',
+        icon: 'folder',
         allowedChildren: ['Note', 'Folder'],
     },
-    { id: 'Note', name: 'Заметка', module: 't', moduleVersion: 1, icon: '📝' },
+    { id: 'Note', name: 'Заметка', module: 't', moduleVersion: 1, icon: 'file-text' },
     {
         id: 'Sealed',
         name: 'Закрытая',

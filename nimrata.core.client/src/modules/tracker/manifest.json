@@ -7,7 +7,7 @@
             "name": "Задачи",
             "sealed": true,
             "allowedChildren": ["CurrentTasksRoot", "CompletedTasksRoot"],
-            "icon": "🗂"
+            "icon": "list-checks"
         },
         {
             "id": "CurrentTasksRoot",
@@ -39,14 +39,14 @@
                     ]
                 }
             ],
-            "icon": "📋"
+            "icon": "list-todo"
         },
         {
             "id": "CompletedTasksRoot",
             "name": "Завершённые задачи",
             "sealed": true,
             "allowedChildren": ["Year"],
-            "icon": "✅"
+            "icon": "circle-check"
         },
         {
             "id": "NotesRoot",
@@ -81,7 +81,7 @@
                     ]
                 }
             ],
-            "icon": "🗒"
+            "icon": "notebook"
         },
         {
             "id": "NoteGroup",
@@ -133,7 +133,7 @@
                     "placements": ["propertyGrid", "contextMenu"]
                 }
             ],
-            "icon": "📁"
+            "icon": "folder"
         },
         {
             "id": "QuickAccessEntry",
@@ -159,7 +159,7 @@
                     "revealTarget": true
                 }
             ],
-            "icon": "⭐"
+            "icon": "star"
         },
         {
             "id": "SelectTodayMechanism",
@@ -175,7 +175,7 @@
                     "placements": ["automation"]
                 }
             ],
-            "icon": "🎯"
+            "icon": "target"
         },
         {
             "id": "Note",
@@ -276,7 +276,7 @@
                     "color": "green"
                 }
             ],
-            "icon": "📝"
+            "icon": "file-text"
         },
         {
             "id": "Year",
@@ -299,7 +299,7 @@
                     "readOnly": true
                 }
             ],
-            "icon": "📅"
+            "icon": "calendar-range"
         },
         {
             "id": "Month",
@@ -347,7 +347,7 @@
                     ]
                 }
             ],
-            "icon": "🗓"
+            "icon": "calendar-days"
         },
         {
             "id": "Day",
@@ -395,7 +395,7 @@
                     ]
                 }
             ],
-            "icon": "📆"
+            "icon": "calendar"
         },
         {
             "id": "DayOff",
@@ -443,7 +443,7 @@
                     ]
                 }
             ],
-            "icon": "🏖"
+            "icon": "palmtree"
         },
         {
             "id": "Category",
@@ -483,7 +483,7 @@
                     ]
                 }
             ],
-            "icon": "🏷"
+            "icon": "tag"
         },
         {
             "id": "Task",
@@ -647,7 +647,7 @@
                     "color": "green"
                 }
             ],
-            "icon": "☑"
+            "icon": "square-check-big"
         }
     ]
 }

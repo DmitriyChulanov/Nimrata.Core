@@ -83,7 +83,10 @@ export type {
     PropertyKind,
     TypeDefinition,
 } from './types/types';
-export { ChevronIcon, CloseIcon, LogoutIcon } from './icons/Icons';
+export { Icon } from './icons/Icon';
+export type { IconProps, IconSize } from './icons/Icon';
+export { ICON_REGISTRY } from './icons/registry';
+export type { IconName } from './icons/registry';
 export { initTheme, readThemeChoice, setThemeChoice } from './theme/theme';
 export type { ThemeChoice } from './theme/theme';
 export { registerTheme } from './theme/registerTheme';

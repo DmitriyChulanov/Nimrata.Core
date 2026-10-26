@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
 import { useData } from '@platform/data/useData';
-import { ChevronIcon } from '@platform/icons/Icons';
+import { Icon } from '@platform/icons/Icon';
 import { useSelection } from '@platform/selection/useSelection';
 
 import { planMove, positionInRow } from './planMove';
@@ -371,14 +371,12 @@ export function Tree() {
                                             toggle(object.id);
                                         }}
                                     >
-                                        <ChevronIcon open={isOpen} />
+                                        <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} />
                                     </button>
                                 ) : (
                                     <span aria-hidden="true" />
                                 )}
-                                <span aria-hidden="true">
-                                    {data.getType(object.type)?.icon ?? '•'}
-                                </span>
+                                <Icon name={data.getType(object.type)?.icon} />
                                 <span>{title}</span>
                             </div>
                         );
