@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 
 import {
     AuthProvider,
+    Button,
     DataProvider,
     LoginScreen,
-    Icon,
     MainMenu,
     PropertyGrid,
     ResetPasswordScreen,
@@ -60,9 +60,7 @@ function Main() {
         return (
             <div>
                 <p role="alert">{error}</p>
-                <button type="button" onClick={() => void data.load()}>
-                    Повторить
-                </button>
+                <Button onClick={() => void data.load()}>Повторить</Button>
             </div>
         );
     }
@@ -155,10 +153,9 @@ function Session() {
                 <header className="app-header">
                     <h1>Nimrata</h1>
                     <MainMenu registry={menuRegistry} role={user.role} />
-                    <button type="button" className="app-logout" onClick={() => void logout()}>
-                        <Icon name="log-out" />
+                    <Button variant="ghost" icon="log-out" onClick={() => void logout()}>
                         Выйти
-                    </button>
+                    </Button>
                 </header>
                 <main className="app-main">
                     <Application userId={user.id} />

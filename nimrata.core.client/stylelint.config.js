@@ -17,11 +17,6 @@ const COLOR_FUNCTIONS = [
     'color',
 ];
 
-/** Файлы, которые ещё не переведены на токены; список сокращается на шаге 6 плана и пустеет к его концу */
-const LEGACY_FILES = [
-    'src/App.css',
-];
-
 export default {
     ignoreFiles: ['dist/**', 'node_modules/**'],
     rules: {
@@ -45,12 +40,6 @@ export default {
             rules: {
                 'color-no-hex': null,
                 'function-disallowed-list': null,
-                'declaration-property-value-disallowed-list': null,
-            },
-        },
-        {
-            files: LEGACY_FILES,
-            rules: {
                 'declaration-property-value-disallowed-list': null,
             },
         },

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { useData } from '@platform';
+import { Button, useData } from '@platform';
 
 import {
     browserNotifications,
@@ -51,8 +51,7 @@ export function NotificationsBinding({ browser, now, userId }: NotificationsBind
     if (!api || permission !== 'default') return null;
 
     return (
-        <button
-            type="button"
+        <Button
             onClick={() => {
                 void api.requestPermission().then(
                     (result) => setPermission(result),
@@ -61,6 +60,6 @@ export function NotificationsBinding({ browser, now, userId }: NotificationsBind
             }}
         >
             Включить уведомления
-        </button>
+        </Button>
     );
 }

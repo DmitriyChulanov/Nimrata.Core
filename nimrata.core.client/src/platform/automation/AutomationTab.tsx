@@ -1,6 +1,7 @@
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
 import { useData } from '@platform/data/useData';
 import { useOptionalSelection } from '@platform/selection/useOptionalSelection';
+import { Button } from '@platform/ui';
 
 import type { DataController, DataObject } from '@platform/data/DataController';
 
@@ -55,21 +56,20 @@ export function AutomationTab() {
                     <section key={object.id} role="group" aria-label={title}>
                         <h3>
                             {targetId && selection ? (
-                                <button type="button" onClick={() => selection.reveal(targetId)}>
+                                <Button variant="ghost" onClick={() => selection.reveal(targetId)}>
                                     {title}
-                                </button>
+                                </Button>
                             ) : (
                                 title
                             )}
                         </h3>
                         {data.getActions(object.id, 'automation').map((action) => (
-                            <button
+                            <Button
                                 key={action.id}
-                                type="button"
                                 onClick={() => void launcher.launch(object.id, action)}
                             >
                                 {action.name}
-                            </button>
+                            </Button>
                         ))}
                     </section>
                 );

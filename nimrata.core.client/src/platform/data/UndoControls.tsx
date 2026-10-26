@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+import { Button } from '@platform/ui';
+
 import { useData } from './useData';
 
 import type { MenuRegistry } from '@platform/tabs/registries';
@@ -78,9 +80,9 @@ export function UndoControls({ registry }: { registry: MenuRegistry }) {
     return (
         <p role="alert" className="undo-notice">
             {notice}{' '}
-            <button type="button" onClick={() => setNotice(null)}>
+            <Button variant="ghost" onClick={() => setNotice(null)}>
                 Закрыть
-            </button>
+            </Button>
         </p>
     );
 }

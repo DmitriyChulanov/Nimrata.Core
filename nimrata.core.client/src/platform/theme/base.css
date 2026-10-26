@@ -62,16 +62,6 @@ button:disabled {
     cursor: default;
 }
 
-button[type='submit'] {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--accent-contrast);
-}
-
-button[type='submit']:hover:not(:disabled) {
-    background: var(--accent-hover);
-}
-
 input:not([type='checkbox']):not([type='radio']),
 select,
 textarea {
