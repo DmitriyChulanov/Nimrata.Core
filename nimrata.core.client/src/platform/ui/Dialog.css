@@ -1,0 +1,50 @@
+/* Модальный диалог: подложка и панель. Панель сбрасывает позиционирование старых правил для role="alertdialog". */
+.dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 15vh var(--space-4) var(--space-4);
+    background: var(--overlay);
+}
+
+.dialog-backdrop > .dialog {
+    position: static;
+    z-index: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 400px;
+    max-width: 100%;
+    max-height: 100%;
+    padding: var(--space-5);
+    overflow: auto;
+    transform: none;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+}
+
+.dialog:focus {
+    outline: none;
+}
+
+.dialog .dialog__title {
+    font-size: var(--text-lg);
+    line-height: var(--leading-tight);
+}
+
+.dialog .dialog__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.dialog .dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}

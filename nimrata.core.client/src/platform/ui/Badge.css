@@ -1,0 +1,26 @@
+/* Метка: короткий статус или счётчик. */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-normal);
+    white-space: nowrap;
+    border-radius: var(--radius);
+}
+
+.badge.badge--neutral {
+    background: var(--bg-hover);
+    color: var(--text-muted);
+}
+
+.badge.badge--accent {
+    background: var(--accent-bg);
+    color: var(--accent);
+}
+
+.badge.badge--danger {
+    background: var(--bg-hover);
+    color: var(--danger);
+}

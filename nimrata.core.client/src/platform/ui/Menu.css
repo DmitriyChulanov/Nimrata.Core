@@ -1,0 +1,64 @@
+/* Выпадающее меню действий: кнопка-триггер и список пунктов. */
+.menu {
+    position: relative;
+    display: inline-block;
+}
+
+.menu .menu-popup {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    left: 0;
+    z-index: 20;
+    min-width: 200px;
+    margin: 0;
+    padding: var(--space-1);
+    list-style: none;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+}
+
+.menu .menu-popup .menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: var(--control-height);
+    padding: 0 var(--space-2);
+    font-size: var(--text-sm);
+    text-align: left;
+    color: var(--text);
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+
+.menu .menu-popup .menu-item:hover:not(:disabled),
+.menu .menu-popup .menu-item:focus-visible {
+    background: var(--bg-hover);
+}
+
+.menu .menu-popup .menu-item:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: -2px;
+}
+
+.menu .menu-popup .menu-item:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.menu .menu-popup .menu-item--danger {
+    color: var(--danger);
+}
+
+.menu .menu-item__label {
+    flex: 1 1 auto;
+}
+
+.menu .menu-item__shortcut {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+}

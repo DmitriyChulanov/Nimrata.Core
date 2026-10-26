@@ -1,0 +1,79 @@
+/* Кнопка и кнопка-значок UI-кита. Селекторы вида .btn.btn--x перебивают общие стили button из base.css. */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    min-height: var(--control-height);
+    padding: 0 var(--space-3);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-tight);
+    white-space: nowrap;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition:
+        background-color var(--transition),
+        border-color var(--transition),
+        color var(--transition);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.btn.btn--primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-contrast);
+}
+
+.btn.btn--primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+.btn.btn--secondary {
+    background: var(--bg);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+.btn.btn--secondary:hover:not(:disabled) {
+    background: var(--bg-hover);
+}
+
+.btn.btn--ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text);
+}
+
+.btn.btn--ghost:hover:not(:disabled) {
+    background: var(--bg-hover);
+}
+
+.btn.btn--danger {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--danger);
+}
+
+.btn.btn--danger:hover:not(:disabled) {
+    background: var(--bg-hover);
+}
+
+.btn.btn--icon {
+    width: var(--control-height);
+    padding: 0;
+}
+
+.btn.btn--icon.btn--ghost {
+    color: var(--text-muted);
+}
+
+.btn.btn--icon.btn--ghost:hover:not(:disabled) {
+    color: var(--text);
+}
