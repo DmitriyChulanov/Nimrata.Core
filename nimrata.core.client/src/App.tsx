@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 
 import {
     AuthProvider,
@@ -54,7 +54,7 @@ function Main() {
     const data = useData();
     const { widths, setWidths } = useTabs();
     const { status, error } = data.getSnapshot();
-    const everReady = useRef(false);
+    const [everReady, setEverReady] = useState(false);
 
     if (status === 'error') {
         return (
@@ -66,8 +66,8 @@ function Main() {
     }
     // Повторная загрузка (смена подключения расширения) не заменяет рабочую область индикатором:
     // иначе вкладки пересоздаются, а состояние Редактора расширений (ошибка карточки) теряется
-    if (status === 'ready') everReady.current = true;
-    if (status !== 'ready' && !everReady.current) return <p>Загрузка…</p>;
+    if (status === 'ready' && !everReady) setEverReady(true);
+    if (status !== 'ready' && !everReady) return <p>Загрузка…</p>;
 
     return (
         <Workspace
