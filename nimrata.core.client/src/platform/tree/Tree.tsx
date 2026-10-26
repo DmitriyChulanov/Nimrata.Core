@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
 import { useData } from '@platform/data/useData';
 import { Icon } from '@platform/icons/Icon';
+import { Button, Dialog } from '@platform/ui';
 import { useSelection } from '@platform/selection/useSelection';
 
 import { planMove, positionInRow } from './planMove';
@@ -426,18 +427,27 @@ export function Tree() {
                 </ul>
             )}
             {deletingObject && (
-                <div role="alertdialog" aria-modal="true" aria-label="Подтверждение удаления">
+                <Dialog
+                    title="Подтверждение удаления"
+                    role="alertdialog"
+                    onClose={() => setDeleting(null)}
+                    actions={
+                        <>
+                            <Button onClick={() => setDeleting(null)}>Отмена</Button>
+                            <Button
+                                variant="danger"
+                                onClick={() => void confirmDelete(deletingObject.id)}
+                            >
+                                Удалить
+                            </Button>
+                        </>
+                    }
+                >
                     <p>
                         Удалить «{titleOf(data, deletingObject)}» вместе со всеми вложенными
                         объектами?
                     </p>
-                    <button type="button" onClick={() => void confirmDelete(deletingObject.id)}>
-                        Удалить
-                    </button>
-                    <button type="button" onClick={() => setDeleting(null)}>
-                        Отмена
-                    </button>
-                </div>
+                </Dialog>
             )}
         </>
     );

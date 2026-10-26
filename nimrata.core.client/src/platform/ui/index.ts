@@ -2,6 +2,8 @@ export { Badge } from './Badge';
 export type { BadgeProps, BadgeTone } from './Badge';
 export { Button, IconButton } from './Button';
 export type { ButtonProps, ButtonVariant, IconButtonProps } from './Button';
+export { Checkbox } from './Checkbox';
+export type { CheckboxProps } from './Checkbox';
 export { Dialog } from './Dialog';
 export type { DialogProps } from './Dialog';
 export { Menu } from './Menu';

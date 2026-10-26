@@ -90,12 +90,13 @@ export type { IconName } from './icons/registry';
 export { initTheme, readThemeChoice, setThemeChoice } from './theme/theme';
 export type { ThemeChoice } from './theme/theme';
 export { registerTheme } from './theme/registerTheme';
-export { Badge, Button, Dialog, IconButton, Menu, Select, TextArea, TextField } from './ui';
+export { Badge, Button, Checkbox, Dialog, IconButton, Menu, Select, TextArea, TextField } from './ui';
 export type {
     BadgeProps,
     BadgeTone,
     ButtonProps,
     ButtonVariant,
+    CheckboxProps,
     DialogProps,
     IconButtonProps,
     MenuEntry,

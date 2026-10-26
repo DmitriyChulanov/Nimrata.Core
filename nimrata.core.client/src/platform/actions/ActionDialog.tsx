@@ -1,8 +1,10 @@
 import { useId, useState } from 'react';
 
 import { useData } from '@platform/data/useData';
+import './ActionDialog.css';
+import { Button, Checkbox, Dialog, Select, TextArea, TextField } from '@platform/ui';
 
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent } from 'react';
 import type { DataController } from '@platform/data/DataController';
 import type { ActionDefinition, PropertyDefinition } from '@platform/types/types';
 
@@ -112,70 +114,52 @@ function Field({
     onChange: (value: string | boolean) => void;
     data: DataController;
 }) {
-    const id = useId();
     const text = typeof value === 'string' ? value : '';
     const label = parameter.required ? `${parameter.name} *` : parameter.name;
-    let control: ReactNode;
+    const common = {
+        label,
+        'aria-required': parameter.required,
+        onChange: (e: { target: { value: string } }) => onChange(e.target.value),
+    };
     switch (parameter.kind) {
         case 'boolean':
-            control = (
-                <input
-                    id={id}
-                    type="checkbox"
+            return (
+                <Checkbox
+                    label={label}
                     checked={value === true}
                     onChange={(e) => onChange(e.target.checked)}
                 />
             );
-            break;
         case 'text':
-            control = (
-                <textarea
-                    id={id}
-                    rows={3}
+            return <TextArea {...common} rows={3} value={text} />;
+        case 'enum':
+            return (
+                <Select
+                    {...common}
                     value={text}
-                    aria-required={parameter.required}
-                    onChange={(e) => onChange(e.target.value)}
+                    placeholder=""
+                    options={(parameter.values ?? []).map((v) => ({
+                        value: v.value,
+                        label: v.name,
+                    }))}
                 />
             );
-            break;
-        case 'enum':
-            control = (
-                <select
-                    id={id}
-                    value={text}
-                    aria-required={parameter.required}
-                    onChange={(e) => onChange(e.target.value)}
-                >
-                    <option value=""></option>
-                    {(parameter.values ?? []).map((v) => (
-                        <option key={v.value} value={v.value}>
-                            {v.name}
-                        </option>
-                    ))}
-                </select>
-            );
-            break;
         case 'reference':
-            control = (
-                <select
-                    id={id}
+            return (
+                <Select
+                    {...common}
                     value={text}
-                    aria-required={parameter.required}
-                    onChange={(e) => onChange(e.target.value)}
-                >
-                    <option value=""></option>
-                    {referenceOptions(data, parameter).map((o) => (
-                        <option key={o.id} value={o.id}>
-                            {o.title}
-                        </option>
-                    ))}
-                </select>
+                    placeholder=""
+                    options={referenceOptions(data, parameter).map((o) => ({
+                        value: o.id,
+                        label: o.title,
+                    }))}
+                />
             );
-            break;
         default:
-            control = (
-                <input
-                    id={id}
+            return (
+                <TextField
+                    {...common}
                     type={
                         parameter.kind === 'date'
                             ? 'date'
@@ -185,17 +169,9 @@ function Field({
                     }
                     inputMode={parameter.kind === 'integer' ? 'numeric' : undefined}
                     value={text}
-                    aria-required={parameter.required}
-                    onChange={(e) => onChange(e.target.value)}
                 />
             );
     }
-    return (
-        <div className="action-dialog-field">
-            <label htmlFor={id}>{label}</label>
-            {control}
-        </div>
-    );
 }
 
 /**
@@ -219,6 +195,7 @@ export function ActionDialog({ action, onSubmit, onCancel }: ActionDialogProps) 
     const [draft, setDraft] = useState<Draft>(() => initialDraft(parameters));
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const formId = useId();
 
     async function submit(event: FormEvent) {
         event.preventDefault();
@@ -246,9 +223,24 @@ export function ActionDialog({ action, onSubmit, onCancel }: ActionDialogProps) 
     }
 
     return (
-        <div role="dialog" aria-modal="true" aria-label={action.name} className="action-dialog">
-            <form onSubmit={(e) => void submit(e)} noValidate>
-                <h2>{action.name}</h2>
+        <Dialog
+            title={action.name}
+            onClose={onCancel}
+            actions={
+                <>
+                    <Button onClick={onCancel}>Отмена</Button>
+                    <Button type="submit" form={formId} variant="primary" disabled={busy}>
+                        Выполнить
+                    </Button>
+                </>
+            }
+        >
+            <form
+                id={formId}
+                onSubmit={(e) => void submit(e)}
+                noValidate
+                className="action-dialog-form"
+            >
                 {parameters.map((p) => (
                     <Field
                         key={p.id}
@@ -259,13 +251,7 @@ export function ActionDialog({ action, onSubmit, onCancel }: ActionDialogProps) 
                     />
                 ))}
                 {error && <p role="alert">{error}</p>}
-                <button type="submit" disabled={busy}>
-                    Выполнить
-                </button>
-                <button type="button" onClick={onCancel}>
-                    Отмена
-                </button>
             </form>
-        </div>
+        </Dialog>
     );
 }
