@@ -6,7 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using Nimrata.Core.Server;
 using Nimrata.Core.Server.Auth;
 using Nimrata.Core.Server.Data;
-using Nimrata.Core.Server.Modules;
+using Nimrata.Core.Server.Extensions;
 using Nimrata.Core.Server.Objects;
 using Npgsql;
 
@@ -63,7 +63,7 @@ var connectionString = app.Configuration.GetConnectionString("Default")
         "Не задана строка подключения ConnectionStrings:Default (appsettings или переменная ConnectionStrings__Default).");
 
 Startup.ApplyMigrations(connectionString);
-ManifestLoader.Load(connectionString, app.Configuration["Modules:Path"] ?? ManifestLoader.DefaultDirectory);
+ManifestLoader.Load(connectionString, app.Configuration["Extensions:Path"] ?? ManifestLoader.DefaultDirectory);
 await app.Services.GetRequiredService<AdminSeeder>().SeedAsync();
 
 app.UseDefaultFiles();

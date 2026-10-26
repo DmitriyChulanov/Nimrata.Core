@@ -51,7 +51,7 @@ export default defineConfig(({ command }) => ({
     resolve: {
         alias: {
             '@platform': fileURLToPath(new URL('./src/platform', import.meta.url)),
-            '@tracker': fileURLToPath(new URL('./src/modules/tracker', import.meta.url)),
+            '@tracker': fileURLToPath(new URL('./src/extensions/tracker', import.meta.url)),
             '@': fileURLToPath(new URL('./src', import.meta.url))
         }
     },

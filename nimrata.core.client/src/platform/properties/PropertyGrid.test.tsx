@@ -14,8 +14,8 @@ const types = [
     {
         id: 'Task',
         name: 'Задача',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         properties: [
             { id: 'title', name: 'Название', kind: 'string', category: 'Основное' },
             { id: 'descr', name: 'Описание', kind: 'text', category: 'Основное' },
@@ -40,8 +40,8 @@ const types = [
     {
         id: 'Person',
         name: 'Человек',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         properties: [{ id: 'name', name: 'Имя', kind: 'string' }],
     },
 ];

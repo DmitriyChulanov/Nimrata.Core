@@ -7,8 +7,8 @@ const types = [
     {
         id: 'Item',
         name: 'Элемент',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         properties: [{ id: 'link', name: 'Ссылка', kind: 'string' }],
         actions: [{ id: 'open', name: 'Открыть', placements: ['propertyGrid'] }],
     },

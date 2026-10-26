@@ -14,8 +14,8 @@ import type { BrowserNotifications } from './notifications';
 
 const types = manifest.types.map((t) => ({
     ...t,
-    module: manifest.module,
-    moduleVersion: manifest.version,
+    extension: manifest.extension,
+    extensionVersion: manifest.version,
 })) as TypeDefinition[];
 
 function fakeBrowser(initial: NotificationPermission, answer: NotificationPermission) {

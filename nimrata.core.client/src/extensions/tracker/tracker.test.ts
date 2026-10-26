@@ -12,8 +12,8 @@ import type { FakeApi } from '@platform/data/fakeApi';
 
 const types = manifest.types.map((t) => ({
     ...t,
-    module: manifest.module,
-    moduleVersion: manifest.version,
+    extension: manifest.extension,
+    extensionVersion: manifest.version,
 })) as TypeDefinition[];
 
 async function start(objects: unknown[] = []) {

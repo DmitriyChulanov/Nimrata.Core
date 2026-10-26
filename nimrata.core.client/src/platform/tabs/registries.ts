@@ -114,7 +114,7 @@ export function createMenuRegistry(): MenuRegistry {
 }
 
 /**
- * Реестры платформы: модули регистрируют в них свои виды вкладок и пункты меню
+ * Реестры платформы: расширения регистрируют в них свои виды вкладок и пункты меню
  */
 export const tabRegistry = createTabRegistry();
 /**

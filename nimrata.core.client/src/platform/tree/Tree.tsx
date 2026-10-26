@@ -108,7 +108,7 @@ function flatten(data: DataController, expanded: ReadonlySet<string>): Row[] {
 }
 
 /**
- * Универсальное дерево: строится по типам и объектам `DataController`, не зная о модулях
+ * Универсальное дерево: строится по типам и объектам `DataController`, не зная о расширениях
  */
 export function Tree() {
     const data = useData();

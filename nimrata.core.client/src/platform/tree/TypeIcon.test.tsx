@@ -11,8 +11,8 @@ import type { TypeDefinition } from '@platform/types/types';
 const type = (extra: Partial<TypeDefinition>): TypeDefinition => ({
     id: 'T',
     name: 'Тип',
-    module: 't',
-    moduleVersion: 1,
+    extension: 't',
+    extensionVersion: 1,
     icon: 'folder',
     ...extra,
 });

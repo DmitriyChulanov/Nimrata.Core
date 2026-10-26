@@ -14,15 +14,15 @@ const types = [
     {
         id: 'Folder',
         name: 'Папка',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         allowedChildren: ['Job'],
     },
     {
         id: 'Job',
         name: 'Работа',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         properties: [
             { id: 'name', name: 'Название', kind: 'string' },
             { id: 'status', name: 'Статус', kind: 'string' },

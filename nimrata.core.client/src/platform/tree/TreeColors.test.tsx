@@ -12,8 +12,8 @@ const types = [
     {
         id: 'Task',
         name: 'Задача',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         colorRules: [
             { property: 'priority', equals: 'medium', color: 'orange' },
             { property: 'priority', equals: 'high', color: 'red' },
@@ -21,7 +21,7 @@ const types = [
             { property: 'priority', equals: 'low', color: '#123456' },
         ],
     },
-    { id: 'Plain', name: 'Простой', module: 't', moduleVersion: 1 },
+    { id: 'Plain', name: 'Простой', extension: 't', extensionVersion: 1 },
 ];
 
 function task(id: string, order: number, properties: Record<string, unknown>) {

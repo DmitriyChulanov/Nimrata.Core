@@ -2,8 +2,8 @@ import { render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { App } from './App';
-import { todayIso } from './modules/tracker/dates';
-import manifest from './modules/tracker/manifest.json';
+import { todayIso } from './extensions/tracker/dates';
+import manifest from './extensions/tracker/manifest.json';
 
 function jsonResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {
@@ -16,7 +16,7 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-const types = manifest.types.map((t) => ({ ...t, module: 'tracker', moduleVersion: 1 }));
+const types = manifest.types.map((t) => ({ ...t, extension: 'tracker', extensionVersion: 1 }));
 
 function stubApi(objects: unknown[], rejectChangesets?: string) {
     const fetchMock = vi

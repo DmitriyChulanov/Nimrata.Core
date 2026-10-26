@@ -1,9 +1,9 @@
 using System.Text.Json;
 
-namespace Nimrata.Core.Server.Modules;
+namespace Nimrata.Core.Server.Extensions;
 
 /// <summary>
-/// Проверка формата манифеста модуля. Возвращает список понятных ошибок с путями
+/// Проверка формата манифеста расширения. Возвращает список понятных ошибок с путями
 /// </summary>
 public static class ManifestValidator
 {
@@ -30,7 +30,7 @@ public static class ManifestValidator
             return errors;
         }
 
-        RequireString(root, "module", "$", errors);
+        RequireString(root, "extension", "$", errors);
         if (!root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number
             || !version.TryGetInt32(out var intVersion) || intVersion < 1)
         {

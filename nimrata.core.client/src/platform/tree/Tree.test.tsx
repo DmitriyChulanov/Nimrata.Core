@@ -14,14 +14,14 @@ const types = [
     {
         id: 'Folder',
         name: 'Папка',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         icon: 'folder',
         allowedChildren: ['Note', 'Folder', 'Base'],
     },
-    { id: 'Note', name: 'Заметка', module: 't', moduleVersion: 1, icon: 'file-text' },
-    { id: 'Base', name: 'Основа', module: 't', moduleVersion: 1, abstract: true },
-    { id: 'Hidden', name: 'Механизм', module: 't', moduleVersion: 1, hiddenInTree: true },
+    { id: 'Note', name: 'Заметка', extension: 't', extensionVersion: 1, icon: 'file-text' },
+    { id: 'Base', name: 'Основа', extension: 't', extensionVersion: 1, abstract: true },
+    { id: 'Hidden', name: 'Механизм', extension: 't', extensionVersion: 1, hiddenInTree: true },
 ];
 
 function obj(id: string, type: string, parent: string | null, order: number, name?: string) {

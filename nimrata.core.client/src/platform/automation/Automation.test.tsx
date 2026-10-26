@@ -19,8 +19,8 @@ const types = [
     {
         id: 'Importer',
         name: 'Импорт',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         automation: true,
         hiddenInTree: true,
         properties: [{ id: 'name', name: 'Название', kind: 'string' }],
@@ -39,8 +39,8 @@ const types = [
     {
         id: 'Plain',
         name: 'Обычный',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         properties: [{ id: 'name', name: 'Название', kind: 'string' }],
     },
 ];
@@ -214,8 +214,8 @@ describe('Automation tab: mechanism target reveal (revealTarget)', () => {
     const refType = (id: string, property: string, extra: object) => ({
         id,
         name: id,
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         automation: true,
         hiddenInTree: true,
         properties: [

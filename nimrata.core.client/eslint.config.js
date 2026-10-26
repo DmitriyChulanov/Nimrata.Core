@@ -22,7 +22,7 @@ export default defineConfig([
     },
   },
   {
-    // Платформа не знает о модулях: импорт из modules/ и @tracker запрещён.
+    // Платформа не знает о расширениях: импорт из extensions/ и @tracker запрещён.
     files: ['src/platform/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
@@ -30,8 +30,8 @@ export default defineConfig([
         {
           patterns: [
             {
-              group: ['@tracker', '@tracker/*', '**/modules/**', '@/modules/**'],
-              message: 'platform/ не должна импортировать из modules/.',
+              group: ['@tracker', '@tracker/*', '**/extensions/**', '@/extensions/**'],
+              message: 'platform/ не должна импортировать из extensions/.',
             },
           ],
         },

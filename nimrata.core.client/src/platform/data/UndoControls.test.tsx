@@ -11,7 +11,7 @@ import { DataProvider } from './DataProvider';
 import { UndoControls } from './UndoControls';
 import { createFakeApi } from './fakeApi';
 
-const types = [{ id: 'Note', name: 'Заметка', module: 't', moduleVersion: 1 }];
+const types = [{ id: 'Note', name: 'Заметка', extension: 't', extensionVersion: 1 }];
 const objects = [{ id: 'a', type: 'Note', parent: null, order: 1, properties: { title: 'A' } }];
 
 async function setup() {

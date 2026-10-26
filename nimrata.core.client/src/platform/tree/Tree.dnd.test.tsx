@@ -13,17 +13,17 @@ const types = [
     {
         id: 'Folder',
         name: 'Папка',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         icon: 'folder',
         allowedChildren: ['Note', 'Folder'],
     },
-    { id: 'Note', name: 'Заметка', module: 't', moduleVersion: 1, icon: 'file-text' },
+    { id: 'Note', name: 'Заметка', extension: 't', extensionVersion: 1, icon: 'file-text' },
     {
         id: 'Sealed',
         name: 'Закрытая',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         allowedChildren: [],
     },
 ];

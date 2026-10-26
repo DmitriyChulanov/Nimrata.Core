@@ -18,7 +18,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 {
     private const string Manifest = """
         {
-          "module": "demo", "version": 1,
+          "extension": "demo", "version": 1,
           "types": [
             { "id": "Folder", "name": "Папка", "allowedChildren": ["Item", "Folder"] },
             { "id": "Item", "name": "Элемент", "sealed": true, "allowedChildren": [],
@@ -64,7 +64,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Default"] = _database,
-                ["Modules:Path"] = _directory,
+                ["Extensions:Path"] = _directory,
             })));
         _me = await Login(ServerFactory.AdminEmail, ServerFactory.AdminPassword);
         await _server.Services.GetRequiredService<AuthService>().CreateUserAsync(ForeignEmail, ForeignPassword, false);

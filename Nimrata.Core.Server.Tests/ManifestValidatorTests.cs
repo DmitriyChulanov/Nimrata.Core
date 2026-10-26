@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Nimrata.Core.Server.Modules;
+using Nimrata.Core.Server.Extensions;
 
 namespace Nimrata.Core.Server.Tests;
 
@@ -16,7 +16,7 @@ public sealed class ManifestValidatorTests
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            var path = Path.Combine(directory.FullName, "nimrata.core.client", "src", "modules", "tracker", "manifest.json");
+            var path = Path.Combine(directory.FullName, "nimrata.core.client", "src", "extensions", "tracker", "manifest.json");
             if (File.Exists(path)) return path;
         }
         throw new FileNotFoundException("Манифест Трекера не найден выше каталога тестов.");
@@ -66,7 +66,7 @@ public sealed class ManifestValidatorTests
     /// <param name="property">JSON свойства</param>
     /// <returns>JSON манифеста</returns>
     private static string WithType(string property) =>
-        $$"""{ "module": "demo", "version": 1, "types": [ { "id": "A", "name": "A", "properties": [ {{property}} ] } ] }""";
+        $$"""{ "extension": "demo", "version": 1, "types": [ { "id": "A", "name": "A", "properties": [ {{property}} ] } ] }""";
 
     /// <summary>
     /// Проверяет, что цель показа допустима для свойства-ссылки

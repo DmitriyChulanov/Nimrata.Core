@@ -116,8 +116,8 @@ it('app_afterLogin_showsThreePanelsAndSelectedObjectInProperties', async () => {
         {
             id: 'Note',
             name: 'Заметка',
-            module: 't',
-            moduleVersion: 1,
+            extension: 't',
+            extensionVersion: 1,
             properties: [{ id: 'name', name: 'Название', kind: 'string' }],
         },
     ];
@@ -154,9 +154,9 @@ it('app_afterLogin_showsThreePanelsAndSelectedObjectInProperties', async () => {
 });
 
 /**
- * Проверяет, что вкладка и пункт меню платформы работают без модулей, а роль скрывает недоступные пункты
+ * Проверяет, что вкладка и пункт меню платформы работают без расширений, а роль скрывает недоступные пункты
  */
-it('app_platformTabAndMenuItem_workWithoutModulesAndRoleHidesItems', async () => {
+it('app_platformTabAndMenuItem_workWithoutExtensionsAndRoleHidesItems', async () => {
     tabRegistry.register({
         id: 'app-test',
         title: 'Проверка',

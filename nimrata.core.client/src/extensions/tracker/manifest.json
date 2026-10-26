@@ -1,5 +1,5 @@
 {
-    "module": "tracker",
+    "extension": "tracker",
     "version": 11,
     "types": [
         {

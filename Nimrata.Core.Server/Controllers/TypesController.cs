@@ -12,7 +12,7 @@ namespace Nimrata.Core.Server.Controllers;
 public sealed class TypesController(TypesService typesService) : ControllerBase
 {
     /// <summary>
-    /// Все типы платформы: определение из манифеста плюс <c>module</c> и <c>moduleVersion</c>
+    /// Все типы платформы: определение из манифеста плюс <c>extension</c> и <c>extensionVersion</c>
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<JsonObject>>> List(CancellationToken cancellationToken) =>

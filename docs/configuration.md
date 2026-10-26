@@ -46,7 +46,7 @@ docker compose up --build
 
 ## Архитектурные правила платформы
 
-- Бизнес-логика модулей выполняется на клиенте (`docs/adr/0001-client-side-business-logic.md`); сервер — общий слой хранения, проверок и журнала.
+- Бизнес-логика расширений выполняется на клиенте (`docs/adr/0001-client-side-business-logic.md`); сервер — общий слой хранения, проверок и журнала.
 - Все маршруты API живут под `/api` и проксируются в dev одним правилом `^/api` (`nimrata.core.client/vite.config.ts`).
-- `src/platform/` не импортирует из `src/modules/*` (проверяет ESLint).
+- `src/platform/` не импортирует из `src/extensions/*` (проверяет ESLint).
 - Терминология — в `GLOSSARY.md`.

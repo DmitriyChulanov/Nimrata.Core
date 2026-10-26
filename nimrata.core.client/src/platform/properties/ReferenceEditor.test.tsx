@@ -15,30 +15,30 @@ const types = [
     {
         id: 'Folder',
         name: 'Папка',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         allowedChildren: ['Person', 'Folder', 'Task'],
         properties: [{ id: 'name', name: 'Название', kind: 'string' }],
     },
     {
         id: 'Person',
         name: 'Человек',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         properties: [{ id: 'name', name: 'Имя', kind: 'string' }],
     },
     {
         id: 'Task',
         name: 'Задача',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         properties: [
             { id: 'name', name: 'Название', kind: 'string' },
             { id: 'owner', name: 'Владелец', kind: 'reference', targetTypes: ['Person'] },
             { id: 'any', name: 'Связь', kind: 'reference' },
         ],
     },
-    { id: 'Secret', name: 'Механизм', module: 't', moduleVersion: 1, hiddenInTree: true },
+    { id: 'Secret', name: 'Механизм', extension: 't', extensionVersion: 1, hiddenInTree: true },
 ];
 
 function obj(

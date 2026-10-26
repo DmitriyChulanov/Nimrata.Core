@@ -4,8 +4,8 @@ import { createDataController } from './DataController';
 import { createFakeApi } from './fakeApi';
 
 const types = [
-    { id: 'Folder', name: 'Папка', module: 't', moduleVersion: 1 },
-    { id: 'Note', name: 'Заметка', module: 't', moduleVersion: 1 },
+    { id: 'Folder', name: 'Папка', extension: 't', extensionVersion: 1 },
+    { id: 'Note', name: 'Заметка', extension: 't', extensionVersion: 1 },
 ];
 
 const objects = [

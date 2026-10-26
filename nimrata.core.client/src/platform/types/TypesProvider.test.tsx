@@ -11,8 +11,8 @@ import type { TypeDefinition } from './types';
 const noteType: TypeDefinition = {
     id: 'Note',
     name: 'Заметка',
-    module: 'tracker',
-    moduleVersion: 1,
+    extension: 'tracker',
+    extensionVersion: 1,
     properties: [{ id: 'name', name: 'Название', kind: 'string' }],
 };
 

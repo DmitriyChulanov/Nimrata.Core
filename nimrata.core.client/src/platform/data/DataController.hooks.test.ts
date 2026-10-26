@@ -4,12 +4,12 @@ import { createDataController } from './DataController';
 import { createFakeApi } from './fakeApi';
 
 const types = [
-    { id: 'Folder', name: 'Папка', module: 't', moduleVersion: 1 },
+    { id: 'Folder', name: 'Папка', extension: 't', extensionVersion: 1 },
     {
         id: 'Task',
         name: 'Задача',
-        module: 't',
-        moduleVersion: 1,
+        extension: 't',
+        extensionVersion: 1,
         properties: [
             { id: 'title', name: 'Название', kind: 'string' },
             { id: 'status', name: 'Статус', kind: 'string' },
@@ -303,8 +303,8 @@ describe('DataController: actions', () => {
         {
             id: 'Job',
             name: 'Работа',
-            module: 't',
-            moduleVersion: 1,
+            extension: 't',
+            extensionVersion: 1,
             properties: [{ id: 'status', name: 'Статус', kind: 'string' }],
             actions: [
                 { id: 'finish', name: 'Завершить', placements: ['propertyGrid', 'contextMenu'] },

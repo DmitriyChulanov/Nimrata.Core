@@ -12,7 +12,7 @@ using Npgsql;
 namespace Nimrata.Core.Server.Tests;
 
 /// <summary>
-/// Манифест модуля: загрузка в таблицу типов при старте и выдача типов по API
+/// Манифест расширения: загрузка в таблицу типов при старте и выдача типов по API
 /// </summary>
 public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerFactory>, IDisposable
 {
@@ -42,14 +42,14 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
     /// <param name="types">JSON типов</param>
     /// <returns>JSON манифеста</returns>
     private static string Manifest(int version, params string[] types) =>
-        $$"""{ "module": "demo", "version": {{version}}, "types": [ {{string.Join(",", types)}} ] }""";
+        $$"""{ "extension": "demo", "version": {{version}}, "types": [ {{string.Join(",", types)}} ] }""";
 
     /// <summary>
-    /// Каталог модулей с одним манифестом
+    /// Каталог расширений с одним манифестом
     /// </summary>
-    private string ModulesDirectory(string manifest)
+    private string ExtensionsDirectory(string manifest)
     {
-        var directory = Path.Combine(Path.GetTempPath(), "nimrata-modules-" + Guid.NewGuid().ToString("N"));
+        var directory = Path.Combine(Path.GetTempPath(), "nimrata-extensions-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(directory, "demo"));
         File.WriteAllText(Path.Combine(directory, "demo", "manifest.json"), manifest);
         _directories.Add(directory);
@@ -65,7 +65,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         new NpgsqlConnectionStringBuilder(row) { Database = "m" + Guid.NewGuid().ToString("N") }.ConnectionString;
 
     /// <summary>
-    /// Запускает сервер с отдельной базой и каталогом модулей
+    /// Запускает сервер с отдельной базой и каталогом расширений
     /// </summary>
     /// <param name="database">Строка подключения</param>
     /// <param name="directory">Каталог манифестов или null</param>
@@ -74,7 +74,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         factory.WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, configuration) =>
         {
             var values = new Dictionary<string, string?> { ["ConnectionStrings:Default"] = database };
-            if (directory is not null) values["Modules:Path"] = directory;
+            if (directory is not null) values["Extensions:Path"] = directory;
             configuration.AddInMemoryCollection(values);
         }));
 
@@ -137,7 +137,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         Assert.Contains("Note", ids);
         Assert.Contains("NoteGroup", ids);
         var note = types.Single(type => GetId(type) == "Note");
-        Assert.Equal("tracker", note.GetProperty("module").GetString());
+        Assert.Equal("tracker", note.GetProperty("extension").GetString());
         Assert.Contains(note.GetProperty("properties").EnumerateArray(),
             property => property.GetProperty("id").GetString() == "priority" && property.GetProperty("kind").GetString() == "enum");
     }
@@ -149,7 +149,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
     public async Task Startup_LoadsTypesFromManifest()
     {
         var database = NewDatabase(factory.ConnectionString);
-        using var server = Server(database, ModulesDirectory(Manifest(1, TypeJson("A", "Первый"), TypeJson("B"))));
+        using var server = Server(database, ExtensionsDirectory(Manifest(1, TypeJson("A", "Первый"), TypeJson("B"))));
         using var client = server.CreateClient();
 
         var types = await FetchTypes(client);
@@ -157,7 +157,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         Assert.Equal(["A", "B"], types.Select(GetId).Order());
         var a = types.Single(type => GetId(type) == "A");
         Assert.Equal("Первый", a.GetProperty("name").GetString());
-        Assert.Equal(1, a.GetProperty("moduleVersion").GetInt32());
+        Assert.Equal(1, a.GetProperty("extensionVersion").GetInt32());
     }
 
     /// <summary>
@@ -167,7 +167,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
     public async Task Restart_SameVersion_DoesNotDuplicateTypes()
     {
         var database = NewDatabase(factory.ConnectionString);
-        var directory = ModulesDirectory(Manifest(1, TypeJson("A"), TypeJson("B")));
+        var directory = ExtensionsDirectory(Manifest(1, TypeJson("A"), TypeJson("B")));
         using (var first = Server(database, directory))
         {
             using var serverClient = first.CreateClient();
@@ -189,7 +189,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
     public async Task Startup_NewManifestVersion_UpdatesTypesAndAddsNew()
     {
         var database = NewDatabase(factory.ConnectionString);
-        var directory = ModulesDirectory(Manifest(1, TypeJson("A", "Старое имя")));
+        var directory = ExtensionsDirectory(Manifest(1, TypeJson("A", "Старое имя")));
         using (var first = Server(database, directory))
         {
             using var serverClient = first.CreateClient();
@@ -205,7 +205,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         Assert.Equal(2, types.Length);
         var a = types.Single(type => GetId(type) == "A");
         Assert.Equal("Новое имя", a.GetProperty("name").GetString());
-        Assert.Equal(2, a.GetProperty("moduleVersion").GetInt32());
+        Assert.Equal(2, a.GetProperty("extensionVersion").GetInt32());
     }
 
     /// <summary>
@@ -215,7 +215,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
     public async Task Startup_SameVersionDifferentContent_DoesNotOverwriteTypes()
     {
         var database = NewDatabase(factory.ConnectionString);
-        var directory = ModulesDirectory(Manifest(1, TypeJson("A", "Исходное")));
+        var directory = ExtensionsDirectory(Manifest(1, TypeJson("A", "Исходное")));
         using (var first = Server(database, directory))
         {
             using var serverClient = first.CreateClient();
@@ -236,8 +236,8 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
     public static TheoryData<string, string> InvalidManifests => new()
     {
         { "{ не json", "JSON" },
-        { """{ "module": "demo", "types": [] }""", "version" },
-        { """{ "module": "demo", "version": 1 }""", "types" },
+        { """{ "extension": "demo", "types": [] }""", "version" },
+        { """{ "extension": "demo", "version": 1 }""", "types" },
         { Manifest(1, """{ "name": "Без id" }"""), "id" },
         { Manifest(1, TypeJson("A"), TypeJson("A")), "повторяется" },
         { Manifest(1, """{ "id": "A", "name": "A", "properties": [ { "id": "p", "name": "P", "kind": "float" } ] }"""), "float" },
@@ -258,7 +258,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
     public void Startup_InvalidManifest_FailsWithClearError(string manifest, string substring)
     {
         var database = NewDatabase(factory.ConnectionString);
-        using var server = Server(database, ModulesDirectory(manifest));
+        using var server = Server(database, ExtensionsDirectory(manifest));
 
         var error = Assert.ThrowsAny<Exception>(() => server.CreateClient());
 
