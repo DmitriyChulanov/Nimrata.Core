@@ -515,6 +515,39 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
     }
 
     /// <summary>
+    /// Проверяет, что перемещение singleton под родителя, где такой объект уже есть, отклоняется
+    /// </summary>
+    [Fact]
+    public async Task Changeset_MoveSingletonUnderParentWithSame_IsRejectedWithSingletonCode()
+    {
+        Guid group = Guid.CreateVersion7(), movable = Guid.CreateVersion7();
+        await ApplyOk(_me, Create(group, "AlphaGroup"), Create(Guid.CreateVersion7(), "AlphaRoot", group),
+            Create(movable, "AlphaRoot", null, order: 2));
+
+        var response = await Apply(_me, new { op = "move", id = movable, parent = new { old = (Guid?)null, @new = group } });
+
+        await AssertRejected(response, HttpStatusCode.Conflict, "уже есть", "singleton_exists");
+        Assert.Equal(0, await Scalar<long>(
+            "select count(*) from objects where id = @movable and parent_id is not null", new { movable }));
+    }
+
+    /// <summary>
+    /// Проверяет, что singleton можно переместить под родителя без такого объекта и менять его порядок
+    /// </summary>
+    [Fact]
+    public async Task Changeset_MoveSingletonToFreeParentOrChangeOrder_IsAccepted()
+    {
+        Guid group = Guid.CreateVersion7(), root = Guid.CreateVersion7();
+        await ApplyOk(_me, Create(group, "AlphaGroup"), Create(root, "AlphaRoot", null, order: 1));
+
+        var toGroup = await Apply(_me, new { op = "move", id = root, parent = new { old = (Guid?)null, @new = group } });
+        var reorder = await Apply(_me, new { op = "move", id = root, order = new { old = 1, @new = 5 } });
+
+        Assert.Equal(HttpStatusCode.OK, toGroup.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, reorder.StatusCode);
+    }
+
+    /// <summary>
     /// Проверяет, что singleton допускается у другого родителя и у другого владельца
     /// </summary>
     [Fact]

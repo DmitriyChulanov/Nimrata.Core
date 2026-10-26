@@ -4,10 +4,21 @@ import './ExtensionsEditor.css';
 import type { ReactNode } from 'react';
 
 /**
+ * Свойства компонента `NoExtensionsNotice`
+ */
+interface NoExtensionsNoticeProps {
+    /** Содержимое рабочей области, которое показывается, пока подключено хотя бы одно расширение */
+    children: ReactNode;
+}
+
+/**
  * Пустое состояние рабочей области: пока отключены все расширения, вместо содержимого
  * показывает подсказку открыть «Вид → Расширения»; иначе выводит вложенные элементы
+ *
+ * @param props - свойства компонента, описаны в `NoExtensionsNoticeProps`
+ * @returns подсказку или вложенные элементы
  */
-export function NoExtensionsNotice({ children }: { children: ReactNode }) {
+export function NoExtensionsNotice({ children }: NoExtensionsNoticeProps) {
     const { status, extensions } = useExtensions();
 
     // Пустой каталог — не «всё отключено»: подключать нечего

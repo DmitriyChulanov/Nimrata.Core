@@ -13,7 +13,11 @@ import type {
 } from '@platform';
 
 /**
- * Подпись статуса заметки по описанию типа; `undefined`, если статус не задан или неизвестен
+ * Подпись статуса заметки по описанию типа
+ *
+ * @param data - контроллер данных (описание типа даёт подписи статусов)
+ * @param status - значение свойства статуса заметки
+ * @returns подпись или `undefined`, если статус не задан или неизвестен
  */
 function statusLabel(data: DataController, status: unknown): string | undefined {
     if (typeof status !== 'string' || status === '') return undefined;
@@ -37,6 +41,11 @@ export function noteName(data: DataController, note: DataObject): string | undef
 
 /**
  * Приводит `name` заметки к вычисленному значению в том же наборе изменений
+ *
+ * @param data - контроллер данных
+ * @param id - идентификатор заметки
+ * @param tx - область изменений текущего набора
+ * @returns результат хука: отмена набора, если имя не удалось записать
  */
 function syncNoteName(data: DataController, id: string, tx: ChangeScope): HookResult {
     const note = data.getObject(id);

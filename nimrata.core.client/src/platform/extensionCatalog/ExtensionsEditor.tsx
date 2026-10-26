@@ -59,11 +59,19 @@ function ExtensionCard({ extension, disabled, error, onToggle }: ExtensionCardPr
 /**
  * Вкладка «Расширения»: карточки доступных расширений с переключателем подключения. Подтверждения
  * нет: отключение обратимо, данные только скрываются
+ *
+ * @returns индикатор загрузки или список карточек расширений
  */
 export function ExtensionsEditor() {
     const { status, extensions, switchingId, setConnected } = useExtensions();
     const [errors, setErrors] = useState<Record<string, string>>({});
 
+    /**
+     * Переключает подключение расширения; ошибку запоминает для его карточки
+     *
+     * @param id - идентификатор расширения
+     * @param connected - нужное состояние подключения
+     */
     const toggle = async (id: string, connected: boolean) => {
         setErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => key !== id)));
         const result = await setConnected(id, connected);

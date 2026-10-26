@@ -32,14 +32,20 @@ export interface ExtensionsProviderProps {
 }
 
 /**
- * Идентификаторы подключённых расширений каталога
+ * Выбирает идентификаторы подключённых расширений каталога
+ *
+ * @param items - элементы каталога расширений
+ * @returns множество идентификаторов расширений с признаком `connected`
  */
 function connectedIds(items: ExtensionInfo[]): Set<string> {
     return new Set(items.filter((e) => e.connected).map((e) => e.id));
 }
 
 /**
- * Текст причины из произвольной ошибки
+ * Приводит произвольную ошибку к тексту причины
+ *
+ * @param error - пойманное значение, не обязательно `Error`
+ * @returns сообщение ошибки или строковое представление значения
  */
 function messageOf(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
@@ -50,6 +56,9 @@ function messageOf(error: unknown): string {
  * подключённые расширения реестра, загружает данные и запускает `ensureStart`; рисует
  * компоненты-привязки подключённых расширений. Переключение подключений — `setConnected`.
  * Размещается внутри провайдеров данных и выделения
+ *
+ * @param props - свойства провайдера, описаны в `ExtensionsProviderProps`
+ * @returns провайдер контекста расширений с привязками подключённых расширений и вложенными элементами
  */
 export function ExtensionsProvider({
     api,
@@ -77,12 +86,21 @@ export function ExtensionsProvider({
         selectionRef.current = selection;
     });
 
+    /**
+     * Запоминает каталог и в ссылке, и в состоянии
+     *
+     * @param items - актуальный каталог расширений
+     */
     const commitCatalog = useCallback((items: ExtensionInfo[]) => {
         catalogRef.current = items;
         setCatalog(items);
     }, []);
 
-    /** Приводит регистрации хуков и действий в соответствие с набором подключённых расширений */
+    /**
+     * Приводит регистрации хуков и действий в соответствие с набором подключённых расширений
+     *
+     * @param connected - идентификаторы подключённых расширений
+     */
     const syncRegistrations = useCallback(
         (connected: ReadonlySet<string>) => {
             for (const [id, unregister] of [...registrations.current]) {
@@ -103,7 +121,7 @@ export function ExtensionsProvider({
         [controller, registry, reveal],
     );
 
-    /** Снимает выделение, если выделенного объекта после перезагрузки больше нет */
+    // Снимает выделение, если выделенного объекта после перезагрузки больше нет
     const dropUnavailableSelection = useCallback(() => {
         const current = selectionRef.current;
         if (current?.selectedId && !controller.getObject(current.selectedId)) current.select(null);
@@ -111,7 +129,10 @@ export function ExtensionsProvider({
 
     /**
      * Запускает расширения по очереди; отказ одного не мешает остальным (каждое создаёт только
-     * свои объекты своим набором). Возвращает первую причину отказа
+     * свои объекты своим набором)
+     *
+     * @param ids - идентификаторы запускаемых расширений
+     * @returns первая причина отказа или `null`, если запустились все
      */
     const startExtensions = useCallback(
         async (ids: Iterable<string>): Promise<string | null> => {
@@ -132,16 +153,24 @@ export function ExtensionsProvider({
         [controller, registry],
     );
 
-    /** Прекращает работу запущенных `initialize` и снимает все регистрации */
+    /**
+     * Прекращает работу запущенных `initialize` и снимает все регистрации
+     */
     const teardown = useCallback(() => {
         generation.current++;
         registrations.current.forEach((unregister) => unregister());
         registrations.current.clear();
     }, []);
 
+    /**
+     * Загружает каталог и данные, регистрирует и запускает подключённые расширения; устаревший
+     * запуск (отменённый размонтированием или повтором) молча прекращается
+     *
+     * @returns промис завершения запуска
+     */
     const initialize = useCallback(async () => {
-        const mine = ++generation.current;
-        const cancelled = () => generation.current !== mine;
+        const runGeneration = ++generation.current;
+        const cancelled = () => generation.current !== runGeneration;
 
         let items: ExtensionInfo[];
         try {
@@ -174,19 +203,29 @@ export function ExtensionsProvider({
         return teardown;
     }, [initialize, teardown]);
 
-    /** Повторяет загрузку каталога и данных (состояние «загрузка» выставляется сразу) */
+    /**
+     * Повторяет загрузку каталога и данных (состояние «загрузка» выставляется сразу)
+     *
+     * @returns промис завершения повторного запуска
+     */
     const reload = useCallback(() => {
         setStatus('loading');
         setError(null);
         return initialize();
     }, [initialize]);
 
+    /**
+     * Подключает или отключает расширение: сохраняет на сервере, перерегистрирует хуки, перезагружает
+     * данные и запускает подключённое расширение. Причина отказа возвращается вызывающему (её
+     * показывает карточка расширения) и в общее `error` не попадает
+     *
+     * @param id - идентификатор расширения каталога
+     * @param connected - нужное состояние подключения
+     * @returns результат переключения с причиной отказа
+     */
     const setConnected = useCallback(
         async (id: string, connected: boolean): Promise<ChangeResult> => {
-            const fail = (reason: string): ChangeResult => {
-                setError(reason);
-                return { ok: false, error: reason };
-            };
+            const fail = (reason: string): ChangeResult => ({ ok: false, error: reason });
             if (busy.current) return { ok: false, error: 'Переключение уже выполняется.' };
             const current = catalogRef.current.find((e) => e.id === id);
             if (!current) return { ok: false, error: 'Расширение не найдено.' };
@@ -194,7 +233,6 @@ export function ExtensionsProvider({
 
             busy.current = true;
             setSwitchingId(id);
-            setError(null);
             try {
                 let updated: ExtensionInfo;
                 try {

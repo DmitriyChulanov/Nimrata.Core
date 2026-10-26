@@ -313,4 +313,34 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
         Assert.Equal("Новое название", await connection.ExecuteScalarAsync<string>("select name from extensions where id = 'demo'"));
         Assert.Equal(1, await connection.ExecuteScalarAsync<long>("select count(*) from extensions"));
     }
+
+    /// <summary>
+    /// Проверяет, что метаданные расширения обновляются из манифеста и при той же версии, а типы остаются прежними
+    /// </summary>
+    [Fact]
+    public async Task Startup_SameVersionChangedMetadata_UpdatesMetadataButNotTypes()
+    {
+        var database = NewDatabase(factory.ConnectionString);
+        var directory = ExtensionsDirectory(Manifest(1, TypeJson("A", "Исходное")));
+        using (var first = Server(database, directory))
+        {
+            using var serverClient = first.CreateClient();
+            await FetchTypes(serverClient);
+        }
+        File.WriteAllText(Path.Combine(directory, "demo", "manifest.json"),
+            Manifest(1, TypeJson("A", "Правка без версии"))
+                .Replace("\"Демо\"", "\"Новое название\"")
+                .Replace("\"star\"", "\"list-checks\"")
+                .Replace("\"defaultEnabled\": true", "\"defaultEnabled\": false"));
+
+        using var second = Server(database, directory);
+        using var client = second.CreateClient();
+        var types = await FetchTypes(client);
+
+        await using var connection = new NpgsqlConnection(database);
+        var row = await connection.QuerySingleAsync<(string Name, string Icon, bool DefaultEnabled)>(
+            "select name, icon, default_enabled from extensions where id = 'demo'");
+        Assert.Equal(("Новое название", "list-checks", false), row);
+        Assert.Equal("Исходное", types.Single().GetProperty("name").GetString());
+    }
 }

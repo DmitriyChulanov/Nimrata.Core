@@ -9,7 +9,10 @@ namespace Nimrata.Core.Server.Extensions;
 /// <param name="dataSource">Источник соединений с БД</param>
 public sealed class ExtensionsService(NpgsqlDataSource dataSource)
 {
-    private const string Select = """
+    /// <summary>
+    /// Общая часть запросов каталога: поля расширения и состояние подключения пользователя
+    /// </summary>
+    private const string CatalogQuery = """
         select e.id as Id, e.name as Name, e.description as Description, e.icon as Icon,
                e.default_enabled as DefaultEnabled, is_extension_enabled(@userId, e.id) as Connected
         from extensions e
@@ -25,7 +28,7 @@ public sealed class ExtensionsService(NpgsqlDataSource dataSource)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         var rows = await connection.QueryAsync<ExtensionInfo>(new CommandDefinition(
-            $"{Select} order by e.name, e.id", new { userId }, cancellationToken: cancellationToken));
+            $"{CatalogQuery} order by e.name, e.id", new { userId }, cancellationToken: cancellationToken));
         return rows.ToList();
     }
 
@@ -55,18 +58,6 @@ public sealed class ExtensionsService(NpgsqlDataSource dataSource)
         }
 
         return await connection.QuerySingleOrDefaultAsync<ExtensionInfo>(new CommandDefinition(
-            $"{Select} where e.id = @extensionId", new { userId, extensionId }, cancellationToken: cancellationToken));
+            $"{CatalogQuery} where e.id = @extensionId", new { userId, extensionId }, cancellationToken: cancellationToken));
     }
 }
-
-/// <summary>
-/// Расширение в каталоге: метаданные манифеста и состояние подключения пользователя
-/// </summary>
-/// <param name="Id">Идентификатор расширения</param>
-/// <param name="Name">Название</param>
-/// <param name="Description">Описание</param>
-/// <param name="Icon">Имя иконки в реестре иконок клиента</param>
-/// <param name="DefaultEnabled">Состояние, пока у пользователя нет записи подключения</param>
-/// <param name="Connected">Подключено ли расширение пользователю</param>
-public sealed record ExtensionInfo(
-    string Id, string Name, string Description, string Icon, bool DefaultEnabled, bool Connected);

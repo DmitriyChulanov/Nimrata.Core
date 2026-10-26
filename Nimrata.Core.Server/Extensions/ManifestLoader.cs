@@ -101,15 +101,20 @@ public static class ManifestLoader
         return owners;
     }
 
+    /// <summary>
+    /// Записывает метаданные расширения и, если версия манифеста новее сохранённой, его типы
+    /// </summary>
+    /// <param name="connection">Открытое соединение</param>
+    /// <param name="transaction">Транзакция синхронизации</param>
+    /// <param name="file">Путь к манифесту для текста ошибок</param>
+    /// <param name="root">Корень проверенного манифеста</param>
+    /// <exception cref="InvalidOperationException">Тип уже объявлен другим расширением</exception>
     private static void Sync(NpgsqlConnection connection, NpgsqlTransaction transaction, string file, JsonElement root)
     {
         var extensionId = root.GetProperty("extension").GetString()!;
         var version = root.GetProperty("version").GetInt32();
 
-        var currentVersion = connection.ExecuteScalar<int?>(
-            "select max(extension_version) from types where extension_id = @extensionId", new { extensionId }, transaction);
-        if (currentVersion >= version) return;
-
+        // Метаданные расширения берутся из манифеста всегда, независимо от версии типов
         connection.Execute("""
             insert into extensions (id, name, description, icon, default_enabled)
             values (@extensionId, @name, @description, @icon, @defaultEnabled)
@@ -128,6 +133,11 @@ public static class ManifestLoader
                 defaultEnabled = root.GetProperty("defaultEnabled").GetBoolean(),
             },
             transaction);
+
+        // Типы применяются только при более новой версии расширения
+        var currentVersion = connection.ExecuteScalar<int?>(
+            "select max(extension_version) from types where extension_id = @extensionId", new { extensionId }, transaction);
+        if (currentVersion >= version) return;
 
         foreach (var type in root.GetProperty("types").EnumerateArray())
         {

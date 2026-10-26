@@ -242,6 +242,10 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         if (changesParent)
         {
             parent = await ReadNewParentAsync(context, target, parentChange);
+            if (context.Types[target.Type].IsSingleton)
+            {
+                await EnsureSingletonAsync(context, context.Types[target.Type], parent, target.Id);
+            }
         }
         if (changesOrder)
         {
@@ -362,7 +366,12 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
     /// <summary>
     /// Второй объект типа <c>singleton</c> у того же родителя и владельца отклоняется
     /// </summary>
-    private static async Task EnsureSingletonAsync(ChangesetContext context, TypeDescriptor type, Guid? parent)
+    /// <param name="context">Контекст применения набора</param>
+    /// <param name="type">Тип объекта с признаком <c>singleton</c></param>
+    /// <param name="parent">Родитель, под которым объект создаётся или оказывается после перемещения</param>
+    /// <param name="excludedId">Перемещаемый объект: он не считается «вторым» самому себе</param>
+    private static async Task EnsureSingletonAsync(
+        ChangesetContext context, TypeDescriptor type, Guid? parent, Guid? excludedId = null)
     {
         // Блокировка до конца транзакции: два одновременных набора не создадут дубликат
         await context.ExecuteAsync(
@@ -372,9 +381,10 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
             """
             select exists (
                 select 1 from objects
-                where owner_id = @userId and type_id = @typeId and parent_id is not distinct from @parent)
+                where owner_id = @userId and type_id = @typeId and parent_id is not distinct from @parent
+                  and id is distinct from @excludedId)
             """,
-            new { context.UserId, typeId = type.Id, parent });
+            new { context.UserId, typeId = type.Id, parent, excludedId });
         if (exists)
         {
             throw new ChangesetRejectedException(

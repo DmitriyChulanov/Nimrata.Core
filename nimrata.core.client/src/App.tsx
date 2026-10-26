@@ -90,13 +90,21 @@ function Main() {
 const revealBridge = createRevealBridge();
 
 /**
+ * Свойства компонента `Application`
+ */
+interface ApplicationProps {
+    /** Идентификатор вошедшего пользователя */
+    userId: string;
+}
+
+/**
  * Контекст данных пользователя: контроллер, подключённые расширения (их жизненным циклом и
  * загрузкой данных управляет `ExtensionsProvider`) и основной экран
  *
- * @param props - идентификатор вошедшего пользователя
+ * @param props - свойства компонента, описаны в `ApplicationProps`
  * @returns основной экран внутри провайдеров данных, выделения и расширений
  */
-function Application({ userId }: { userId: string }) {
+function Application({ userId }: ApplicationProps) {
     const api = useApi();
     const [controller] = useState(() => createDataController({ api }));
 

@@ -321,7 +321,7 @@ describe('ExtensionsProvider: switching', () => {
     });
 
     /**
-     * Проверяет, что отказ сервера при смене подключения не меняет состояние и возвращается как причина
+     * Проверяет, что отказ сервера при смене подключения не меняет состояние, возвращается как причина и не дублируется глобальным alert
      */
     it('setConnected_putFails_keepsStateAndReturnsReason', async () => {
         const { api, ext, ready, log } = setup();
@@ -335,6 +335,9 @@ describe('ExtensionsProvider: switching', () => {
         });
 
         expect(result).toEqual({ ok: false, error: 'сервер недоступен' });
+        // ошибку переключения показывает карточка, глобального alert нет
+        expect(ext().error).toBeNull();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
         expect(log).toEqual([]);
         expect(ext().extensions.find((e) => e.id === 'a')?.connected).toBe(true);
         expect(ext().switchingId).toBeNull();
