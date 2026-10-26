@@ -12,7 +12,7 @@
 
 .journal-table {
     width: 100%;
-    font-size: 13px;
+    font-size: var(--text-sm);
 }
 
 .journal-table th,

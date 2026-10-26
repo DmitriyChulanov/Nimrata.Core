@@ -10,16 +10,13 @@
     margin-bottom: var(--space-3);
 }
 
-.users-tab__form label {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    font-size: 0.85em;
-    color: var(--text-muted);
-}
-
 .users-tab__table {
     width: 100%;
+}
+
+.users-tab__actions {
+    display: flex;
+    gap: var(--space-1);
 }
 
 .users-tab__table th,

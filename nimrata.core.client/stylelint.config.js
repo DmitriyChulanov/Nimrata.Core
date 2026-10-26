@@ -20,8 +20,6 @@ const COLOR_FUNCTIONS = [
 /** Файлы, которые ещё не переведены на токены; список сокращается на шаге 6 плана и пустеет к его концу */
 const LEGACY_FILES = [
     'src/App.css',
-    'src/platform/journal/Journal.css',
-    'src/platform/users/UsersTab.css',
 ];
 
 export default {

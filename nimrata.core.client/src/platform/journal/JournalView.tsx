@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+import { Button, Checkbox } from '@platform/ui';
+
 import { describeEntry, formatTime, groupByChangeset, journalPath } from './journal';
 import './Journal.css';
 
@@ -158,9 +160,9 @@ export function JournalView({ api, selectedId, resolver }: JournalViewProps) {
                     </table>
                 )}
                 {current.entries.length < current.total && (
-                    <button type="button" disabled={loadingMore} onClick={() => void loadMore()}>
+                    <Button disabled={loadingMore} onClick={() => void loadMore()}>
                         Показать ещё
-                    </button>
+                    </Button>
                 )}
             </>
         );
@@ -168,14 +170,11 @@ export function JournalView({ api, selectedId, resolver }: JournalViewProps) {
 
     return (
         <section className="journal" aria-label="Журнал">
-            <label className="journal-toggle">
-                <input
-                    type="checkbox"
-                    checked={all}
-                    onChange={(event) => setAll(event.target.checked)}
-                />
-                Все мои изменения
-            </label>
+            <Checkbox
+                label="Все мои изменения"
+                checked={all}
+                onChange={(event) => setAll(event.target.checked)}
+            />
             {body}
         </section>
     );

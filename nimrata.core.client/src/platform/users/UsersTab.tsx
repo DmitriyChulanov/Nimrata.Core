@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useApi } from '@platform/auth/useApi';
+import { Button, Select, TextField } from '@platform/ui';
 
 import './UsersTab.css';
 
@@ -32,6 +33,14 @@ const ROLE_TITLES: Record<UserRole, string> = { admin: 'Администрато
  * Путь административного API пользователей
  */
 const BASE = '/admin/users';
+
+/**
+ * Варианты роли для выпадающих списков
+ */
+const ROLE_OPTIONS = [
+    { value: 'member', label: ROLE_TITLES.member },
+    { value: 'admin', label: ROLE_TITLES.admin },
+];
 
 /**
  * Вкладка «Пользователи» (только администратор): список, создание, смена роли, отключение и включение
@@ -102,44 +111,35 @@ export function UsersTab() {
             {error && <p role="alert">{error}</p>}
             {notice && <p role="status">{notice}</p>}
             <form className="users-tab__form" onSubmit={(e) => void create(e)}>
-                <label>
-                    Электронная почта
-                    <input
-                        type="email"
-                        value={email}
-                        required
-                        onChange={(e) => setEmail(e.target.value)}
-                    />
-                </label>
-                <label>
-                    Имя
-                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
-                </label>
-                <label>
-                    Пароль
-                    <input
-                        type="password"
-                        value={password}
-                        required
-                        minLength={8}
-                        autoComplete="new-password"
-                        onChange={(e) => setPassword(e.target.value)}
-                    />
-                </label>
-                <label>
-                    Роль
-                    <select
-                        value={role}
-                        onChange={(e) => {
-                            const next = e.target.value;
-                            if (next === 'admin' || next === 'member') setRole(next);
-                        }}
-                    >
-                        <option value="member">{ROLE_TITLES.member}</option>
-                        <option value="admin">{ROLE_TITLES.admin}</option>
-                    </select>
-                </label>
-                <button type="submit">Создать</button>
+                <TextField
+                    label="Электронная почта"
+                    type="email"
+                    value={email}
+                    required
+                    onChange={(e) => setEmail(e.target.value)}
+                />
+                <TextField label="Имя" value={name} onChange={(e) => setName(e.target.value)} />
+                <TextField
+                    label="Пароль"
+                    type="password"
+                    value={password}
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    onChange={(e) => setPassword(e.target.value)}
+                />
+                <Select
+                    label="Роль"
+                    value={role}
+                    options={ROLE_OPTIONS}
+                    onChange={(e) => {
+                        const next = e.target.value;
+                        if (next === 'admin' || next === 'member') setRole(next);
+                    }}
+                />
+                <Button type="submit" variant="primary">
+                    Создать
+                </Button>
             </form>
             <table className="users-tab__table">
                 <thead>
@@ -168,41 +168,48 @@ export function UsersTab() {
                                         )
                                     }
                                 >
-                                    <option value="member">{ROLE_TITLES.member}</option>
-                                    <option value="admin">{ROLE_TITLES.admin}</option>
+                                    {ROLE_OPTIONS.map((o) => (
+                                        <option key={o.value} value={o.value}>
+                                            {o.label}
+                                        </option>
+                                    ))}
                                 </select>
                             </td>
                             <td>{u.isActive ? 'Активен' : 'Отключён'}</td>
                             <td>
-                                <button
-                                    type="button"
-                                    aria-label={`${u.isActive ? 'Отключить' : 'Включить'} ${u.email}`}
-                                    onClick={() =>
-                                        void run(() =>
-                                            api.post(
-                                                `${BASE}/${u.id}/${u.isActive ? 'disable' : 'enable'}`,
-                                            ),
-                                        )
-                                    }
-                                >
-                                    {u.isActive ? 'Отключить' : 'Включить'}
-                                </button>
-                                {u.isActive && (
-                                    <button
-                                        type="button"
-                                        aria-label={`Отправить ссылку на смену пароля ${u.email}`}
+                                <div className="users-tab__actions">
+                                    <Button
+                                        variant={u.isActive ? 'danger' : 'secondary'}
+                                        aria-label={`${u.isActive ? 'Отключить' : 'Включить'} ${u.email}`}
                                         onClick={() =>
-                                            void run(async () => {
-                                                await api.post(`${BASE}/${u.id}/password-reset`);
-                                                setNotice(
-                                                    `Ссылка на смену пароля отправлена на ${u.email}.`,
-                                                );
-                                            })
+                                            void run(() =>
+                                                api.post(
+                                                    `${BASE}/${u.id}/${u.isActive ? 'disable' : 'enable'}`,
+                                                ),
+                                            )
                                         }
                                     >
-                                        Отправить ссылку на смену пароля
-                                    </button>
-                                )}
+                                        {u.isActive ? 'Отключить' : 'Включить'}
+                                    </Button>
+                                    {u.isActive && (
+                                        <Button
+                                            variant="ghost"
+                                            aria-label={`Отправить ссылку на смену пароля ${u.email}`}
+                                            onClick={() =>
+                                                void run(async () => {
+                                                    await api.post(
+                                                        `${BASE}/${u.id}/password-reset`,
+                                                    );
+                                                    setNotice(
+                                                        `Ссылка на смену пароля отправлена на ${u.email}.`,
+                                                    );
+                                                })
+                                            }
+                                        >
+                                            Отправить ссылку на смену пароля
+                                        </Button>
+                                    )}
+                                </div>
                             </td>
                         </tr>
                     ))}
