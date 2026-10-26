@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { Icon } from '@platform/icons/Icon';
 import { useSelection } from '@platform/selection/useSelection';
+import { Button, Dialog, IconButton } from '@platform/ui';
 
 import type { DataController, DataObject } from '@platform/data/DataController';
 import type { PropertyDefinition } from '@platform/types/types';
@@ -90,7 +91,22 @@ function ReferencePicker({ data, property, current, onPick, onCancel }: PickerPr
     const canConfirm = chosenObject !== undefined && allowed(chosenObject);
 
     return (
-        <div role="dialog" aria-modal="true" aria-label={`Выбор объекта: ${property.name}`}>
+        <Dialog
+            title={`Выбор объекта: ${property.name}`}
+            onClose={onCancel}
+            actions={
+                <>
+                    <Button onClick={onCancel}>Отмена</Button>
+                    <Button
+                        variant="primary"
+                        disabled={!canConfirm}
+                        onClick={() => chosen && onPick(chosen)}
+                    >
+                        Выбрать
+                    </Button>
+                </>
+            }
+        >
             <div role="tree" aria-label="Объекты">
                 {items.map(({ object, title, level, hasChildren }) => {
                     const isOpen = expanded.has(object.id);
@@ -127,13 +143,7 @@ function ReferencePicker({ data, property, current, onPick, onCancel }: PickerPr
                     );
                 })}
             </div>
-            <button type="button" disabled={!canConfirm} onClick={() => chosen && onPick(chosen)}>
-                Выбрать
-            </button>
-            <button type="button" onClick={onCancel}>
-                Отмена
-            </button>
-        </div>
+        </Dialog>
     );
 }
 
@@ -171,30 +181,24 @@ export function ReferenceEditor({ data, property, value, disabled, onCommit }: E
             >
                 {text}
             </span>
-            <button
-                type="button"
-                aria-label={`Выбрать: ${property.name}`}
+            <IconButton
+                icon="search"
+                label={`Выбрать: ${property.name}`}
                 disabled={disabled}
                 onClick={() => setPicking(true)}
-            >
-                …
-            </button>
-            <button
-                type="button"
-                aria-label={`Перейти: ${property.name}`}
+            />
+            <IconButton
+                icon="arrow-right"
+                label={`Перейти: ${property.name}`}
                 disabled={!target}
                 onClick={() => id && reveal(id)}
-            >
-                →
-            </button>
-            <button
-                type="button"
-                aria-label={`Очистить: ${property.name}`}
+            />
+            <IconButton
+                icon="x"
+                label={`Очистить: ${property.name}`}
                 disabled={disabled || !id}
                 onClick={() => void onCommit(null)}
-            >
-                ×
-            </button>
+            />
             {picking && (
                 <ReferencePicker
                     data={data}

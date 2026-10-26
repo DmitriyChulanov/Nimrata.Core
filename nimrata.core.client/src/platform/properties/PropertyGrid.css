@@ -4,8 +4,8 @@
 
 .property-grid h3 {
     margin: var(--space-4) 0 var(--space-1);
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -63,20 +63,12 @@
     opacity: 0.6;
 }
 
-.property-grid-reference [role='dialog'] {
-    flex-basis: 100%;
-    padding: var(--space-2);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-}
-
 .property-grid-reference [role='treeitem'] {
     cursor: pointer;
 }
 
 .property-grid-reference [role='treeitem'][aria-selected='true'] {
-    font-weight: 600;
+    font-weight: var(--weight-strong);
 }
 
 .property-grid-reference [role='treeitem'][aria-disabled='true'] {

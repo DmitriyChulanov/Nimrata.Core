@@ -3,6 +3,7 @@ import { useId, useRef, useState } from 'react';
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
 import { useData } from '@platform/data/useData';
 import { useSelection } from '@platform/selection/useSelection';
+import { Button } from '@platform/ui';
 
 import { ReferenceEditor } from './ReferenceEditor';
 import './PropertyGrid.css';
@@ -278,16 +279,15 @@ export function PropertyGrid() {
             {actions.length > 0 && (
                 <div role="toolbar" aria-label="Действия" className="property-grid-actions">
                     {actions.map((action) => (
-                        <button
+                        <Button
                             key={action.id}
-                            type="button"
                             onClick={() => {
                                 setError(null);
                                 void launcher.launch(object.id, action);
                             }}
                         >
                             {action.name}
-                        </button>
+                        </Button>
                     ))}
                 </div>
             )}
