@@ -6,6 +6,7 @@
 - Токены: шкала типографики, высота контролов, размеры иконок, переход, кольцо фокуса, `--border-control` (контраст границ полей не ниже 3:1); базовые стили на токенах, уважают `prefers-reduced-motion`.
 - Иконки: реестр на Lucide (`platform/icons/registry.ts`) и компонент `Icon` вместо рукописных `ChevronIcon`, `CloseIcon`, `LogoutIcon`; в манифесте Трекера эмодзи заменены именами из реестра; дерево, вкладки и выбор ссылки рисуют иконку типа через `Icon`, неизвестное имя даёт запасную иконку и предупреждение.
 - UI-кит `platform/ui/`: `Button`, `IconButton`, `TextField`, `TextArea`, `Select`, `Dialog`, `Menu`, `Badge` (экспорт через `@platform`) с тестами; токен `--overlay` для подложки диалога.
+- stylelint (`stylelint.config.js`, `npm run lint:css`, входит в `npm run lint`): запрет цветов, шрифтов, радиусов, теней и отступов-литералов вне `tokens.css`; не переведённые экраны временно перечислены в `LEGACY_FILES`.
 - Каркас клиента: области `platform/` и `modules/tracker/` с алиасами `@platform` и `@tracker`, ESLint-правило запрета импорта модулей из платформы.
 - API-клиент `createApiClient` (обёртка над `fetch`: базовый адрес `/api`, заголовки, `ApiError`) с тестами.
 - Прокси Vite: единый префикс `/api` вместо `/weatherforecast`.

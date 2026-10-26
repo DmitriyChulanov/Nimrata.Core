@@ -15,7 +15,7 @@ Nimrata — веб-платформа автоматизации (ASP.NET Core .
 - Сборка бэкенда: `dotnet build Nimrata.Core.slnx`
 - Тесты бэкенда: `dotnet test Nimrata.Core.slnx` (нужен Docker для Testcontainers; на старом Docker задать `DOCKER_API_VERSION`)
 - Публикация сервера вместе с клиентом: `dotnet publish Nimrata.Core.Server -c Release` (собирает клиент и кладёт в `wwwroot`)
-- Клиент, из `nimrata.core.client/`: `npm run dev`, `npm run build`, `npm run lint`, `npm test` (Vitest + Testing Library), `npm run format`
+- Клиент, из `nimrata.core.client/`: `npm run dev`, `npm run build`, `npm run lint` (ESLint и stylelint), `npm run lint:css` (только стили), `npm test` (Vitest + Testing Library), `npm run format`
 
 ## Порты
 - Бэкенд: https://localhost:7146, http://localhost:5134
@@ -32,7 +32,7 @@ Nimrata — веб-платформа автоматизации (ASP.NET Core .
 
 ## Проверка изменений
 - После правок запускать `dotnet test Nimrata.Core.slnx`, а для клиента `npm test` и `npm run lint`; новая логика покрывается тестами.
-- Для UI-правок: проверить обе темы, видимый фокус и контраст AA; после включения stylelint — запускать его вместе с `npm run lint`.
+- Для UI-правок: проверить обе темы, видимый фокус и контраст AA; `npm run lint` запускает stylelint, который запрещает цвета и литералы оформления вне `tokens.css` (временные исключения для ещё не переведённых файлов — `LEGACY_FILES` в `nimrata.core.client/stylelint.config.js`).
 - Стиль задаёт `.editorconfig` (C#) и `nimrata.core.client/.prettierrc.json` (клиент). Хук `.claude/hooks/format.mjs` сам форматирует изменённые `.cs`, `.ts`, `.tsx`, `.css`, `.json`.
 
 ## Навигация по коду
