@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-    AutomationTab,
+    CommandsTab,
     DataProvider,
     RevealBinding,
     SelectionProvider,
@@ -12,18 +12,29 @@ import {
     createRevealBridge,
 } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
+import { ExtensionsContext } from '@platform/extensionCatalog/ExtensionsContext';
 
 import manifest from './manifest.json';
 
 import { ensureTasksStart, registerTasks } from './tasksExtension';
 
-import type { TypeDefinition } from '@platform';
+import type { CommandDefinition, TypeDefinition } from '@platform';
 
 const types = manifest.types.map((t) => ({
     ...t,
     extension: manifest.extension,
     extensionVersion: manifest.version,
 })) as TypeDefinition[];
+
+const info = {
+    id: manifest.extension,
+    name: manifest.name,
+    description: manifest.description,
+    icon: manifest.icon,
+    defaultEnabled: true,
+    connected: true,
+    commands: manifest.commands as CommandDefinition[],
+};
 
 async function mount(withToday: boolean) {
     const data = createDataController({ api: createFakeApi(types, []) });
@@ -40,16 +51,27 @@ async function mount(withToday: boolean) {
     render(
         <DataProvider controller={data}>
             <SelectionProvider>
-                <RevealBinding bridge={bridge} />
-                <Tree />
-                <AutomationTab />
+                <ExtensionsContext.Provider
+                    value={{
+                        status: 'ready',
+                        error: null,
+                        extensions: [info],
+                        switchingId: null,
+                        setConnected: async () => ({ ok: true }),
+                        reload: async () => {},
+                    }}
+                >
+                    <RevealBinding bridge={bridge} />
+                    <Tree />
+                    <CommandsTab />
+                </ExtensionsContext.Provider>
             </SelectionProvider>
         </DataProvider>,
     );
 }
 
 /**
- * Механизм «Выделить текущий день» в интерфейсе
+ * Команда «Выделить текущий день» в интерфейсе
  */
 describe('Tracker: "Select today" interface', () => {
     afterEach(() => vi.useRealTimers());
@@ -60,13 +82,17 @@ describe('Tracker: "Select today" interface', () => {
     }
 
     /**
-     * Проверяет, что механизм виден во вкладке автоматизации и скрыт в основном дереве
+     * Проверяет, что команда видна на панели в блоке Трекера задач и не создаёт узлов в основном дереве
      */
-    it('selectTodayUi_mechanism_visibleInAutomationTabButNotInMainTree', async () => {
+    it('selectTodayUi_command_visibleInTasksBlockOfCommandsPanelButNotInMainTree', async () => {
         freezeToday();
         await mount(true);
 
-        expect(screen.getByRole('group', { name: 'Выделить текущий день' })).toBeInTheDocument();
+        expect(
+            within(screen.getByRole('group', { name: 'Трекер задач' })).getByRole('button', {
+                name: 'Выделить текущий день',
+            }),
+        ).toBeInTheDocument();
         expect(screen.queryByRole('treeitem', { name: /Выделить текущий день/ })).toBeNull();
     });
 
@@ -77,12 +103,7 @@ describe('Tracker: "Select today" interface', () => {
         freezeToday();
         await mount(true);
 
-        await userEvent.click(
-            within(screen.getByRole('group', { name: 'Выделить текущий день' })).getByRole(
-                'button',
-                { name: 'Выделить' },
-            ),
-        );
+        await userEvent.click(screen.getByRole('button', { name: 'Выделить текущий день' }));
 
         expect(await screen.findByRole('treeitem', { name: /10\.06\.2026/ })).toHaveAttribute(
             'aria-selected',
@@ -98,7 +119,7 @@ describe('Tracker: "Select today" interface', () => {
         await mount(false);
         const itemsBefore = screen.getAllByRole('treeitem').length;
 
-        await userEvent.click(screen.getByRole('button', { name: 'Выделить' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Выделить текущий день' }));
 
         expect(await screen.findByRole('alert')).toHaveTextContent(
             'На сегодня в «Текущих задачах» ещё нет дня.',

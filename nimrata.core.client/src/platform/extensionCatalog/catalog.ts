@@ -1,4 +1,5 @@
 import type { ApiClient } from '@platform/api/apiClient';
+import type { CommandDefinition } from '@platform/types/types';
 
 /**
  * Расширение в каталоге сервера вместе с состоянием подключения вошедшего пользователя
@@ -16,6 +17,8 @@ export interface ExtensionInfo {
     defaultEnabled: boolean;
     /** Действующее состояние подключения пользователя */
     connected: boolean;
+    /** Команды расширения из манифеста (ADR 0004); пусто, если команд нет */
+    commands: CommandDefinition[];
 }
 
 /**
@@ -27,7 +30,17 @@ export interface ExtensionInfo {
 export async function fetchExtensionCatalog(api: ApiClient): Promise<ExtensionInfo[]> {
     const items = await api.get<ExtensionInfo[]>('extensions');
     if (!Array.isArray(items)) throw new Error('Сервер вернул неверный каталог расширений.');
-    return items;
+    return items.map(withCommands);
+}
+
+/**
+ * Приводит элемент каталога к виду с обязательным списком команд
+ *
+ * @param item - элемент ответа сервера
+ * @returns элемент, у которого `commands` всегда массив
+ */
+function withCommands(item: ExtensionInfo): ExtensionInfo {
+    return { ...item, commands: Array.isArray(item.commands) ? item.commands : [] };
 }
 
 /**
@@ -43,7 +56,7 @@ export function putExtensionConnection(
     id: string,
     connected: boolean,
 ): Promise<ExtensionInfo> {
-    return api.put<ExtensionInfo>(`extensions/${encodeURIComponent(id)}/connection`, {
-        connected,
-    });
+    return api
+        .put<ExtensionInfo>(`extensions/${encodeURIComponent(id)}/connection`, { connected })
+        .then(withCommands);
 }

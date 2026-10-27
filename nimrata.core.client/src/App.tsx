@@ -22,7 +22,7 @@ import {
     createRevealBridge,
     extensionRegistry,
     menuRegistry,
-    registerAutomation,
+    registerCommands,
     registerExtensionsEditor,
     registerJournal,
     registerTheme,
@@ -39,7 +39,7 @@ import '@/extensions';
 
 import './App.css';
 
-registerAutomation(tabRegistry, menuRegistry);
+registerCommands(tabRegistry, menuRegistry);
 registerJournal(tabRegistry, menuRegistry);
 registerExtensionsEditor(tabRegistry, menuRegistry);
 registerUsersAdmin(tabRegistry, menuRegistry);

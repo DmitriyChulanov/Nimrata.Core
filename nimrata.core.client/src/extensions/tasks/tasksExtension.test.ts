@@ -32,9 +32,9 @@ function byType(data: DataController, type: string) {
  */
 describe('Tasks: start structure', () => {
     /**
-     * Проверяет, что без корней создаются задачи с двумя подгруппами и механизм одним набором, без заметок
+     * Проверяет, что без корней создаются задачи с двумя подгруппами одним набором, без заметок
      */
-    it('startStructure_noRoots_createsTasksWithTwoSubgroupsAndMechanismInOneChangeset', async () => {
+    it('startStructure_noRoots_createsTasksWithTwoSubgroupsInOneChangeset', async () => {
         const { api, data } = await start();
 
         const result = await ensureTasksStart(data);
@@ -46,7 +46,7 @@ describe('Tasks: start structure', () => {
                 .getChildren(null)
                 .map((o) => o.type)
                 .sort(),
-        ).toEqual(['SelectTodayMechanism', 'TasksRoot']);
+        ).toEqual(['TasksRoot']);
         const tasks = byType(data, 'TasksRoot');
         expect(data.getChildren(tasks.id).map((o) => o.type)).toEqual([
             'CurrentTasksRoot',
@@ -72,7 +72,7 @@ describe('Tasks: start structure', () => {
 
         expect(again.ok && afterReload.ok).toBe(true);
         expect(api.changesets).toHaveLength(1);
-        expect(data.getChildren(null)).toHaveLength(2);
+        expect(data.getChildren(null)).toHaveLength(1);
     });
 
     /**
@@ -117,7 +117,6 @@ describe('Tasks: start structure under race', () => {
             { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
             { id: 'c', type: 'CurrentTasksRoot', parent: 't', order: 0, properties: {} },
             { id: 'x', type: 'CompletedTasksRoot', parent: 't', order: 1, properties: {} },
-            { id: 's', type: 'SelectTodayMechanism', parent: null, order: 1, properties: {} },
         ];
 
         const result = await ensureTasksStart(data);
@@ -129,7 +128,7 @@ describe('Tasks: start structure under race', () => {
                 .getChildren(null)
                 .map((o) => o.type)
                 .sort(),
-        ).toEqual(['SelectTodayMechanism', 'TasksRoot']);
+        ).toEqual(['TasksRoot']);
     });
 
     /**
@@ -143,7 +142,7 @@ describe('Tasks: start structure under race', () => {
 
         expect(result.ok).toBe(true);
         expect(api.changesets).toHaveLength(1);
-        expect(data.getChildren(null)).toHaveLength(2);
+        expect(data.getChildren(null)).toHaveLength(1);
     });
 });
 
@@ -164,11 +163,11 @@ describe('Tasks: user isolation', () => {
         await ensureTasksStart(first.data);
         await ensureTasksStart(second.data);
 
-        // Первому недостаёт только механизма; «Задачи» у него уже есть и не дублируются
+        // У первого «Задачи» уже есть и не дублируются
         expect(first.data.getChildren(null).filter((o) => o.type === 'TasksRoot')).toHaveLength(1);
         expect(first.data.getObject('r1')).toBeDefined();
         expect(second.data.getObject('r1')).toBeUndefined();
-        expect(second.data.getChildren(null)).toHaveLength(2);
+        expect(second.data.getChildren(null)).toHaveLength(1);
     });
 });
 

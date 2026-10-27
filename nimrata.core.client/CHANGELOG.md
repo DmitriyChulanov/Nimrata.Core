@@ -2,6 +2,14 @@
 
 ## Не выпущено
 
+- Команды (ADR 0004, тикет 01): панель «Команды» заменила вкладку «Автоматизация» (`platform/commands/`: `CommandsTab`, `registerCommands`; вкладка `commands`, пункт «Вид → Команды»). Блок на каждое подключённое расширение (значок и название из каталога), команды-шаблоны (`template`) и команды без обработчика или с невыполненным `available` не показываются, расширения без команд скрыты, пустое состояние «Нет доступных команд», ошибка запуска — вверху панели. Параметры команды собирает тот же диалог, что у действий: `useActionLauncher().launchCommand(command, savedParams?)`.
+- API команд: `data.registerCommand(id, handler, { available })` (отписка возвращается), `data.isCommandAvailable(id)`, `data.runCommand(command, params?)` в `DataController`; обработчик получает `{ params, tx }` (`CommandContext`), весь запуск — один набор изменений, обязательные параметры проверяются по описанию. Тип `CommandDefinition` (`@platform`), `ExtensionInfo.commands` из `GET /api/extensions`.
+- Платформенный скрытый тип «Пользовательская команда» (`CUSTOM_COMMAND` = `CustomCommand`: `name`, `extension`, `command`, `params` JSON-строкой): `createCustomCommand(tx, input)`, `customCommandsOf(data, extensionId)`, `readCustomParams(object)`. Панель показывает экземпляр в блоке своего расширения и запускает шаблон сохранёнными параметрами без диалога; при отключённом расширении или пропавшей команде-шаблоне экземпляр скрыт.
+- «Выделить текущий день» стал командой `selectToday` расширения «Трекер задач»; тип `SelectTodayMechanism`, его создание в `ensureTasksStart`, `needsSelectToday`, `SELECT_TODAY` удалены. Манифесты `tasks` и `notes` повышены до версии 14.
+
+### Удалено
+- Вкладка «Автоматизация» (`AutomationTab`, `registerAutomation`), место показа действия `automation` (`ActionPlacement`) и флаг типа `automation`. Записи быстрого доступа заметок (`QuickAccessEntry`) больше нигде не показываются до замены пользовательскими командами; тест `QuickAccessUi.test.tsx` удалён вместе с вкладкой.
+
 - Исправления код-ревью расширений: ошибка переключения подключения показывается только у карточки в Редакторе расширений (глобальный `role="alert"` `ExtensionsProvider` остаётся для ошибки каталога и запуска); JSDoc `ExtensionsProvider`, `ExtensionsEditor`, `NoExtensionsNotice`, `useExtensions`, `registerExtensionsEditor`, `notesExtension`, `ensureStart` и `App` приведён к правилам навыков.
 
 - Редактор расширений: вкладка «Расширения» (одна копия) и пункт «Вид → Расширения» (`registerExtensionsEditor`, `platform/extensionCatalog/`). Карточка расширения: иконка из реестра (неизвестное имя даёт запасную), название, описание, переключатель «Подключено» и пояснение «Данные скрываются и вернутся при повторном подключении»; подтверждения нет; во время переключения карточки заблокированы, отказ сервера показывается у карточки. Пока отключены все расширения, вместо дерева показывается подсказка открыть «Вид → Расширения» (`NoExtensionsNotice`).

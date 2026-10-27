@@ -50,6 +50,7 @@ describe('fakeApi: extension connections', () => {
                 description: '',
                 icon: 'puzzle',
                 defaultEnabled: true,
+                commands: [],
                 connected: false,
             },
         ]);

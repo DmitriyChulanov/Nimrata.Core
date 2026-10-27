@@ -1,10 +1,18 @@
 {
     "extension": "tasks",
-    "version": 13,
+    "version": 14,
     "name": "Трекер задач",
     "description": "Задачи по годам, месяцам и дням: категории, повторы, выбор текущего дня и уведомления.",
     "icon": "list-checks",
     "defaultEnabled": true,
+    "commands": [
+        {
+            "id": "selectToday",
+            "name": "Выделить текущий день",
+            "description": "Показывает в дереве сегодняшний день «Текущих задач».",
+            "icon": "crosshair"
+        }
+    ],
     "types": [
         {
             "id": "TasksRoot",
@@ -57,24 +65,6 @@
             "allowedChildren": ["Year"],
             "icon": "circle-check",
             "iconColor": "green"
-        },
-        {
-            "id": "SelectTodayMechanism",
-            "name": "Выделить текущий день",
-            "sealed": true,
-            "singleton": true,
-            "hiddenInTree": true,
-            "automation": true,
-            "allowedChildren": [],
-            "actions": [
-                {
-                    "id": "selectToday",
-                    "name": "Выделить",
-                    "placements": ["automation"]
-                }
-            ],
-            "icon": "crosshair",
-            "iconColor": "gray"
         },
         {
             "id": "Year",

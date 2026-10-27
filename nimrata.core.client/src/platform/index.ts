@@ -18,6 +18,9 @@ export type {
     ChangeFailure,
     ChangeResult,
     ChangeScope,
+    CommandContext,
+    CommandHandler,
+    CommandRegistrationOptions,
     CreateInput,
     CreateResult,
     DataController,
@@ -94,14 +97,22 @@ export { RevealBinding } from './extensionApi/RevealBinding';
 export { createRevealBridge } from './extensionApi/revealBridge';
 export type { RevealBridge } from './extensionApi/revealBridge';
 export { safeUrl } from './extensionApi/safeUrl';
-export { AutomationTab } from './automation/AutomationTab';
-export { registerAutomation } from './automation/registerAutomation';
+export { CommandsTab } from './commands/CommandsTab';
+export { registerCommands } from './commands/registerCommands';
+export {
+    CUSTOM_COMMAND,
+    createCustomCommand,
+    customCommandsOf,
+    readCustomParams,
+} from './commands/customCommand';
+export type { CustomCommandInput } from './commands/customCommand';
 export { registerJournal } from './journal/registerJournal';
 export { JournalView } from './journal/JournalView';
 export type {
     ActionDefinition,
     ActionPlacement,
     ColorRule,
+    CommandDefinition,
     EnumValue,
     PropertyDefinition,
     PropertyKind,

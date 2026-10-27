@@ -49,11 +49,10 @@ function entries(data: DataController) {
  */
 describe('Tracker: quick access', () => {
     /**
-     * Проверяет, что запись — механизм, скрытый в дереве, со ссылкой на цель
+     * Проверяет, что запись скрыта в дереве и ссылается на цель
      */
-    it('quickAccess_entryType_isMechanismHiddenInTreeWithTargetReference', () => {
+    it('quickAccess_entryType_isHiddenInTreeWithTargetReference', () => {
         const type = types.find((t) => t.id === ENTRY)!;
-        expect(type.automation).toBe(true);
         expect(type.hiddenInTree).toBe(true);
         expect(type.properties?.find((p) => p.id === 'target')?.kind).toBe('reference');
     });

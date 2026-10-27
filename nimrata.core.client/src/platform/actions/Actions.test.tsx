@@ -31,7 +31,6 @@ const types = [
             { id: 'finish', name: 'Завершить', placements: ['propertyGrid', 'contextMenu'] },
             { id: 'gridOnly', name: 'Только в таблице', placements: ['propertyGrid'] },
             { id: 'menuOnly', name: 'Только в меню', placements: ['contextMenu'] },
-            { id: 'auto', name: 'Автоматизация', placements: ['automation'] },
             {
                 id: 'noHandler',
                 name: 'Без обработчика',
@@ -88,7 +87,6 @@ async function setup() {
     });
     data.registerAction('Job', 'gridOnly', () => {});
     data.registerAction('Job', 'menuOnly', () => {});
-    data.registerAction('Job', 'auto', () => {});
     data.registerAction('Job', 'defer', (ctx) => {
         calls.push(ctx.params);
         ctx.tx.setProperty(ctx.object.id, 'status', 'deferred');
@@ -193,7 +191,6 @@ describe('Tree context menu actions', () => {
         expect(items).toContain('Только в меню');
         expect(items).toContain('Удалить');
         expect(items).not.toContain('Только в таблице');
-        expect(items).not.toContain('Автоматизация');
         expect(items).not.toContain('Без обработчика');
     });
 

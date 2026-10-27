@@ -1,6 +1,6 @@
 {
     "extension": "notes",
-    "version": 13,
+    "version": 14,
     "name": "Трекер заметок",
     "description": "Заметки и группы заметок, быстрый доступ к избранному.",
     "icon": "notebook",
@@ -101,7 +101,6 @@
             "name": "Быстрый доступ",
             "sealed": true,
             "hiddenInTree": true,
-            "automation": true,
             "allowedChildren": [],
             "properties": [
                 {

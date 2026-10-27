@@ -59,7 +59,7 @@ describe('built-in extensions', () => {
         expect(roots()).toEqual(['NotesRoot']);
 
         await tasks.ensureStart(data);
-        expect(roots()).toEqual(['NotesRoot', 'SelectTodayMechanism', 'TasksRoot']);
+        expect(roots()).toEqual(['NotesRoot', 'TasksRoot']);
     });
 
     /**
