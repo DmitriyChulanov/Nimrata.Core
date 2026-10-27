@@ -47,6 +47,11 @@ export const TASK = 'Task';
 export const SELECT_TODAY_COMMAND = 'selectToday';
 
 /**
+ * Идентификатор команды «Отчёт по завершённым задачам» в манифесте
+ */
+export const COMPLETED_REPORT_COMMAND = 'completedReport';
+
+/**
  * Значение статуса «Завершена» у задачи
  */
 export const COMPLETED = 'completed';

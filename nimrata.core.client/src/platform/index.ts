@@ -97,6 +97,7 @@ export { RevealBinding } from './extensionApi/RevealBinding';
 export { createRevealBridge } from './extensionApi/revealBridge';
 export type { RevealBridge } from './extensionApi/revealBridge';
 export { safeUrl } from './extensionApi/safeUrl';
+export { downloadBlob } from './download/downloadBlob';
 export { CommandsTab } from './commands/CommandsTab';
 export { registerCommands } from './commands/registerCommands';
 export {

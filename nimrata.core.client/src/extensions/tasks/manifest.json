@@ -1,6 +1,6 @@
 {
     "extension": "tasks",
-    "version": 14,
+    "version": 15,
     "name": "Трекер задач",
     "description": "Задачи по годам, месяцам и дням: категории, повторы, выбор текущего дня и уведомления.",
     "icon": "list-checks",
@@ -11,6 +11,16 @@
             "name": "Выделить текущий день",
             "description": "Показывает в дереве сегодняшний день «Текущих задач».",
             "icon": "crosshair"
+        },
+        {
+            "id": "completedReport",
+            "name": "Отчёт по завершённым задачам",
+            "description": "Формирует и скачивает .xlsx со сводкой завершённых задач за период.",
+            "icon": "file-spreadsheet",
+            "parameters": [
+                { "id": "start", "name": "Начало", "kind": "date", "required": true },
+                { "id": "end", "name": "Конец", "kind": "date", "required": true }
+            ]
         }
     ],
     "types": [
