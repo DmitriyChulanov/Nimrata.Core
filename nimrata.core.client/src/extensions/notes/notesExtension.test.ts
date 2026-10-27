@@ -366,19 +366,6 @@ describe('Notes: behavior', () => {
             expect(actionIds(note.id)).not.toContain('complete');
         });
 
-        /**
-         * Проверяет, что запись быстрого доступа заметки переживает завершение
-         */
-        it('complete_noteWithQuickAccess_keepsEntryTargetingNote', async () => {
-            await data.runAction(notesId, 'createNote', { title: 'Идея' });
-            const note = childByName(notesId, 'Идея')!;
-            await data.runAction(note.id, 'addToQuickAccess');
-
-            await data.runAction(note.id, 'complete');
-
-            const entry = data.getChildren(null).find((o) => o.type === 'QuickAccessEntry')!;
-            expect(entry.properties.target).toBe(note.id);
-        });
     });
 
     /**

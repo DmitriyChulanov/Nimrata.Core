@@ -1,10 +1,28 @@
 {
     "extension": "notes",
-    "version": 15,
+    "version": 16,
     "name": "Трекер заметок",
-    "description": "Заметки и группы заметок, быстрый доступ к избранному.",
+    "description": "Заметки и группы заметок, команды быстрого доступа.",
     "icon": "notebook",
     "defaultEnabled": true,
+    "commands": [
+        {
+            "id": "openInTree",
+            "name": "Открыть в дереве",
+            "description": "Показывает заметку или группу заметок в дереве.",
+            "icon": "crosshair",
+            "template": true,
+            "parameters": [
+                {
+                    "id": "target",
+                    "name": "Цель",
+                    "kind": "reference",
+                    "required": true,
+                    "targetTypes": ["Note", "NoteGroup"]
+                }
+            ]
+        }
+    ],
     "types": [
         {
             "id": "NotesRoot",
@@ -101,44 +119,18 @@
                     ]
                 },
                 {
-                    "id": "addToQuickAccess",
-                    "name": "Добавить",
+                    "id": "createQuickAccessCommand",
+                    "name": "Создать команду для быстрого доступа",
                     "placements": ["propertyGrid", "contextMenu"]
                 },
                 {
-                    "id": "removeFromQuickAccess",
-                    "name": "Убрать",
+                    "id": "removeQuickAccessCommand",
+                    "name": "Удалить команду для быстрого доступа",
                     "placements": ["propertyGrid", "contextMenu"]
                 }
             ],
             "icon": "folder",
             "iconColor": "purple"
-        },
-        {
-            "id": "QuickAccessEntry",
-            "name": "Быстрый доступ",
-            "sealed": true,
-            "hiddenInTree": true,
-            "allowedChildren": [],
-            "properties": [
-                {
-                    "id": "name",
-                    "name": "Название",
-                    "kind": "string",
-                    "category": "Основное",
-                    "readOnly": true
-                },
-                {
-                    "id": "target",
-                    "name": "Цель",
-                    "kind": "reference",
-                    "category": "Основное",
-                    "targetTypes": ["Note", "NoteGroup"],
-                    "revealTarget": true
-                }
-            ],
-            "icon": "star",
-            "iconColor": "yellow"
         },
         {
             "id": "Note",
@@ -205,13 +197,13 @@
                     "placements": ["propertyGrid", "contextMenu"]
                 },
                 {
-                    "id": "addToQuickAccess",
-                    "name": "Добавить",
+                    "id": "createQuickAccessCommand",
+                    "name": "Создать команду для быстрого доступа",
                     "placements": ["propertyGrid", "contextMenu"]
                 },
                 {
-                    "id": "removeFromQuickAccess",
-                    "name": "Убрать",
+                    "id": "removeQuickAccessCommand",
+                    "name": "Удалить команду для быстрого доступа",
                     "placements": ["propertyGrid", "contextMenu"]
                 }
             ],

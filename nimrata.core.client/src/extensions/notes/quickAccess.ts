@@ -1,30 +1,44 @@
-import { cancelIfFailed, orThrow } from '@platform';
+import {
+    CUSTOM_COMMAND,
+    cancelIfFailed,
+    createCustomCommand,
+    customCommandsOf,
+    orThrow,
+    readCustomParams,
+} from '@platform';
 
-import { NOTE, NOTE_GROUP, QUICK_ACCESS_ENTRY } from './constants';
+import { NOTE, NOTE_GROUP, OPEN_IN_TREE_COMMAND } from './constants';
 
 import type { ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
 /**
- * Типы объектов, на которые можно ссылаться из быстрого доступа
+ * Идентификатор расширения в манифесте (владелец пользовательских команд)
+ */
+const EXTENSION_ID = 'notes';
+
+/**
+ * Типы объектов, на которые можно создать команду быстрого доступа
  */
 const TARGET_TYPES = [NOTE, NOTE_GROUP];
 
 /**
- * Все записи быстрого доступа (лежат среди корневых объектов)
+ * Команды быстрого доступа расширения («Открыть в дереве»)
  */
-export function quickAccessEntries(data: DataController): DataObject[] {
-    return data.getChildren(null).filter((o) => o.type === QUICK_ACCESS_ENTRY);
+function quickAccessCommands(data: DataController): DataObject[] {
+    return customCommandsOf(data, EXTENSION_ID).filter(
+        (o) => o.properties.command === OPEN_IN_TREE_COMMAND,
+    );
 }
 
 /**
- * Записи, ссылающиеся на объект `targetId`
+ * Команды, ссылающиеся на объект `targetId`
  */
-function entriesOf(data: DataController, targetId: string): DataObject[] {
-    return quickAccessEntries(data).filter((e) => e.properties.target === targetId);
+function commandsOf(data: DataController, targetId: string): DataObject[] {
+    return quickAccessCommands(data).filter((o) => readCustomParams(o).target === targetId);
 }
 
 /**
- * Название цели для записи: вычисляемое имя, а при его отсутствии — название
+ * Название цели для команды: вычисляемое имя, а при его отсутствии — название
  */
 function targetName(target: DataObject): string {
     for (const key of ['name', 'title']) {
@@ -48,74 +62,101 @@ function subtreeIds(data: DataController, id: string): Set<string> {
 }
 
 /**
- * Удаляет записи быстрого доступа
+ * Удаляет команды быстрого доступа
  *
- * @param entries - записи для удаления
+ * @param commands - команды для удаления
  * @param tx - область изменений, в которой выполняется удаление
- * @returns отмена изменений, если удалить запись не удалось; иначе ничего
+ * @returns отмена изменений, если удалить команду не удалось; иначе ничего
  */
-function removeEntries(entries: DataObject[], tx: ChangeScope): HookResult {
-    for (const entry of entries) {
-        const failed = cancelIfFailed(tx.remove(entry.id));
+function removeCommands(commands: DataObject[], tx: ChangeScope): HookResult {
+    for (const command of commands) {
+        const failed = cancelIfFailed(tx.remove(command.id));
         if (failed) return failed;
     }
 }
 
 /**
- * Подключает быстрый доступ: действия «Добавить»/«Убрать» у заметки и группы заметок и хуки,
- * держащие записи в согласии с целями (название при переименовании, удаление вместе с целью).
- * Возвращает функцию отписки
+ * Подключает команду «Открыть в дереве»: показывает цель в дереве, если она ещё существует
+ *
+ * @param data - контроллер данных
+ * @param reveal - показ объекта в дереве
+ * @returns функция отписки
  */
-export function registerQuickAccess(data: DataController): () => void {
-    const disposers: (() => void)[] = [];
+function registerOpenInTree(
+    data: DataController,
+    reveal: ((id: string) => void) | undefined,
+): () => void {
+    return data.registerCommand(OPEN_IN_TREE_COMMAND, ({ params }) => {
+        const target = params.target;
+        if (typeof target !== 'string' || !data.getObject(target)) {
+            throw new Error('Объект быстрого доступа недоступен.');
+        }
+        reveal?.(target);
+    });
+}
+
+/**
+ * Подключает быстрый доступ: команду «Открыть в дереве», действия «Создать/Удалить команду для
+ * быстрого доступа» у заметки и группы заметок и хуки, держащие команды в согласии с целями
+ * (название при переименовании, удаление вместе с целью). Возвращает функцию отписки
+ *
+ * @param data - контроллер данных
+ * @param reveal - показ объекта в дереве
+ */
+export function registerQuickAccess(
+    data: DataController,
+    reveal?: (id: string) => void,
+): () => void {
+    const disposers: (() => void)[] = [registerOpenInTree(data, reveal)];
 
     for (const type of TARGET_TYPES) {
         disposers.push(
             data.registerAction(
                 type,
-                'addToQuickAccess',
+                'createQuickAccessCommand',
                 ({ object, tx }) => {
-                    // Повторное «Добавить» дубля не создаёт
-                    if (entriesOf(data, object.id).length > 0) return;
-                    orThrow(
-                        tx.create({
-                            type: QUICK_ACCESS_ENTRY,
-                            parent: null,
-                            properties: { name: targetName(object), target: object.id },
-                        }),
-                    );
+                    // Повторное создание дубля не даёт
+                    if (commandsOf(data, object.id).length > 0) return;
+                    createCustomCommand(tx, {
+                        name: targetName(object),
+                        extension: EXTENSION_ID,
+                        command: OPEN_IN_TREE_COMMAND,
+                        params: { target: object.id },
+                    });
                 },
-                { available: (object) => entriesOf(data, object.id).length === 0 },
+                { available: (object) => commandsOf(data, object.id).length === 0 },
             ),
             data.registerAction(
                 type,
-                'removeFromQuickAccess',
+                'removeQuickAccessCommand',
                 ({ object, tx }) => {
-                    for (const entry of entriesOf(data, object.id)) orThrow(tx.remove(entry.id));
+                    for (const command of commandsOf(data, object.id)) {
+                        orThrow(tx.remove(command.id));
+                    }
                 },
-                { available: (object) => entriesOf(data, object.id).length > 0 },
+                { available: (object) => commandsOf(data, object.id).length > 0 },
             ),
-            // Название записи следует за названием цели в том же наборе изменений
+            // Название команды следует за названием цели в том же наборе изменений
             data.registerHook(type, 'setProperty', 'after', (ctx) => {
                 if (ctx.property !== 'name') return;
                 const name = typeof ctx.newValue === 'string' ? ctx.newValue : '';
-                for (const entry of entriesOf(data, ctx.object.id)) {
-                    if (entry.properties.name === name) continue;
-                    const failed = cancelIfFailed(ctx.tx.setProperty(entry.id, 'name', name));
+                for (const command of commandsOf(data, ctx.object.id)) {
+                    if (command.properties.name === name) continue;
+                    const failed = cancelIfFailed(ctx.tx.setProperty(command.id, 'name', name));
                     if (failed) return failed;
                 }
             }),
         );
     }
 
-    // Удаление цели (в том числе группы с вложенными заметками) убирает записи всего поддерева
+    // Удаление цели (в том числе группы с вложенными заметками) убирает команды всего поддерева
     disposers.push(
         data.registerHook('*', 'remove', 'before', (ctx) => {
-            const entries = quickAccessEntries(data);
-            if (entries.length === 0 || ctx.object.type === QUICK_ACCESS_ENTRY) return;
+            const commands = quickAccessCommands(data);
+            if (commands.length === 0 || ctx.object.type === CUSTOM_COMMAND) return;
             const ids = subtreeIds(data, ctx.object.id);
-            return removeEntries(
-                entries.filter((e) => ids.has(e.properties.target as string)),
+            return removeCommands(
+                commands.filter((c) => ids.has(String(readCustomParams(c).target))),
                 ctx.tx,
             );
         }),
