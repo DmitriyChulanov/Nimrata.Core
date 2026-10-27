@@ -54,6 +54,17 @@ export function customCommandsOf(data: DataController, extensionId: string): Dat
 }
 
 /**
+ * Подпись пользовательской команды
+ *
+ * @param object - объект типа `CustomCommand`
+ * @returns название; пустая строка, если оно не задано
+ */
+export function readCustomName(object: DataObject): string {
+    const name = object.properties.name;
+    return typeof name === 'string' ? name : '';
+}
+
+/**
  * Сохранённые значения параметров пользовательской команды
  *
  * @param object - объект типа `CustomCommand`

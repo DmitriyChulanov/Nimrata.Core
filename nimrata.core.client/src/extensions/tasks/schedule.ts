@@ -1,6 +1,6 @@
-import { CREATE_SCHEDULE_COMMAND, CURRENT_TASKS_ROOT, DAY_TYPES } from './constants';
+import { CREATE_SCHEDULE_COMMAND, CURRENT_TASKS_ROOT } from './constants';
 import { addDays, parseIso, todayIso, toUtc } from './dates';
-import { ensureDay, findRoot } from './nodes';
+import { ensureDay, findRoot, forEachDay } from './nodes';
 import { repeatHorizon, topUpRepeats } from './repeats';
 
 import type { ChangeScope, DataController, DataObject } from '@platform';
@@ -38,17 +38,10 @@ function endOfYear(today: string): string {
  */
 function lastDayDate(data: DataController, root: DataObject): string | undefined {
     let last: string | undefined;
-    const walk = (parent: string) => {
-        for (const child of data.getChildren(parent)) {
-            if (!DAY_TYPES.includes(child.type)) {
-                walk(child.id);
-                continue;
-            }
-            const date = child.properties.date;
-            if (typeof date === 'string' && (last === undefined || date > last)) last = date;
-        }
-    };
-    walk(root.id);
+    forEachDay(data, root.id, (day) => {
+        const date = day.properties.date;
+        if (typeof date === 'string' && (last === undefined || date > last)) last = date;
+    });
     return last;
 }
 
@@ -89,7 +82,10 @@ export function createSchedule(
 }
 
 /**
- * Подключает команду «Создать расписание». Возвращает функцию отписки
+ * Подключает команду «Создать расписание»
+ *
+ * @param data - контроллер данных
+ * @returns функция отписки
  */
 export function registerCreateSchedule(data: DataController): () => void {
     return data.registerCommand(CREATE_SCHEDULE_COMMAND, ({ params, tx }) =>

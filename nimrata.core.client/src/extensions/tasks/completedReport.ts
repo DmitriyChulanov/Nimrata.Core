@@ -1,8 +1,8 @@
-import { downloadBlob } from '@platform';
+import { collatorBase, downloadBlob } from '@platform';
 
-import { COMPLETED_REPORT_COMMAND, COMPLETED_TASKS_ROOT, DAY_TYPES, TASK } from './constants';
+import { COMPLETED_REPORT_COMMAND, COMPLETED_TASKS_ROOT, TASK } from './constants';
 import { parseIso } from './dates';
-import { findRoot } from './nodes';
+import { findRoot, forEachDay } from './nodes';
 
 import type { DataController, DataObject } from '@platform';
 
@@ -38,6 +38,9 @@ export const TASKS_COLUMN_WIDTH = 100;
 
 /**
  * Дата `ГГГГ-ММ-ДД` в виде `ДД.ММ.ГГГГ`
+ *
+ * @param iso - дата `ГГГГ-ММ-ДД`
+ * @returns дата в виде `ДД.ММ.ГГГГ`
  */
 export function formatDate(iso: string): string {
     const [year, month, day] = iso.split('-');
@@ -46,6 +49,10 @@ export function formatDate(iso: string): string {
 
 /**
  * Заголовок отчёта за период
+ *
+ * @param start - начало периода `ГГГГ-ММ-ДД`
+ * @param end - конец периода `ГГГГ-ММ-ДД`
+ * @returns заголовок листа
  */
 export function reportTitle(start: string, end: string): string {
     return `Завершенные задачи за период ${formatDate(start)} – ${formatDate(end)}`;
@@ -60,11 +67,6 @@ function taskLabel(task: DataObject): string {
     const title = task.properties.title;
     return typeof title === 'string' ? title : '';
 }
-
-/**
- * Сравнивает названия по-русски без учёта регистра
- */
-const byName = (a: string, b: string) => a.localeCompare(b, 'ru', { sensitivity: 'base' });
 
 /**
  * Собирает завершённые задачи из дней `CompletedTasksRoot` в периоде (границы включительно)
@@ -83,23 +85,18 @@ export function collectCompleted(data: DataController, start: string, end: strin
         data
             .getChildren(parent)
             .flatMap((child) => (child.type === TASK ? [taskLabel(child)] : tasksIn(child.id)));
-    const walk = (parent: string) => {
-        for (const child of data.getChildren(parent)) {
-            if (!DAY_TYPES.includes(child.type)) {
-                walk(child.id);
-                continue;
-            }
-            const date = child.properties.date;
-            if (typeof date !== 'string' || date < start || date > end) continue;
-            const tasks = tasksIn(child.id);
+    if (root) {
+        forEachDay(data, root.id, (day) => {
+            const date = day.properties.date;
+            if (typeof date !== 'string' || date < start || date > end) return;
+            const tasks = tasksIn(day.id);
             if (tasks.length > 0) byDate.set(date, [...(byDate.get(date) ?? []), ...tasks]);
-        }
-    };
-    if (root) walk(root.id);
+        });
+    }
 
     return [...byDate.entries()]
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([date, tasks]) => ({ date, tasks: tasks.sort(byName) }));
+        .map(([date, tasks]) => ({ date, tasks: tasks.sort(collatorBase.compare) }));
 }
 
 /**
@@ -115,6 +112,11 @@ function readDate(params: Record<string, unknown>, key: 'start' | 'end', label: 
 
 /**
  * Данные листа отчёта: заголовок, шапка и строки «дата — задачи через перенос строки»
+ *
+ * @param start - начало периода `ГГГГ-ММ-ДД`
+ * @param end - конец периода `ГГГГ-ММ-ДД`
+ * @param rows - строки отчёта по дням
+ * @returns ячейки листа для `write-excel-file`
  */
 export function reportSheetData(start: string, end: string, rows: ReportRow[]) {
     return [
@@ -132,6 +134,11 @@ export function reportSheetData(start: string, end: string, rows: ReportRow[]) {
 
 /**
  * Формирует книгу `.xlsx` с отчётом; библиотека подгружается при первом запуске команды
+ *
+ * @param start - начало периода `ГГГГ-ММ-ДД`
+ * @param end - конец периода `ГГГГ-ММ-ДД`
+ * @param rows - строки отчёта по дням
+ * @returns файл книги
  */
 export async function buildReportFile(
     start: string,
