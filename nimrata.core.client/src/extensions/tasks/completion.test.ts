@@ -365,6 +365,202 @@ describe('Tracker: complete and postpone', () => {
     });
 
     /**
+     * Откладывание категории
+     */
+    describe('Postpone category', () => {
+        /**
+         * Проверяет, что все задачи категории переезжают в выбранный день с той же категорией, а старый день очищается
+         */
+        it('postpone_category_movesAllTasksToChosenDayKeepingCategory', async () => {
+            const { data } = await start();
+            await createTask(data, { title: 'А', category: 'Работа' });
+            await createTask(data, { title: 'Б', category: 'Работа' });
+            const category = task(data, 'А').parent!;
+            const oldDay = data.getObject(category)!.parent!;
+
+            const result = await run(data, data.getObject(category)!, 'postpone', {
+                date: '2026-04-10',
+            });
+
+            expect(result.ok).toBe(true);
+            for (const title of ['А', 'Б']) {
+                expect(path(data, task(data, title)).slice(1)).toEqual([
+                    'Текущие задачи',
+                    'апрель, 2026',
+                    '10.04.2026, пятница',
+                    'Работа',
+                    title,
+                ]);
+            }
+            expect(task(data, 'А').parent).toBe(task(data, 'Б').parent);
+            expect(data.getChildren(oldDay)).toHaveLength(0);
+        });
+
+        /**
+         * Проверяет, что вложенная категория переносится целиком вместе с цепочкой, а опустевшие удаляются
+         */
+        it('postpone_category_nestedCategoryMovesWholeAndEmptiedAreRemoved', async () => {
+            const { data } = await start();
+            await createTask(data, { title: 'Дело', category: 'Работа' });
+            await createTask(data, { title: 'Рядом', category: 'Работа' });
+            await moveIntoNewCategory(data, 'Дело', 'Проект');
+            const outer = task(data, 'Рядом').parent!;
+            const oldDay = data.getObject(outer)!.parent!;
+
+            await run(data, data.getObject(outer)!, 'postpone', { date: '2026-03-06' });
+
+            expect(path(data, task(data, 'Дело')).slice(-4)).toEqual([
+                '06.03.2026, пятница',
+                'Работа',
+                'Проект',
+                'Дело',
+            ]);
+            expect(path(data, task(data, 'Рядом')).slice(-3)).toEqual([
+                '06.03.2026, пятница',
+                'Работа',
+                'Рядом',
+            ]);
+            expect(data.getChildren(oldDay)).toHaveLength(0);
+        });
+
+        /**
+         * Проверяет, что откладывание вложенной категории сохраняет цепочку внешних категорий
+         */
+        it('postpone_innerCategory_keepsOuterChainAndKeepsOuterWithOtherTasks', async () => {
+            const { data } = await start();
+            await createTask(data, { title: 'Дело', category: 'Работа' });
+            await createTask(data, { title: 'Рядом', category: 'Работа' });
+            const inner = await moveIntoNewCategory(data, 'Дело', 'Проект');
+            const outer = task(data, 'Рядом').parent!;
+
+            await run(data, data.getObject(inner)!, 'postpone', { date: '2026-03-06' });
+
+            expect(path(data, task(data, 'Дело')).slice(-4)).toEqual([
+                '06.03.2026, пятница',
+                'Работа',
+                'Проект',
+                'Дело',
+            ]);
+            expect(task(data, 'Рядом').parent).toBe(outer);
+            expect(data.getObject(inner)).toBeUndefined();
+        });
+
+        /**
+         * Проверяет, что повторяющиеся задачи переносятся как обычные, а остальные повторы набора не трогаются
+         */
+        it('postpone_category_repeatingTaskMovesOthersOfSetStay', async () => {
+            const { data } = await start();
+            await createTask(data, { title: 'Повтор', date: '2026-03-04', category: 'Работа' });
+            await data.setProperty(task(data, 'Повтор').id, 'repeat', 'weekly');
+            const all = () => {
+                const found: DataObject[] = [];
+                const walk = (parent: string | null) =>
+                    data.getChildren(parent).forEach((o) => {
+                        if (o.type === 'Task' && o.properties.title === 'Повтор') found.push(o);
+                        walk(o.id);
+                    });
+                walk(null);
+                return found;
+            };
+            const dates = () =>
+                all()
+                    .map((t) => t.parent && path(data, t).slice(-3)[0])
+                    .sort();
+            const first = all().find((t) => path(data, t).slice(-3)[0] === '04.03.2026, среда')!;
+            const before = dates();
+            expect(before.length).toBeGreaterThan(1);
+
+            const result = await run(data, data.getObject(first.parent!)!, 'postpone', {
+                date: '2026-03-20',
+            });
+
+            expect(result.ok).toBe(true);
+            const after = dates();
+            expect(after).toHaveLength(before.length);
+            expect(after).toContain('20.03.2026, пятница');
+            expect(after).not.toContain('04.03.2026, среда');
+        });
+
+        /**
+         * Проверяет, что откладывание пустой категории ничего не меняет: категория остаётся на месте
+         */
+        it('postpone_emptyCategory_changesNothing', async () => {
+            const { api, data } = await start();
+            await createTask(data, { title: 'Дело', category: 'Работа' });
+            const day = data.getObject(task(data, 'Дело').parent!)!.parent!;
+            const created = await data.create({
+                type: 'Category',
+                parent: day,
+                properties: { name: 'Пусто' },
+            });
+            if (!created.ok) throw new Error(created.error);
+            const count = api.changesets.length;
+
+            const result = await run(data, data.getObject(created.id)!, 'postpone', {
+                date: '2026-03-20',
+            });
+
+            expect(result.ok).toBe(true);
+            expect(data.getObject(created.id)).toBeDefined();
+            expect(api.changesets.length).toBe(count);
+        });
+
+        /**
+         * Проверяет, что откладывание идёт одним набором, а отмена возвращает всё
+         */
+        it('postpone_category_runsInSingleChangesetAndUndoRestoresAll', async () => {
+            const { api, data } = await start();
+            await createTask(data, { title: 'А', category: 'Работа' });
+            await createTask(data, { title: 'Б', category: 'Работа' });
+            const before = [path(data, task(data, 'А')), path(data, task(data, 'Б'))];
+            const category = task(data, 'А').parent!;
+            const count = api.changesets.length;
+
+            await run(data, data.getObject(category)!, 'postpone', { date: '2026-05-01' });
+            expect(api.changesets.length - count).toBe(1);
+            await data.undo();
+
+            expect([path(data, task(data, 'А')), path(data, task(data, 'Б'))]).toEqual(before);
+        });
+
+        /**
+         * Проверяет, что действие есть в контекстном меню и таблице свойств, а недопустимая дата отклоняется
+         */
+        it('postpone_category_availableAndRejectsInvalidDate', async () => {
+            const { data } = await start();
+            await createTask(data, { title: 'Дело', category: 'Работа' });
+            const category = data.getObject(task(data, 'Дело').parent!)!;
+            const before = path(data, task(data, 'Дело'));
+
+            for (const placement of ['contextMenu', 'propertyGrid'] as const) {
+                expect(data.getActions(category.id, placement).map((a) => a.id)).toContain(
+                    'postpone',
+                );
+            }
+            const result = await run(data, category, 'postpone', { date: '2026-02-30' });
+
+            expect(result.ok).toBe(false);
+            expect(path(data, task(data, 'Дело'))).toEqual(before);
+        });
+
+        /**
+         * Проверяет, что завершённые задачи категории архива не переносятся в текущие
+         */
+        it('postpone_category_doesNotMoveCompletedTasks', async () => {
+            const { data } = await start();
+            await createTask(data, { title: 'Готово', category: 'Работа' });
+            await createTask(data, { title: 'Ждёт', category: 'Работа' });
+            await run(data, task(data, 'Готово'), 'complete');
+            const category = task(data, 'Ждёт').parent!;
+
+            await run(data, data.getObject(category)!, 'postpone', { date: '2026-03-20' });
+
+            expect(path(data, task(data, 'Готово'))[1]).toBe('Завершённые задачи');
+            expect(path(data, task(data, 'Ждёт'))[1]).toBe('Текущие задачи');
+        });
+    });
+
+    /**
      * Удаление задач
      */
     describe('Task deletion', () => {
