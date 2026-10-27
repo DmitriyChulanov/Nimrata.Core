@@ -31,10 +31,17 @@ function quickAccessCommands(data: DataController): DataObject[] {
 }
 
 /**
+ * Идентификатор цели команды быстрого доступа
+ */
+function targetOf(command: DataObject): unknown {
+    return readCustomParams(command).target;
+}
+
+/**
  * Команды, ссылающиеся на объект `targetId`
  */
 function commandsOf(data: DataController, targetId: string): DataObject[] {
-    return quickAccessCommands(data).filter((o) => readCustomParams(o).target === targetId);
+    return quickAccessCommands(data).filter((o) => targetOf(o) === targetId);
 }
 
 /**
@@ -156,7 +163,7 @@ export function registerQuickAccess(
             if (commands.length === 0 || ctx.object.type === CUSTOM_COMMAND) return;
             const ids = subtreeIds(data, ctx.object.id);
             return removeCommands(
-                commands.filter((c) => ids.has(String(readCustomParams(c).target))),
+                commands.filter((c) => ids.has(String(targetOf(c)))),
                 ctx.tx,
             );
         }),

@@ -167,20 +167,18 @@ function repeatSets(data: DataController): Map<string, DataObject[]> {
  * @param tx - набор изменений
  * @param today - сегодняшняя дата `ГГГГ-ММ-ДД`: раньше повторы не создаются
  * @param horizon - последний день, до которого достраивается ряд (включительно)
- * @returns сколько наборов повторов обработано
  */
 export function topUpRepeats(
     data: DataController,
     tx: ChangeScope,
     today: string,
     horizon: string = repeatHorizon(today),
-): number {
+): void {
     const sets = repeatSets(data);
     for (const members of sets.values()) {
         const latest = datedMembers(data, members).at(-1);
         if (latest) fillSet(data, tx, members, repeatKind(latest.task), today, horizon);
     }
-    return sets.size;
 }
 
 /**
@@ -190,7 +188,7 @@ export function topUpRepeats(
 export async function ensureRepeats(data: DataController): Promise<ChangeResult> {
     if (repeatSets(data).size === 0) return { ok: true };
     const today = todayIso();
-    return data.perform((tx) => void topUpRepeats(data, tx, today), { hooks: false });
+    return data.perform((tx) => topUpRepeats(data, tx, today), { hooks: false });
 }
 
 /**

@@ -27,6 +27,24 @@ export function findChild(
 }
 
 /**
+ * Обходит дни (рабочие и выходные) внутри `parent` на любой глубине, не заходя внутрь дней
+ *
+ * @param data - контроллер данных
+ * @param parent - идентификатор объекта, внутри которого ищутся дни
+ * @param visit - вызывается для каждого найденного дня
+ */
+export function forEachDay(
+    data: DataController,
+    parent: string,
+    visit: (day: DataObject) => void,
+): void {
+    for (const child of data.getChildren(parent)) {
+        if (DAY_TYPES.includes(child.type)) visit(child);
+        else forEachDay(data, child.id, visit);
+    }
+}
+
+/**
  * Находит потомка или создаёт его; возвращает идентификатор
  */
 function ensureNode(

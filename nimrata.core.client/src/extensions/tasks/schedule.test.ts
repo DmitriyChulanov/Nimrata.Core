@@ -372,6 +372,27 @@ describe('Tracker: "Create schedule" command', () => {
         });
 
         /**
+         * Проверяет период в будущем: повторы достраиваются до его конца без пропусков, повторный запуск ничего не меняет
+         */
+        it('createSchedule_futurePeriod_fillsRepeatsToItsEndWithoutDuplicates', async () => {
+            const { api, data } = await start();
+            await withRepeat(data, 'weekly');
+
+            await run(data, { start: '2026-06-01', end: '2026-07-31' });
+
+            const list = tasks(data, 'Повтор');
+            expect(list.at(-1)).toBe('2026-07-29');
+            expect(list).toHaveLength(22);
+            expect(new Set(list).size).toBe(list.length);
+
+            const sent = api.changesets.length;
+            await run(data, { start: '2026-06-01', end: '2026-07-31' });
+
+            expect(api.changesets).toHaveLength(sent);
+            expect(tasks(data, 'Повтор')).toEqual(list);
+        });
+
+        /**
          * Проверяет, что дни создаются и повторы достраиваются одним набором изменений
          */
         it('createSchedule_daysAndRepeats_areOneChangeset', async () => {

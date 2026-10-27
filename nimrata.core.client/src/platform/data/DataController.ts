@@ -361,6 +361,21 @@ function isEmptyParam(value: unknown): boolean {
 }
 
 /**
+ * Проверяет обязательные параметры команды или действия
+ *
+ * @param definitions - описания параметров
+ * @param params - переданные значения
+ * @returns сообщение для первого незаполненного обязательного параметра; иначе `undefined`
+ */
+function missingRequired(
+    definitions: readonly { id: string; name: string; required?: boolean }[] | undefined,
+    params: Record<string, unknown>,
+): string | undefined {
+    const missing = (definitions ?? []).find((p) => p.required && isEmptyParam(params[p.id]));
+    return missing && `Параметр «${missing.name}» обязателен.`;
+}
+
+/**
  * Создаёт контроллер данных
  *
  * @param options - API-клиент и генератор идентификаторов
@@ -837,14 +852,8 @@ export function createDataController(options: DataControllerOptions): DataContro
                     error: `Команда "${command.id}" недоступна.`,
                 });
             }
-            for (const p of command.parameters ?? []) {
-                if (p.required && isEmptyParam(params[p.id])) {
-                    return Promise.resolve({
-                        ok: false,
-                        error: `Параметр «${p.name}» обязателен.`,
-                    });
-                }
-            }
+            const missing = missingRequired(command.parameters, params);
+            if (missing) return Promise.resolve({ ok: false, error: missing });
             return execute((tx) => entry.handler({ params, tx }), opts);
         },
         getActions(objectId, placement) {
@@ -866,14 +875,8 @@ export function createDataController(options: DataControllerOptions): DataContro
                     error: `У объекта нет действия "${actionId}" с обработчиком.`,
                 });
             }
-            for (const p of found.definition.parameters ?? []) {
-                if (p.required && isEmptyParam(params[p.id])) {
-                    return Promise.resolve({
-                        ok: false,
-                        error: `Параметр «${p.name}» обязателен.`,
-                    });
-                }
-            }
+            const missing = missingRequired(found.definition.parameters, params);
+            if (missing) return Promise.resolve({ ok: false, error: missing });
             return execute(
                 (tx) =>
                     found.handler({

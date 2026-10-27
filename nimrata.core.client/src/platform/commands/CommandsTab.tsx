@@ -1,10 +1,11 @@
+import { collator } from '@platform/collator';
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
 import { useData } from '@platform/data/useData';
 import { useExtensions } from '@platform/extensionCatalog/useExtensions';
 import { Icon } from '@platform/icons/Icon';
 import { Button } from '@platform/ui';
 
-import { customCommandsOf, readCustomParams } from './customCommand';
+import { customCommandsOf, readCustomName, readCustomParams } from './customCommand';
 import './Commands.css';
 
 import type { CommandDefinition } from '@platform/types/types';
@@ -56,17 +57,16 @@ export function CommandsTab() {
             for (const object of customCommandsOf(data, extension.id)) {
                 const command = extension.commands.find((c) => c.id === object.properties.command);
                 if (!command || !data.isCommandAvailable(command.id)) continue;
-                const name = object.properties.name;
                 custom.push({
                     key: `custom:${object.id}`,
-                    label: typeof name === 'string' && name !== '' ? name : command.name,
+                    label: readCustomName(object) || command.name,
                     description: command.description,
                     icon: command.icon,
                     command,
                     savedParams: readCustomParams(object),
                 });
             }
-            custom.sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+            custom.sort((a, b) => collator.compare(a.label, b.label));
             return { extension, items: [...own, ...custom] };
         })
         .filter((block) => block.items.length > 0);
