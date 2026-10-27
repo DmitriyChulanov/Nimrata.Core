@@ -46,6 +46,17 @@ async function expandNotes() {
     await userEvent.click(within(row).getByRole('button', { name: 'Развернуть' }));
 }
 
+async function expandActive() {
+    await expandNotes();
+    const row = screen.getByRole('treeitem', { name: /Активные/ });
+    await userEvent.click(within(row).getByRole('button', { name: 'Развернуть' }));
+}
+
+function activeRoot(data: Awaited<ReturnType<typeof setup>>['data']) {
+    const notes = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
+    return data.getChildren(notes.id).find((o) => o.type === 'ActiveNotesRoot')!;
+}
+
 function mount(data: Awaited<ReturnType<typeof setup>>['data'], selectId?: string) {
     render(
         <DataProvider controller={data}>
@@ -77,15 +88,29 @@ describe('Notes: interface', () => {
     });
 
     /**
+     * Проверяет, что в корне заметок видны «Активные» и «Завершённые»
+     */
+    it('notesUi_notesRoot_showsActiveAndCompletedRoots', async () => {
+        const { data } = await setup();
+        mount(data);
+
+        await expandNotes();
+
+        expect(screen.getByRole('treeitem', { name: /Активные/ })).toBeInTheDocument();
+        expect(screen.getByRole('treeitem', { name: /Завершённые/ })).toBeInTheDocument();
+    });
+
+    /**
      * Проверяет, что создание заметки из контекстного меню запрашивает название и добавляет заметку в дерево
      */
     it('notesUi_createNoteFromContextMenu_asksTitleAndAddsNoteToTree', async () => {
         const { data } = await setup();
         mount(data);
+        await expandNotes();
 
         await userEvent.pointer({
             keys: '[MouseRight]',
-            target: screen.getByRole('treeitem', { name: /Заметки/ }),
+            target: screen.getByRole('treeitem', { name: /Активные/ }),
         });
         await userEvent.click(
             within(screen.getByRole('menu', { name: 'Действия с объектом' })).getByRole(
@@ -97,7 +122,11 @@ describe('Notes: interface', () => {
         await userEvent.type(within(dialog).getByLabelText(/Название/), 'Идея');
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
 
-        await expandNotes();
+        await userEvent.click(
+            within(screen.getByRole('treeitem', { name: /Активные/ })).getByRole('button', {
+                name: 'Развернуть',
+            }),
+        );
         expect(await screen.findByRole('treeitem', { name: /Идея/ })).toBeInTheDocument();
     });
 
@@ -107,7 +136,7 @@ describe('Notes: interface', () => {
     it('notesUi_externalLinkButton_onlyOnNoteWithLinkAndOpensIt', async () => {
         const open = vi.spyOn(window, 'open').mockReturnValue(null);
         const { data } = await setup();
-        const notes = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
+        const notes = activeRoot(data);
         const withLink = await data.create({
             type: 'Note',
             parent: notes.id,
@@ -141,20 +170,52 @@ describe('Notes: interface', () => {
     });
 
     /**
-     * Проверяет, что дерево показывает заметку по вычисляемому имени со статусом
+     * Проверяет, что дерево показывает заметку из «Активных» по названию, без приставки статуса
      */
-    it('notesUi_tree_showsNoteByComputedNameWithStatus', async () => {
+    it('notesUi_tree_showsActiveNoteByTitle', async () => {
         const { data } = await setup();
-        const notes = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
         await data.create({
             type: 'Note',
-            parent: notes.id,
-            properties: { title: 'Идея', status: 'completed' },
+            parent: activeRoot(data).id,
+            properties: { title: 'Идея' },
         });
         mount(data);
 
-        await expandNotes();
+        await expandActive();
 
-        expect(screen.getByRole('treeitem', { name: '[Завершена] Идея' })).toBeInTheDocument();
+        expect(screen.getByRole('treeitem', { name: 'Идея' })).toBeInTheDocument();
+    });
+
+    /**
+     * Проверяет, что «Завершить» в контекстном меню заметки переносит её в «Завершённые»
+     */
+    it('notesUi_completeFromContextMenu_movesNoteToCompleted', async () => {
+        const { data } = await setup();
+        await data.create({
+            type: 'Note',
+            parent: activeRoot(data).id,
+            properties: { title: 'Идея' },
+        });
+        mount(data);
+        await expandActive();
+
+        await userEvent.pointer({
+            keys: '[MouseRight]',
+            target: screen.getByRole('treeitem', { name: 'Идея' }),
+        });
+        await userEvent.click(
+            within(screen.getByRole('menu', { name: 'Действия с объектом' })).getByRole(
+                'menuitem',
+                { name: 'Завершить' },
+            ),
+        );
+
+        expect(screen.queryByRole('treeitem', { name: 'Идея' })).not.toBeInTheDocument();
+        await userEvent.click(
+            within(screen.getByRole('treeitem', { name: /Завершённые/ })).getByRole('button', {
+                name: 'Развернуть',
+            }),
+        );
+        expect(await screen.findByRole('treeitem', { name: 'Идея' })).toBeInTheDocument();
     });
 });

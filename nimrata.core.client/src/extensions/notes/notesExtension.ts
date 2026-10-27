@@ -1,6 +1,12 @@
-import { cancelIfFailed, createNode, ensureCreated, registerOpenExternalLink } from '@platform';
+import {
+    cancelIfFailed,
+    createNode,
+    ensureCreated,
+    orThrow,
+    registerOpenExternalLink,
+} from '@platform';
 
-import { NOTE, NOTES_ROOT, NOTE_GROUP } from './constants';
+import { ACTIVE_NOTES_ROOT, COMPLETED_NOTES_ROOT, NOTE, NOTES_ROOT, NOTE_GROUP } from './constants';
 import { registerQuickAccess } from './quickAccess';
 
 import type {
@@ -13,34 +19,7 @@ import type {
 } from '@platform';
 
 /**
- * Подпись статуса заметки по описанию типа
- *
- * @param data - контроллер данных (описание типа даёт подписи статусов)
- * @param status - значение свойства статуса заметки
- * @returns подпись или `undefined`, если статус не задан или неизвестен
- */
-function statusLabel(data: DataController, status: unknown): string | undefined {
-    if (typeof status !== 'string' || status === '') return undefined;
-    const property = data.getType(NOTE)?.properties?.find((p) => p.id === 'status');
-    return property?.values?.find((v) => v.value === status)?.name;
-}
-
-/**
- * Имя заметки: «[Статус] Название», если статус задан, иначе название
- *
- * @param data - контроллер данных (описание типа даёт подписи статусов)
- * @param note - заметка
- * @returns вычисленное имя или `undefined`, если названия нет
- */
-export function noteName(data: DataController, note: DataObject): string | undefined {
-    const title = note.properties.title;
-    if (typeof title !== 'string' || title === '') return undefined;
-    const label = statusLabel(data, note.properties.status);
-    return label ? `[${label}] ${title}` : title;
-}
-
-/**
- * Приводит `name` заметки к вычисленному значению в том же наборе изменений
+ * Приводит `name` заметки к названию в том же наборе изменений
  *
  * @param data - контроллер данных
  * @param id - идентификатор заметки
@@ -50,9 +29,9 @@ export function noteName(data: DataController, note: DataObject): string | undef
 function syncNoteName(data: DataController, id: string, tx: ChangeScope): HookResult {
     const note = data.getObject(id);
     if (!note) return;
-    const name = noteName(data, note);
-    if (name === undefined || note.properties.name === name) return;
-    return cancelIfFailed(tx.setProperty(id, 'name', name));
+    const title = note.properties.title;
+    if (typeof title !== 'string' || title === '' || note.properties.name === title) return;
+    return cancelIfFailed(tx.setProperty(id, 'name', title));
 }
 
 /**
@@ -68,8 +47,72 @@ function requireText(value: unknown, message: string): string {
 }
 
 /**
- * Подключает логику Трекера заметок к контроллеру данных: вычисление имён, действия создания,
- * внешняя ссылка и быстрый доступ. Возвращает функцию отписки
+ * Цепочка предков объекта от ближайшего к корню
+ *
+ * @param data - контроллер данных
+ * @param object - объект
+ * @returns предки, начиная с непосредственного родителя
+ */
+function ancestorsOf(data: DataController, object: DataObject): DataObject[] {
+    const chain: DataObject[] = [];
+    for (let id = object.parent; id;) {
+        const parent = data.getObject(id);
+        if (!parent) break;
+        chain.push(parent);
+        id = parent.parent;
+    }
+    return chain;
+}
+
+/**
+ * Лежит ли объект в «Активных» заметках (или сам является их корнем)
+ *
+ * @param data - контроллер данных
+ * @param object - проверяемый объект
+ * @returns `true`, если среди самого объекта и его предков есть корень «Активные»
+ */
+function isInActive(data: DataController, object: DataObject): boolean {
+    return (
+        object.type === ACTIVE_NOTES_ROOT ||
+        ancestorsOf(data, object).some((o) => o.type === ACTIVE_NOTES_ROOT)
+    );
+}
+
+/**
+ * Переносит заметку из «Активных» в «Завершённые»: цепочка групп воспроизводится по названиям
+ * (существующая группа переиспользуется, недостающая создаётся), пустая группа в активных остаётся
+ *
+ * @param data - контроллер данных
+ * @param note - завершаемая заметка
+ * @param tx - область изменений
+ */
+function completeNote(data: DataController, note: DataObject, tx: ChangeScope): void {
+    const chain = ancestorsOf(data, note);
+    const activeIndex = chain.findIndex((o) => o.type === ACTIVE_NOTES_ROOT);
+    const active = chain[activeIndex];
+    const notesRoot = chain[activeIndex + 1];
+    const completed =
+        notesRoot && data.getChildren(notesRoot.id).find((o) => o.type === COMPLETED_NOTES_ROOT);
+    if (!active || !completed) throw new Error('Не найден раздел «Завершённые» заметки.');
+
+    const names = chain
+        .slice(0, activeIndex)
+        .reverse()
+        .map((group) => String(group.properties.name ?? ''));
+
+    let container = completed.id;
+    for (const name of names) {
+        const existing = data
+            .getChildren(container)
+            .find((o) => o.type === NOTE_GROUP && o.properties.name === name);
+        container = existing?.id ?? createNode(tx, container, NOTE_GROUP, { name });
+    }
+    orThrow(tx.move(note.id, { parent: container }));
+}
+
+/**
+ * Подключает логику Трекера заметок к контроллеру данных: вычисление имён, действия создания
+ * (только в «Активных»), «Завершить», внешняя ссылка и быстрый доступ. Возвращает функцию отписки
  *
  * @param data - контроллер данных
  * @returns функция отписки
@@ -82,42 +125,63 @@ export function registerNotes(data: DataController): () => void {
             syncNoteName(data, ctx.object.id, ctx.tx),
         ),
         data.registerHook(NOTE, 'setProperty', 'after', (ctx) =>
-            ctx.property === 'title' || ctx.property === 'status'
-                ? syncNoteName(data, ctx.object.id, ctx.tx)
-                : undefined,
+            ctx.property === 'title' ? syncNoteName(data, ctx.object.id, ctx.tx) : undefined,
         ),
     );
 
-    for (const parentType of [NOTES_ROOT, NOTE_GROUP]) {
+    const inActive = (object: DataObject) => isInActive(data, object);
+    for (const parentType of [ACTIVE_NOTES_ROOT, NOTE_GROUP]) {
         disposers.push(
-            data.registerAction(parentType, 'createNote', ({ object, params, tx }) => {
-                const title = requireText(params.title, 'Укажите название заметки.');
-                createNode(tx, object.id, NOTE, { title });
-            }),
-            data.registerAction(parentType, 'createNoteGroup', ({ object, params, tx }) => {
-                const name = requireText(params.name, 'Укажите название группы.');
-                createNode(tx, object.id, NOTE_GROUP, { name });
-            }),
+            data.registerAction(
+                parentType,
+                'createNote',
+                ({ object, params, tx }) => {
+                    const title = requireText(params.title, 'Укажите название заметки.');
+                    createNode(tx, object.id, NOTE, { title });
+                },
+                { available: inActive },
+            ),
+            data.registerAction(
+                parentType,
+                'createNoteGroup',
+                ({ object, params, tx }) => {
+                    const name = requireText(params.name, 'Укажите название группы.');
+                    createNode(tx, object.id, NOTE_GROUP, { name });
+                },
+                { available: inActive },
+            ),
         );
     }
 
-    disposers.push(registerOpenExternalLink(data, [NOTE]), registerQuickAccess(data));
+    disposers.push(
+        data.registerAction(NOTE, 'complete', ({ object, tx }) => completeNote(data, object, tx), {
+            available: inActive,
+        }),
+        registerOpenExternalLink(data, [NOTE]),
+        registerQuickAccess(data),
+    );
 
     return () => disposers.forEach((dispose) => dispose());
 }
 
 /**
- * Создаёт корень «Заметки», если его у пользователя ещё нет. Идемпотентна: затрагивает только
- * свой корень; когда он есть, ничего не отправляет
+ * Создаёт корень «Заметки» с «Активными» и «Завершёнными», если их у пользователя ещё нет.
+ * Идемпотентна: достраивает только недостающее; когда всё есть, ничего не отправляет
  *
  * @param data - контроллер данных с загруженными объектами
  * @returns результат; при отказе — причина
  */
 export function ensureNotesStart(data: DataController): Promise<ChangeResult> {
     return ensureCreated(data, async () => {
-        if (data.getChildren(null).some((o) => o.type === NOTES_ROOT)) return { ok: true };
+        const existing = data.getChildren(null).find((o) => o.type === NOTES_ROOT);
+        const children = existing ? data.getChildren(existing.id) : [];
+        const missing = [ACTIVE_NOTES_ROOT, COMPLETED_NOTES_ROOT].filter(
+            (type) => !children.some((o) => o.type === type),
+        );
+        if (existing && missing.length === 0) return { ok: true };
         return data.perform((tx) => {
-            createNode(tx, null, NOTES_ROOT);
+            const root = existing?.id ?? createNode(tx, null, NOTES_ROOT);
+            for (const type of missing) createNode(tx, root, type);
         });
     });
 }

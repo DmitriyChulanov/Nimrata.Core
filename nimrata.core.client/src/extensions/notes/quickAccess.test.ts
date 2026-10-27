@@ -22,7 +22,8 @@ async function start() {
     await data.load();
     registerNotes(data);
     await ensureNotesStart(data);
-    const notesRoot = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
+    const root = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
+    const notesRoot = data.getChildren(root.id).find((o) => o.type === 'ActiveNotesRoot')!;
     return { api, data, notesRoot };
 }
 
@@ -150,21 +151,6 @@ describe('Tracker: quick access', () => {
         await data.setProperty(note.id, 'title', 'Новое');
 
         expect(entries(data)[0].properties.name).toBe('Новое');
-    });
-
-    /**
-     * Проверяет, что смена статуса заметки обновляет название записи вместе с заметкой
-     */
-    it('quickAccess_noteStatusChanged_updatesEntryNameWithNote', async () => {
-        const { api, data, notesRoot } = await start();
-        const note = await addNote(data, notesRoot.id, 'Дело');
-        await data.runAction(note.id, 'addToQuickAccess');
-        const sent = api.changesets.length;
-
-        await data.setProperty(note.id, 'status', 'completed');
-
-        expect(entries(data)[0].properties.name).toBe('[Завершена] Дело');
-        expect(api.changesets).toHaveLength(sent + 1);
     });
 
     /**

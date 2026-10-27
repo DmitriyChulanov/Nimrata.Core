@@ -205,7 +205,7 @@ public sealed class ManifestValidatorTests
     /// <param name="singletons">Типы, которые должны быть singleton</param>
     [Theory]
     [InlineData("tasks", "TasksRoot,CurrentTasksRoot,CompletedTasksRoot")]
-    [InlineData("notes", "NotesRoot")]
+    [InlineData("notes", "NotesRoot,ActiveNotesRoot,CompletedNotesRoot")]
     public void ExtensionManifest_AutoCreatedTypesAreSingleton(string extension, string singletons)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(ManifestPath(extension)));
