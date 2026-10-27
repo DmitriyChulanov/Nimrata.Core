@@ -16,6 +16,7 @@ import {
     TASK,
     TASKS_ROOT,
 } from './constants';
+import { registerCompletedReport } from './completedReport';
 import { NotificationsBinding } from './NotificationsBinding';
 import { ensureRepeats, registerRepeats } from './repeats';
 import { registerSelectToday } from './selectToday';
@@ -58,6 +59,7 @@ export function registerTasks(data: DataController, options: ExtensionOptions = 
         registerOpenInternalLink(data, TASK, options.reveal),
         registerOpenExternalLink(data, [TASK]),
         registerSelectToday(data, options.reveal),
+        registerCompletedReport(data),
         registerCompletion(data),
         registerRepeats(data),
     );
