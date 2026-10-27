@@ -2,6 +2,9 @@
 
 ## Не выпущено
 
+### Документация (команды, ADR 0004)
+- `docs/configuration.md`: инструкция по пересозданию БД (сброс volume Postgres через `docker compose down -v`) и правило про команды вместо «Автоматизации».
+
 ### Добавлено (команды, ADR 0004)
 - `ManifestValidator`: необязательная секция `commands` расширения (`id` уникален, `name`, `icon` обязательны, `description` — строка, `template` — логическое, `parameters` по правилам параметров действий).
 - Миграция `0023_extension_commands_and_custom_command.sql`: колонка `extensions.commands` (jsonb, обновляется `ManifestLoader` из манифеста при каждом старте) и платформенный скрытый тип `CustomCommand` («Пользовательская команда»: `name`, `extension`, `command`, `params`; без расширения, виден и создаётся при любых подключениях).
