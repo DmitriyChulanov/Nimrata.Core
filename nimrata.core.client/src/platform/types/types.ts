@@ -5,9 +5,9 @@ export type PropertyKind =
     'string' | 'text' | 'integer' | 'boolean' | 'date' | 'time' | 'enum' | 'reference';
 
 /**
- * Где доступно действие: в автоматизации, в таблице свойств или в контекстном меню
+ * Где доступно действие: в таблице свойств или в контекстном меню
  */
-export type ActionPlacement = 'automation' | 'propertyGrid' | 'contextMenu';
+export type ActionPlacement = 'propertyGrid' | 'contextMenu';
 
 /**
  * Значение перечисления
@@ -43,10 +43,7 @@ export interface PropertyDefinition {
     values?: EnumValue[];
     /** Допустимые типы целевого объекта (для `kind: 'reference'`) */
     targetTypes?: string[];
-    /**
-     * Для `kind: 'reference'`: ссылка ведёт к цели механизма — во вкладке «Автоматизация» название
-     * механизма выделяет цель в основном дереве
-     */
+    /** Для `kind: 'reference'`: ссылка ведёт к цели, которую можно показать в основном дереве */
     revealTarget?: boolean;
 }
 
@@ -62,6 +59,25 @@ export interface ActionDefinition {
     placements?: ActionPlacement[];
     /** Параметры, которые запрашивает диалог запуска */
     parameters?: PropertyDefinition[];
+}
+
+/**
+ * Описание команды расширения из манифеста (`commands`): глобальная автоматизация, не привязанная
+ * к выбранному объекту. Код команды регистрируется на клиенте по `id` (`registerCommand`)
+ */
+export interface CommandDefinition {
+    /** Идентификатор команды (уникален в расширении; по соглашению — и среди всех расширений) */
+    id: string;
+    /** Название команды для показа */
+    name: string;
+    /** Пояснение: показывается подсказкой у кнопки команды */
+    description?: string;
+    /** Имя иконки из реестра иконок */
+    icon: string;
+    /** Параметры, которые запрашивает диалог запуска (формат параметров действий) */
+    parameters?: PropertyDefinition[];
+    /** Команда-шаблон: на панели не показывается, запускается только сохранённой пользовательской командой */
+    template?: boolean;
 }
 
 /**
@@ -100,7 +116,6 @@ export interface TypeDefinition {
     icon?: string;
     /** Цвет иконки узла: имя палитры (red, orange, yellow, green, blue, purple, gray); без него иконка наследует цвет текста */
     iconColor?: string;
-    automation?: boolean;
     allowedChildren?: string[];
     properties?: PropertyDefinition[];
     actions?: ActionDefinition[];

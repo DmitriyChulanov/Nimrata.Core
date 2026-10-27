@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Nimrata.Core.Server.Extensions;
 
 /// <summary>
@@ -9,5 +11,6 @@ namespace Nimrata.Core.Server.Extensions;
 /// <param name="Icon">Имя иконки в реестре иконок клиента</param>
 /// <param name="DefaultEnabled">Состояние, пока у пользователя нет записи подключения</param>
 /// <param name="Connected">Подключено ли расширение пользователю</param>
+/// <param name="Commands">Команды расширения из манифеста (JSON-массив; пустой, если команд нет)</param>
 public sealed record ExtensionInfo(
-    string Id, string Name, string Description, string Icon, bool DefaultEnabled, bool Connected);
+    string Id, string Name, string Description, string Icon, bool DefaultEnabled, bool Connected, JsonElement Commands);

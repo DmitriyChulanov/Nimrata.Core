@@ -14,7 +14,7 @@ public static class ManifestValidator
     /// <summary>
     /// Допустимые места действий в интерфейсе
     /// </summary>
-    public static readonly string[] Placements = ["automation", "propertyGrid", "contextMenu"];
+    public static readonly string[] Placements = ["propertyGrid", "contextMenu"];
 
     /// <summary>
     /// Проверяет корень манифеста
@@ -69,7 +69,41 @@ public static class ManifestValidator
         {
             ValidateType(type, $"$.types[{n++}]", typeIds, otherExtensionTypes, errors);
         }
+
+        ValidateCommands(root, typeIds, errors);
         return errors;
+    }
+
+    /// <summary>
+    /// Проверяет необязательную секцию <c>commands</c>: уникальные идентификаторы, название, значок,
+    /// описание, признак шаблона и параметры по правилам параметров действий
+    /// </summary>
+    private static void ValidateCommands(JsonElement root, HashSet<string> typeIds, List<string> errors)
+    {
+        if (!root.TryGetProperty("commands", out var commands)) return;
+        if (commands.ValueKind != JsonValueKind.Array)
+        {
+            errors.Add("$.commands: нужен массив");
+            return;
+        }
+
+        var taken = new HashSet<string>();
+        var n = 0;
+        foreach (var command in commands.EnumerateArray())
+        {
+            var path = $"$.commands[{n++}]";
+            if (command.ValueKind != JsonValueKind.Object) { errors.Add($"{path}: команда должна быть объектом"); continue; }
+            if (RequireString(command, "id", path, errors) is { } id && !taken.Add(id))
+                errors.Add($"{path}.id: команда \"{id}\" повторяется");
+            RequireString(command, "name", path, errors);
+            RequireString(command, "icon", path, errors);
+            if (command.TryGetProperty("description", out var description) && description.ValueKind != JsonValueKind.String)
+                errors.Add($"{path}.description: нужна строка");
+            if (command.TryGetProperty("template", out var template)
+                && template.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                errors.Add($"{path}.template: нужно логическое значение");
+            ValidateParameters(command, path, typeIds, errors);
+        }
     }
 
     private static void ValidateType(JsonElement type, string path, HashSet<string> typeIds,
@@ -82,11 +116,13 @@ public static class ManifestValidator
         }
         RequireString(type, "id", path, errors);
         RequireString(type, "name", path, errors);
-        foreach (var flag in new[] { "abstract", "sealed", "hiddenInTree", "automation", "singleton" })
+        foreach (var flag in new[] { "abstract", "sealed", "hiddenInTree", "singleton" })
         {
             if (type.TryGetProperty(flag, out var flagValue) && flagValue.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
                 errors.Add($"{path}.{flag}: нужно логическое значение");
         }
+        if (type.TryGetProperty("automation", out _))
+            errors.Add($"{path}.automation: флаг упразднён, автоматизация описывается командами (commands) расширения");
         if (IsTrue(type, "abstract") && IsTrue(type, "sealed"))
             errors.Add($"{path}: тип не может быть одновременно abstract и sealed");
 
@@ -225,16 +261,22 @@ public static class ManifestValidator
                         errors.Add($"{path}.placements: неизвестное место \"{placement}\" (допустимо: {string.Join(", ", Placements)})");
         }
 
-        if (action.TryGetProperty("parameters", out var parameters))
+        ValidateParameters(action, path, typeIds, errors);
+    }
+
+    /// <summary>
+    /// Проверяет необязательные <c>parameters</c> действия или команды как свойства
+    /// </summary>
+    private static void ValidateParameters(JsonElement owner, string path, HashSet<string> typeIds, List<string> errors)
+    {
+        if (!owner.TryGetProperty("parameters", out var parameters)) return;
+        if (parameters.ValueKind != JsonValueKind.Array) errors.Add($"{path}.parameters: нужен массив");
+        else
         {
-            if (parameters.ValueKind != JsonValueKind.Array) errors.Add($"{path}.parameters: нужен массив");
-            else
-            {
-                var takenParameters = new HashSet<string>();
-                var n = 0;
-                foreach (var parameter in parameters.EnumerateArray())
-                    ValidateProperty(parameter, $"{path}.parameters[{n++}]", takenParameters, typeIds, errors);
-            }
+            var takenParameters = new HashSet<string>();
+            var n = 0;
+            foreach (var parameter in parameters.EnumerateArray())
+                ValidateProperty(parameter, $"{path}.parameters[{n++}]", takenParameters, typeIds, errors);
         }
     }
 

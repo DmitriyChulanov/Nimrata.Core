@@ -310,7 +310,6 @@ describe('DataController: actions', () => {
                 { id: 'finish', name: 'Завершить', placements: ['propertyGrid', 'contextMenu'] },
                 { id: 'grid', name: 'В таблице', placements: ['propertyGrid'] },
                 { id: 'menu', name: 'В меню', placements: ['contextMenu'] },
-                { id: 'auto', name: 'Автомат', placements: ['automation'] },
                 { id: 'internal', name: 'Внутреннее' },
                 { id: 'nohandler', name: 'Без обработчика', placements: ['propertyGrid'] },
                 {
@@ -332,7 +331,7 @@ describe('DataController: actions', () => {
         const api = createFakeApi(actionTypes, actionObjects);
         const data = createDataController({ api });
         await data.load();
-        for (const id of ['finish', 'grid', 'menu', 'auto', 'internal', 'defer']) {
+        for (const id of ['finish', 'grid', 'menu', 'internal', 'defer']) {
             data.registerAction('Job', id, () => {});
         }
         return { api, data };
@@ -349,7 +348,6 @@ describe('DataController: actions', () => {
             'defer',
         ]);
         expect(data.getActions('j', 'contextMenu').map((a) => a.id)).toEqual(['finish', 'menu']);
-        expect(data.getActions('j', 'automation').map((a) => a.id)).toEqual(['auto']);
         expect(data.getActions('nope', 'propertyGrid')).toEqual([]);
     });
 
@@ -404,7 +402,7 @@ describe('DataController: actions', () => {
     it('runAction_internalActionWithoutPlacements_availableFromCodeButNotInLists', async () => {
         const { data } = await withActions();
         expect((await data.runAction('j', 'internal')).ok).toBe(true);
-        for (const place of ['propertyGrid', 'contextMenu', 'automation'] as const) {
+        for (const place of ['propertyGrid', 'contextMenu'] as const) {
             expect(data.getActions('j', place).map((a) => a.id)).not.toContain('internal');
         }
     });

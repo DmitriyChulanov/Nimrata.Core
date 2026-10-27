@@ -15,6 +15,8 @@ export interface FakeExtension {
     description?: string;
     icon?: string;
     defaultEnabled?: boolean;
+    /** Команды расширения из манифеста */
+    commands?: unknown[];
     /** Подключено ли расширение у пользователя */
     connected: boolean;
 }
@@ -164,6 +166,7 @@ export function createFakeApi(
             description: '',
             icon: 'puzzle',
             defaultEnabled: true,
+            commands: [],
             ...e,
         })),
         rejectNext(status, message, code) {

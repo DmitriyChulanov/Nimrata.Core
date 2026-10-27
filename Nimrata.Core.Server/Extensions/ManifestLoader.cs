@@ -114,15 +114,16 @@ public static class ManifestLoader
         var extensionId = root.GetProperty("extension").GetString()!;
         var version = root.GetProperty("version").GetInt32();
 
-        // Метаданные расширения берутся из манифеста всегда, независимо от версии типов
+        // Метаданные и команды расширения берутся из манифеста всегда, независимо от версии типов
         connection.Execute("""
-            insert into extensions (id, name, description, icon, default_enabled)
-            values (@extensionId, @name, @description, @icon, @defaultEnabled)
+            insert into extensions (id, name, description, icon, default_enabled, commands)
+            values (@extensionId, @name, @description, @icon, @defaultEnabled, @commands)
             on conflict (id) do update
                 set name = excluded.name,
                     description = excluded.description,
                     icon = excluded.icon,
-                    default_enabled = excluded.default_enabled
+                    default_enabled = excluded.default_enabled,
+                    commands = excluded.commands
             """,
             new
             {
@@ -131,6 +132,9 @@ public static class ManifestLoader
                 description = root.GetProperty("description").GetString(),
                 icon = root.GetProperty("icon").GetString(),
                 defaultEnabled = root.GetProperty("defaultEnabled").GetBoolean(),
+                commands = root.TryGetProperty("commands", out var commands)
+                    ? commands
+                    : JsonDocument.Parse("[]").RootElement,
             },
             transaction);
 
