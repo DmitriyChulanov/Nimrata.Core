@@ -38,6 +38,17 @@ docker compose up --build
 - Секреты разработки: в `appsettings.Development.json` лежат только dev-значения. Свои задаются через user-secrets, например `dotnet user-secrets set "Jwt:Key" "..." --project Nimrata.Core.Server`.
 - Сервер вместе с Vite: `dotnet run --project Nimrata.Core.Server --launch-profile https` (https://localhost:7146, Vite — https://localhost:61625).
 
+## Пересоздание базы данных
+
+Структура данных расширений менялась без миграции существующих данных (корни «Активные» и «Завершённые» у заметок, команды вместо «Автоматизации» и механизмов, ADR 0004), поэтому в среде разработки БД пересоздаётся. Сброс volume Postgres удаляет все данные; при старте сервер заново применит SQL-миграции и создаст администратора из настроек, стартовые структуры расширений создаются при первом входе:
+
+```
+docker compose down -v
+docker compose up -d postgres mailpit
+```
+
+Для запуска целиком — `docker compose down -v`, затем `docker compose up --build`. В развёртывании с настоящими данными volume (`nimrata-pgdata`) не удаляйте.
+
 ## Развёртывание
 
 - Образ собирается `Nimrata.Core.Server/Dockerfile` (контекст — корень репозитория): стадия node собирает клиент, стадия .NET публикует сервер и кладёт сборку клиента в `wwwroot`.
@@ -49,4 +60,5 @@ docker compose up --build
 - Бизнес-логика расширений выполняется на клиенте (`docs/adr/0001-client-side-business-logic.md`); сервер — общий слой хранения, проверок и журнала.
 - Все маршруты API живут под `/api` и проксируются в dev одним правилом `^/api` (`nimrata.core.client/vite.config.ts`).
 - `src/platform/` не импортирует из `src/extensions/*` (проверяет ESLint).
+- Команды расширения описываются в манифесте (`commands`), код регистрируется на клиенте и запускается с панели «Команды» (`docs/adr/0004-commands-in-manifest-with-client-code.md`); вкладки «Автоматизация» и скрытых «механизмов» больше нет.
 - Терминология — в `GLOSSARY.md`.
