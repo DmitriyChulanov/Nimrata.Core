@@ -42,9 +42,18 @@ export const CATEGORY = 'Category';
 export const TASK = 'Task';
 
 /**
- * Механизм «Выделить текущий день»: единственный объект, скрытый в дереве
+ * Идентификатор команды «Выделить текущий день» в манифесте
  */
-export const SELECT_TODAY = 'SelectTodayMechanism';
+export const SELECT_TODAY_COMMAND = 'selectToday';
+/**
+ * Идентификатор команды «Создать расписание» в манифесте
+ */
+export const CREATE_SCHEDULE_COMMAND = 'createSchedule';
+
+/**
+ * Идентификатор команды «Отчёт по завершённым задачам» в манифесте
+ */
+export const COMPLETED_REPORT_COMMAND = 'completedReport';
 
 /**
  * Значение статуса «Завершена» у задачи

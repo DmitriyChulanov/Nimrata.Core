@@ -179,7 +179,7 @@ function Field({
  */
 export interface ActionDialogProps {
     /** Запускаемое действие и описание его параметров */
-    action: ActionDefinition;
+    action: Pick<ActionDefinition, 'id' | 'name' | 'parameters'>;
     /** Запуск действия с собранными параметрами; возвращает причину отказа или `null` при успехе */
     onSubmit(params: Record<string, unknown>): Promise<string | null>;
     /** Закрывает диалог без запуска действия */

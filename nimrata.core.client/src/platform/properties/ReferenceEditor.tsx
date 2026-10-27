@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { collator } from '@platform/collator';
 import { Icon } from '@platform/icons/Icon';
 import { useSelection } from '@platform/selection/useSelection';
 import { TypeIcon } from '@platform/tree/TypeIcon';
@@ -7,11 +8,6 @@ import { Button, Dialog, IconButton } from '@platform/ui';
 
 import type { DataController, DataObject } from '@platform/data/DataController';
 import type { PropertyDefinition } from '@platform/types/types';
-
-/**
- * Сравнение названий по правилам русского языка
- */
-const collator = new Intl.Collator('ru');
 
 /**
  * Название объекта для показа: вычисляемое имя, иначе название типа

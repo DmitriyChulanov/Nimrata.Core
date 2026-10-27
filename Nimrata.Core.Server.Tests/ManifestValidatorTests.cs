@@ -204,8 +204,8 @@ public sealed class ManifestValidatorTests
     /// <param name="extension">Идентификатор расширения</param>
     /// <param name="singletons">Типы, которые должны быть singleton</param>
     [Theory]
-    [InlineData("tasks", "TasksRoot,CurrentTasksRoot,CompletedTasksRoot,SelectTodayMechanism")]
-    [InlineData("notes", "NotesRoot")]
+    [InlineData("tasks", "TasksRoot,CurrentTasksRoot,CompletedTasksRoot")]
+    [InlineData("notes", "NotesRoot,ActiveNotesRoot,CompletedNotesRoot")]
     public void ExtensionManifest_AutoCreatedTypesAreSingleton(string extension, string singletons)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(ManifestPath(extension)));
@@ -236,5 +236,97 @@ public sealed class ManifestValidatorTests
         Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("description").GetString()));
         Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("icon").GetString()));
         Assert.True(root.GetProperty("defaultEnabled").GetBoolean());
+    }
+
+    private const string Meta = """ "name": "Демо", "description": "Описание", "icon": "star", "defaultEnabled": true """;
+
+    /// <summary>
+    /// Формирует манифест с одним типом и заданной секцией команд
+    /// </summary>
+    /// <param name="commands">JSON массива команд</param>
+    /// <returns>JSON манифеста</returns>
+    private static string WithCommands(string commands) =>
+        $$"""{ "extension": "demo", "version": 1, {{Meta}}, "types": [ { "id": "A", "name": "A" } ], "commands": {{commands}} }""";
+
+    /// <summary>
+    /// Проверяет, что корректные команды (с параметрами и шаблоном) принимаются
+    /// </summary>
+    [Fact]
+    public void Commands_Valid_AreAccepted()
+    {
+        var errors = Validate(WithCommands(
+            """
+            [
+              { "id": "a", "name": "Команда", "icon": "star", "description": "Описание" },
+              { "id": "b", "name": "С параметрами", "icon": "star", "template": true,
+                "parameters": [ { "id": "p", "name": "П", "kind": "reference", "targetTypes": ["A"], "required": true } ] }
+            ]
+            """));
+
+        Assert.Empty(errors);
+    }
+
+    /// <summary>
+    /// Проверяет, что манифест без секции команд остаётся валидным
+    /// </summary>
+    [Fact]
+    public void Commands_Absent_IsAccepted()
+    {
+        Assert.Empty(Validate(WithMetadata(Meta)));
+    }
+
+    /// <summary>
+    /// Проверяет, что неверные команды отклоняются с путём к полю
+    /// </summary>
+    /// <param name="commands">JSON команд</param>
+    /// <param name="expected">Ожидаемый фрагмент ошибки</param>
+    [Theory]
+    [InlineData("""{ }""", "$.commands: нужен массив")]
+    [InlineData("""[ 5 ]""", "$.commands[0]: команда должна быть объектом")]
+    [InlineData("""[ { "name": "Н", "icon": "star" } ]""", "$.commands[0].id:")]
+    [InlineData("""[ { "id": "a", "icon": "star" } ]""", "$.commands[0].name:")]
+    [InlineData("""[ { "id": "a", "name": "Н" } ]""", "$.commands[0].icon:")]
+    [InlineData("""[ { "id": "a", "name": "Н", "icon": "star" }, { "id": "a", "name": "Н2", "icon": "star" } ]""", "$.commands[1].id: команда \"a\" повторяется")]
+    [InlineData("""[ { "id": "a", "name": "Н", "icon": "star", "description": 1 } ]""", "$.commands[0].description:")]
+    [InlineData("""[ { "id": "a", "name": "Н", "icon": "star", "template": "да" } ]""", "$.commands[0].template: нужно логическое значение")]
+    [InlineData("""[ { "id": "a", "name": "Н", "icon": "star", "parameters": {} } ]""", "$.commands[0].parameters: нужен массив")]
+    [InlineData("""[ { "id": "a", "name": "Н", "icon": "star", "parameters": [ { "id": "p", "name": "П", "kind": "nope" } ] } ]""", "$.commands[0].parameters[0].kind:")]
+    [InlineData("""[ { "id": "a", "name": "Н", "icon": "star", "parameters": [ { "id": "p", "name": "П", "kind": "string" }, { "id": "p", "name": "П2", "kind": "string" } ] } ]""", "$.commands[0].parameters[1].id:")]
+    public void Commands_Invalid_AreRejected(string commands, string expected)
+    {
+        var errors = Validate(WithCommands(commands));
+
+        Assert.Contains(errors, error => error.Contains(expected));
+    }
+
+    /// <summary>
+    /// Проверяет, что упразднённые флаг типа и место показа «automation» отклоняются
+    /// </summary>
+    /// <param name="type">JSON типа</param>
+    /// <param name="expected">Фрагмент ошибки</param>
+    [Theory]
+    [InlineData("""{ "id": "A", "name": "A", "automation": true }""", "$.types[0].automation:")]
+    [InlineData("""{ "id": "A", "name": "A", "actions": [ { "id": "x", "name": "X", "placements": ["automation"] } ] }""", "неизвестное место \"automation\"")]
+    public void Automation_FlagAndPlacement_AreRejected(string type, string expected)
+    {
+        var errors = Validate(WithMetadata(Meta, type));
+
+        Assert.Contains(errors, error => error.Contains(expected));
+    }
+
+    /// <summary>
+    /// Проверяет, что манифест задач объявляет команду «Выделить текущий день» без механизма
+    /// </summary>
+    [Fact]
+    public void TasksManifest_DeclaresSelectTodayCommandWithoutMechanism()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(ManifestPath("tasks")));
+        var root = document.RootElement;
+
+        var command = root.GetProperty("commands").EnumerateArray()
+            .Single(c => c.GetProperty("id").GetString() == "selectToday");
+        Assert.Equal("Выделить текущий день", command.GetProperty("name").GetString());
+        Assert.DoesNotContain(root.GetProperty("types").EnumerateArray(),
+            type => type.GetProperty("id").GetString() == "SelectTodayMechanism");
     }
 }

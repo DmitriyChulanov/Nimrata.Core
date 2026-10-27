@@ -112,6 +112,7 @@ function fillSet(
     members: DataObject[],
     kind: string,
     today: string,
+    horizon: string = repeatHorizon(today),
 ): void {
     const dated = datedMembers(data, members);
     if (dated.length === 0) return;
@@ -136,7 +137,7 @@ function fillSet(
     const chain = categoryChain(data, template.task);
     const rootId = taskRootId(data, template.task, CURRENT_TASKS_ROOT);
 
-    for (const iso of seriesDates(kind, anchor, repeatHorizon(today))) {
+    for (const iso of seriesDates(kind, anchor, horizon)) {
         if (iso <= last || iso < today || taken.has(iso)) continue;
         const ymd = parseIso(iso)!;
         let container = ensureDay(data, tx, rootId, ymd);
@@ -147,28 +148,47 @@ function fillSet(
 }
 
 /**
- * Достраивает повторы всех наборов до горизонта (вызывается при каждом входе). Одним набором
- * изменений, без хуков; если достраивать нечего, на сервер ничего не уходит
+ * Наборы повторов по идентификатору набора; задачи без повтора и без набора не входят
  */
-export async function ensureRepeats(data: DataController): Promise<ChangeResult> {
+function repeatSets(data: DataController): Map<string, DataObject[]> {
     const sets = new Map<string, DataObject[]>();
     for (const task of allTasks(data)) {
         const id = repeatIdOf(task);
         if (!id || repeatKind(task) === NONE) continue;
         sets.set(id, [...(sets.get(id) ?? []), task]);
     }
-    if (sets.size === 0) return { ok: true };
+    return sets;
+}
 
+/**
+ * Достраивает повторы всех наборов до `horizon` внутри набора изменений `tx`
+ *
+ * @param data - контроллер данных
+ * @param tx - набор изменений
+ * @param today - сегодняшняя дата `ГГГГ-ММ-ДД`: раньше повторы не создаются
+ * @param horizon - последний день, до которого достраивается ряд (включительно)
+ */
+export function topUpRepeats(
+    data: DataController,
+    tx: ChangeScope,
+    today: string,
+    horizon: string = repeatHorizon(today),
+): void {
+    const sets = repeatSets(data);
+    for (const members of sets.values()) {
+        const latest = datedMembers(data, members).at(-1);
+        if (latest) fillSet(data, tx, members, repeatKind(latest.task), today, horizon);
+    }
+}
+
+/**
+ * Достраивает повторы всех наборов до горизонта (вызывается при каждом входе). Одним набором
+ * изменений, без хуков; если достраивать нечего, на сервер ничего не уходит
+ */
+export async function ensureRepeats(data: DataController): Promise<ChangeResult> {
+    if (repeatSets(data).size === 0) return { ok: true };
     const today = todayIso();
-    return data.perform(
-        (tx) => {
-            for (const members of sets.values()) {
-                const latest = datedMembers(data, members).at(-1);
-                if (latest) fillSet(data, tx, members, repeatKind(latest.task), today);
-            }
-        },
-        { hooks: false },
-    );
+    return data.perform((tx) => topUpRepeats(data, tx, today), { hooks: false });
 }
 
 /**

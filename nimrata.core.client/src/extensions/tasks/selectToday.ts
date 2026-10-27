@@ -1,4 +1,4 @@
-import { CURRENT_TASKS_ROOT, DAY_TYPES, SELECT_TODAY } from './constants';
+import { CURRENT_TASKS_ROOT, DAY_TYPES, SELECT_TODAY_COMMAND } from './constants';
 import { todayIso } from './dates';
 import { findRoot } from './nodes';
 
@@ -25,20 +25,13 @@ export function findToday(data: DataController): DataObject | undefined {
 }
 
 /**
- * Нет ли у пользователя механизма «Выделить текущий день» (его нужно создать)
- */
-export function needsSelectToday(data: DataController): boolean {
-    return !data.getChildren(null).some((o) => o.type === SELECT_TODAY);
-}
-
-/**
- * Подключает действие «Выделить»: находит сегодняшний день и показывает его в дереве
+ * Подключает команду «Выделить текущий день»: находит сегодняшний день и показывает его в дереве
  */
 export function registerSelectToday(
     data: DataController,
     reveal: ((id: string) => void) | undefined,
 ): () => void {
-    return data.registerAction(SELECT_TODAY, 'selectToday', () => {
+    return data.registerCommand(SELECT_TODAY_COMMAND, () => {
         const day = findToday(data);
         if (!day) throw new Error('На сегодня в «Текущих задачах» ещё нет дня.');
         reveal?.(day.id);

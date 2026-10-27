@@ -3,113 +3,117 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
 import {
-    AutomationTab,
+    CUSTOM_COMMAND,
+    CommandsTab,
     DataProvider,
-    PropertyGrid,
+    RevealBinding,
     SelectionProvider,
     Tree,
     createDataController,
+    createRevealBridge,
 } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
+import { ExtensionsContext } from '@platform/extensionCatalog/ExtensionsContext';
 
 import manifest from './manifest.json';
 import { ensureNotesStart, registerNotes } from './notesExtension';
 
-import type { DataController, TypeDefinition } from '@platform';
+import type { CommandDefinition, TypeDefinition } from '@platform';
 
-const types = manifest.types.map((t) => ({
-    ...t,
-    extension: manifest.extension,
-    extensionVersion: manifest.version,
-})) as TypeDefinition[];
+const types = [
+    {
+        id: CUSTOM_COMMAND,
+        name: 'Пользовательская команда',
+        hiddenInTree: true,
+        properties: [
+            { id: 'name', name: 'Название', kind: 'string' },
+            { id: 'extension', name: 'Расширение', kind: 'string' },
+            { id: 'command', name: 'Команда', kind: 'string' },
+            { id: 'params', name: 'Параметры', kind: 'text' },
+        ],
+    },
+    ...manifest.types.map((t) => ({
+        ...t,
+        extension: manifest.extension,
+        extensionVersion: manifest.version,
+    })),
+] as TypeDefinition[];
 
-async function setup() {
+const info = {
+    id: manifest.extension,
+    name: manifest.name,
+    description: manifest.description,
+    icon: manifest.icon,
+    defaultEnabled: true,
+    connected: true,
+    commands: manifest.commands as CommandDefinition[],
+};
+
+async function mount(titles: string[]) {
     const data = createDataController({ api: createFakeApi(types, []) });
     await data.load();
-    registerNotes(data);
+    const bridge = createRevealBridge();
+    registerNotes(data, { reveal: bridge.reveal });
     await ensureNotesStart(data);
-    const root = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
-    await data.runAction(root.id, 'createNoteGroup', { name: 'Работа' });
-    const group = data.getChildren(root.id)[0];
-    await data.runAction(group.id, 'createNote', { title: 'Отчёт' });
-    const note = data.getChildren(group.id)[0];
-    return { data, group, note };
-}
-
-function mount(data: DataController) {
+    const notes = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
+    const active = data.getChildren(notes.id).find((o) => o.type === 'ActiveNotesRoot')!;
+    for (const title of titles) {
+        await data.runAction(active.id, 'createNote', { title });
+        const note = data.getChildren(active.id).find((o) => o.properties.title === title)!;
+        await data.runAction(note.id, 'createQuickAccessCommand');
+    }
     render(
         <DataProvider controller={data}>
             <SelectionProvider>
-                <Tree />
-                <AutomationTab />
-                <PropertyGrid />
+                <ExtensionsContext.Provider
+                    value={{
+                        status: 'ready',
+                        error: null,
+                        extensions: [info],
+                        switchingId: null,
+                        setConnected: async () => ({ ok: true }),
+                        reload: async () => {},
+                    }}
+                >
+                    <RevealBinding bridge={bridge} />
+                    <Tree />
+                    <CommandsTab />
+                </ExtensionsContext.Provider>
             </SelectionProvider>
         </DataProvider>,
     );
 }
 
 /**
- * Быстрый доступ Трекера в интерфейсе
+ * Команды быстрого доступа на панели «Команды»
  */
-describe('Tracker: quick access interface', () => {
+describe('Notes: quick access commands panel', () => {
     /**
-     * Проверяет, что записи скрыты в основном дереве и сгруппированы по названию цели во вкладке автоматизации
+     * Проверяет, что команды стоят в блоке «Трекер заметок» по алфавиту, а шаблон не показан
      */
-    it('quickAccessUi_entries_hiddenInMainTreeAndGroupedByTargetNameInAutomationTab', async () => {
-        const { data, group, note } = await setup();
-        await data.runAction(group.id, 'addToQuickAccess');
-        await data.runAction(note.id, 'addToQuickAccess');
-        mount(data);
+    it('quickAccessUi_panel_listsCommandsInNotesBlockSortedByNameWithoutTemplate', async () => {
+        await mount(['Яблоко', 'Арбуз', 'Груша']);
 
-        expect(screen.getByRole('group', { name: 'Работа' })).toBeInTheDocument();
-        expect(screen.getByRole('group', { name: 'Отчёт' })).toBeInTheDocument();
-        expect(screen.queryByRole('treeitem', { name: /Быстрый доступ/ })).toBeNull();
+        const block = screen.getByRole('group', { name: 'Трекер заметок' });
+        expect(within(block).getAllByRole('button').map((b) => b.textContent)).toEqual([
+            'Арбуз',
+            'Груша',
+            'Яблоко',
+        ]);
+        expect(screen.queryByRole('button', { name: 'Открыть в дереве' })).toBeNull();
     });
 
     /**
-     * Проверяет, что щелчок по записи выделяет цель в основном дереве и раскрывает путь к ней
+     * Проверяет, что щелчок по команде выделяет цель в дереве и раскрывает родителей
      */
-    it('quickAccessUi_clickOnEntry_selectsTargetInMainTreeAndExpandsPath', async () => {
-        const { data, note } = await setup();
-        await data.runAction(note.id, 'addToQuickAccess');
-        mount(data);
-        expect(screen.queryByRole('treeitem', { name: 'Отчёт' })).toBeNull();
+    it('quickAccessUi_click_selectsTargetInTree', async () => {
+        await mount(['Идея']);
 
-        await userEvent.click(
-            within(screen.getByRole('group', { name: 'Отчёт' })).getByRole('button', {
-                name: 'Отчёт',
-            }),
-        );
+        await userEvent.click(screen.getByRole('button', { name: 'Идея' }));
 
-        expect(await screen.findByRole('treeitem', { name: 'Отчёт' })).toHaveAttribute(
+        expect(await screen.findByRole('treeitem', { name: 'Идея' })).toHaveAttribute(
             'aria-selected',
             'true',
         );
-        expect(screen.getByRole('treeitem', { name: /Работа/ })).toBeInTheDocument();
-    });
-
-    /**
-     * Проверяет, что действие в таблице свойств добавляет запись, а «Убрать» удаляет её
-     */
-    it('quickAccessUi_addFromPropertyGrid_createsEntryAndRemoveDeletesIt', async () => {
-        const { data } = await setup();
-        mount(data);
-        await userEvent.click(
-            within(screen.getByRole('treeitem', { name: /Заметки/ })).getByRole('button', {
-                name: 'Развернуть',
-            }),
-        );
-        await userEvent.click(
-            within(screen.getByRole('treeitem', { name: /Работа/ })).getByRole('button', {
-                name: 'Развернуть',
-            }),
-        );
-        await userEvent.click(await screen.findByRole('treeitem', { name: 'Отчёт' }));
-
-        await userEvent.click(screen.getByRole('button', { name: 'Добавить' }));
-        expect(await screen.findByRole('group', { name: 'Отчёт' })).toBeInTheDocument();
-
-        await userEvent.click(screen.getByRole('button', { name: 'Убрать' }));
-        expect(screen.queryByRole('group', { name: 'Отчёт' })).toBeNull();
     });
 });

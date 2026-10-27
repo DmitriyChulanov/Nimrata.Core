@@ -83,7 +83,26 @@ function isPending(task: DataObject): boolean {
 }
 
 /**
- * Действия задачи «Завершить» и «Отложить», очистка опустевших категорий при удалении задачи.
+ * Незавершённые задачи категории, включая вложенные категории
+ *
+ * @param data - контроллер данных
+ * @param categoryId - идентификатор категории
+ * @returns задачи в порядке обхода дерева
+ */
+function pendingTasksOf(data: DataController, categoryId: string): DataObject[] {
+    const tasks: DataObject[] = [];
+    for (const child of data.getChildren(categoryId)) {
+        if (child.type === TASK) {
+            if (isPending(child)) tasks.push(child);
+        } else if (child.type === CATEGORY) {
+            tasks.push(...pendingTasksOf(data, child.id));
+        }
+    }
+    return tasks;
+}
+
+/**
+ * Действия задачи «Завершить» и «Отложить», действие категории «Отложить», очистка опустевших категорий при удалении задачи.
  * Возвращает функцию отписки
  */
 export function registerCompletion(data: DataController): () => void {
@@ -112,6 +131,14 @@ export function registerCompletion(data: DataController): () => void {
             },
             { available: isPending },
         ),
+        data.registerAction(CATEGORY, 'postpone', ({ object, params, tx }) => {
+            const date = typeof params.date === 'string' ? params.date : '';
+            if (!parseIso(date)) throw new Error('Дата должна быть в формате ГГГГ-ММ-ДД.');
+            for (const task of pendingTasksOf(data, object.id)) {
+                if (date === taskDate(data, task)) continue;
+                relocate(data, tx, task, date, false);
+            }
+        }),
         data.registerHook(TASK, 'remove', 'after', ({ object, tx }) => {
             try {
                 pruneEmptyCategories(data, tx, object.parent);

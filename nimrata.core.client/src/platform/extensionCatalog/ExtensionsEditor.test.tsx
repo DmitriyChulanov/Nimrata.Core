@@ -22,6 +22,7 @@ const item = (id: string, name: string, connected: boolean, icon = 'check'): Ext
     icon,
     defaultEnabled: true,
     connected,
+    commands: [],
 });
 
 function value(extensions: ExtensionInfo[], extra: Partial<ExtensionsValue> = {}): ExtensionsValue {

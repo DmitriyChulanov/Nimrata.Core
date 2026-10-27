@@ -14,7 +14,8 @@ public sealed class ExtensionsService(NpgsqlDataSource dataSource)
     /// </summary>
     private const string CatalogQuery = """
         select e.id as Id, e.name as Name, e.description as Description, e.icon as Icon,
-               e.default_enabled as DefaultEnabled, is_extension_enabled(@userId, e.id) as Connected
+               e.default_enabled as DefaultEnabled, is_extension_enabled(@userId, e.id) as Connected,
+               e.commands as Commands
         from extensions e
         """;
 

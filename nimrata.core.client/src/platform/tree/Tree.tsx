@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
+import { collator } from '@platform/collator';
 import { useData } from '@platform/data/useData';
 import { Icon } from '@platform/icons/Icon';
 import { Button, Dialog } from '@platform/ui';
@@ -29,11 +30,6 @@ const OVERSCAN = 5;
  * Высота окна, пока она неизвестна (например, до первого измерения)
  */
 const DEFAULT_VIEWPORT = 400;
-/**
- * Сравнение названий по правилам русского языка
- */
-const collator = new Intl.Collator('ru');
-
 /**
  * Строка плоского списка дерева
  */

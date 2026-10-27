@@ -33,9 +33,9 @@ function byType(data: DataController, type: string) {
  */
 describe('Notes: start structure', () => {
     /**
-     * Проверяет, что без корней создаётся только корень заметок одним набором
+     * Проверяет, что без корней создаются корень заметок с «Активными» и «Завершёнными» одним набором
      */
-    it('startStructure_noRoots_createsOnlyNotesRootInOneChangeset', async () => {
+    it('startStructure_noRoots_createsNotesRootWithActiveAndCompletedInOneChangeset', async () => {
         const { api, data } = await start();
 
         const result = await ensureNotesStart(data);
@@ -43,7 +43,28 @@ describe('Notes: start structure', () => {
         expect(result.ok).toBe(true);
         expect(api.changesets).toHaveLength(1);
         expect(data.getChildren(null).map((o) => o.type)).toEqual(['NotesRoot']);
-        expect(data.getChildren(byType(data, 'NotesRoot').id)).toEqual([]);
+        expect(data.getChildren(byType(data, 'NotesRoot').id).map((o) => o.type)).toEqual([
+            'ActiveNotesRoot',
+            'CompletedNotesRoot',
+        ]);
+    });
+
+    /**
+     * Проверяет, что у существующего корня заметок недостающие «Активные» и «Завершённые» достраиваются
+     */
+    it('startStructure_notesRootWithoutChildren_createsMissingRoots', async () => {
+        const { api, data } = await start([
+            { id: 'n', type: 'NotesRoot', parent: null, order: 0, properties: {} },
+        ]);
+
+        const result = await ensureNotesStart(data);
+
+        expect(result.ok).toBe(true);
+        expect(api.changesets).toHaveLength(1);
+        expect(data.getChildren('n').map((o) => o.type)).toEqual([
+            'ActiveNotesRoot',
+            'CompletedNotesRoot',
+        ]);
     });
 
     /**
@@ -54,13 +75,15 @@ describe('Notes: start structure', () => {
         await ensureNotesStart(data);
 
         const again = await ensureNotesStart(data);
-        api.objects = [...data.getChildren(null)];
+        const notesRoot = byType(data, 'NotesRoot');
+        api.objects = [notesRoot, ...data.getChildren(notesRoot.id)];
         await data.load();
         const afterReload = await ensureNotesStart(data);
 
         expect(again.ok && afterReload.ok).toBe(true);
         expect(api.changesets).toHaveLength(1);
         expect(data.getChildren(null)).toHaveLength(1);
+        expect(data.getChildren(notesRoot.id)).toHaveLength(2);
     });
 
     /**
@@ -118,27 +141,66 @@ describe('Notes: behavior', () => {
     let api: FakeApi;
     let data: DataController;
     let notesId: string;
+    let completedId: string;
 
     beforeEach(async () => {
         ({ api, data } = await start());
         await ensureNotesStart(data);
-        notesId = byType(data, 'NotesRoot').id;
+        const root = byType(data, 'NotesRoot').id;
+        notesId = data.getChildren(root).find((o) => o.type === 'ActiveNotesRoot')!.id;
+        completedId = data.getChildren(root).find((o) => o.type === 'CompletedNotesRoot')!.id;
     });
 
     function childByName(parent: string, name: string) {
         return data.getChildren(parent).find((o) => o.properties.name === name);
     }
 
+    function actionIds(id: string) {
+        return data.getActions(id, 'contextMenu').map((a) => a.id);
+    }
+
     /**
-     * Проверяет, что действие создаёт заметку с введённым названием в корне
+     * Проверяет, что действие создаёт заметку с введённым названием в «Активных»
      */
-    it('createNote_action_createsNoteWithEnteredTitleUnderRoot', async () => {
+    it('createNote_action_createsNoteWithEnteredTitleUnderActive', async () => {
         const result = await data.runAction(notesId, 'createNote', { title: 'Идея' });
 
         expect(result.ok).toBe(true);
         const note = childByName(notesId, 'Идея')!;
         expect(note.type).toBe('Note');
         expect(note.properties.title).toBe('Идея');
+    });
+
+    /**
+     * Проверяет, что создание заметки и группы доступно в «Активных» и недоступно у корня заметок и «Завершённых»
+     */
+    it('createActions_availableOnlyInActive', () => {
+        const root = byType(data, 'NotesRoot').id;
+
+        expect(actionIds(root)).not.toContain('createNote');
+        expect(actionIds(completedId)).not.toContain('createNote');
+        expect(actionIds(completedId)).not.toContain('createNoteGroup');
+        expect(actionIds(notesId)).toEqual(
+            expect.arrayContaining(['createNote', 'createNoteGroup']),
+        );
+    });
+
+    /**
+     * Проверяет, что в группе из «Завершённых» создание недоступно, а в активной группе доступно
+     */
+    it('createActions_inGroup_availableOnlyInActiveBranch', async () => {
+        await data.runAction(notesId, 'createNoteGroup', { name: 'Работа' });
+        const active = childByName(notesId, 'Работа')!;
+        const archived = await data.create({
+            type: 'NoteGroup',
+            parent: completedId,
+            properties: { name: 'Работа' },
+        });
+        const archivedId = (archived as { id: string }).id;
+
+        expect(actionIds(active.id)).toContain('createNote');
+        expect(actionIds(archivedId)).not.toContain('createNote');
+        expect(actionIds(archivedId)).not.toContain('createNoteGroup');
     });
 
     /**
@@ -168,45 +230,16 @@ describe('Notes: behavior', () => {
     });
 
     /**
-     * Проверяет, что имя заметки без статуса равно названию
+     * Проверяет, что имя заметки равно названию и следует за его изменением
      */
-    it('noteName_withoutStatus_equalsTitle', async () => {
-        await data.runAction(notesId, 'createNote', { title: 'Идея' });
-
-        expect(data.getChildren(notesId)[0].properties.name).toBe('Идея');
-    });
-
-    /**
-     * Проверяет, что имя со статусом — «статус в скобках и название» и обновляется при смене статуса и названия
-     */
-    it('noteName_withStatus_isStatusInBracketsTitleAndUpdatesOnStatusAndTitleChange', async () => {
+    it('noteName_equalsTitleAndFollowsRename', async () => {
         await data.runAction(notesId, 'createNote', { title: 'Идея' });
         const id = data.getChildren(notesId)[0].id;
-
-        await data.setProperty(id, 'status', 'completed');
-        expect(data.getObject(id)?.properties.name).toBe('[Завершена] Идея');
+        expect(data.getObject(id)?.properties.name).toBe('Идея');
 
         await data.setProperty(id, 'title', 'Мысль');
-        expect(data.getObject(id)?.properties.name).toBe('[Завершена] Мысль');
 
-        await data.setProperty(id, 'status', null);
         expect(data.getObject(id)?.properties.name).toBe('Мысль');
-    });
-
-    /**
-     * Проверяет, что смена статуса и пересчёт имени идут одним набором, а отмена возвращает оба
-     */
-    it('noteStatus_changeAndNameRecompute_areOneChangesetAndUndoRevertsBoth', async () => {
-        await data.runAction(notesId, 'createNote', { title: 'Идея' });
-        const id = data.getChildren(notesId)[0].id;
-        const before = api.changesets.length;
-
-        await data.setProperty(id, 'status', 'completed');
-        expect(api.changesets).toHaveLength(before + 1);
-
-        await data.undo();
-        expect(data.getObject(id)?.properties.status).toBeUndefined();
-        expect(data.getObject(id)?.properties.name).toBe('Идея');
     });
 
     /**
@@ -216,23 +249,123 @@ describe('Notes: behavior', () => {
         const created = await data.create({
             type: 'Note',
             parent: notesId,
-            properties: { title: 'Из дерева', status: 'completed' },
+            properties: { title: 'Из дерева' },
         });
 
         expect(created.ok).toBe(true);
         const id = (created as { id: string }).id;
-        expect(data.getObject(id)?.properties.name).toBe('[Завершена] Из дерева');
+        expect(data.getObject(id)?.properties.name).toBe('Из дерева');
     });
 
     /**
-     * Проверяет правила цвета заметки: средний приоритет оранжевый, высокий красный, завершённая зелёная
+     * Проверяет, что статуса у заметки нет, а цвет задаёт только приоритет
      */
-    it('noteColorRules_mediumPriorityOrangeHighRedCompletedGreen', () => {
-        expect(data.getType('Note')?.colorRules).toEqual([
+    it('noteType_hasNoStatusAndColorRulesOnlyByPriority', () => {
+        const note = data.getType('Note');
+
+        expect(note?.properties?.some((p) => p.id === 'status')).toBe(false);
+        expect(note?.colorRules).toEqual([
             { property: 'priority', equals: 'medium', color: 'orange' },
             { property: 'priority', equals: 'high', color: 'red' },
-            { property: 'status', equals: 'completed', color: 'green' },
         ]);
+    });
+
+    /**
+     * Действие «Завершить»
+     */
+    describe('"Complete"', () => {
+        async function group(parent: string, name: string) {
+            await data.runAction(parent, 'createNoteGroup', { name });
+            return childByName(parent, name)!;
+        }
+
+        /**
+         * Проверяет, что заметка прямо в «Активных» переносится прямо в «Завершённые»
+         */
+        it('complete_noteDirectlyUnderActive_movesDirectlyUnderCompleted', async () => {
+            await data.runAction(notesId, 'createNote', { title: 'Идея' });
+            const note = childByName(notesId, 'Идея')!;
+
+            const result = await data.runAction(note.id, 'complete');
+
+            expect(result.ok).toBe(true);
+            expect(data.getObject(note.id)?.parent).toBe(completedId);
+            expect(data.getChildren(notesId)).toEqual([]);
+        });
+
+        /**
+         * Проверяет, что цепочка вложенных групп воспроизводится в «Завершённых», пустая группа остаётся
+         */
+        it('complete_noteInNestedGroups_recreatesChainAndLeavesEmptyGroupsInActive', async () => {
+            const work = await group(notesId, 'Работа');
+            const project = await group(work.id, 'Проект');
+            await data.runAction(project.id, 'createNote', { title: 'Идея' });
+            const note = childByName(project.id, 'Идея')!;
+
+            const result = await data.runAction(note.id, 'complete');
+
+            expect(result.ok).toBe(true);
+            const archivedWork = childByName(completedId, 'Работа')!;
+            expect(archivedWork.type).toBe('NoteGroup');
+            const archivedProject = childByName(archivedWork.id, 'Проект')!;
+            expect(data.getObject(note.id)?.parent).toBe(archivedProject.id);
+            expect(data.getObject(work.id)).toBeDefined();
+            expect(data.getObject(project.id)).toBeDefined();
+            expect(data.getChildren(project.id)).toEqual([]);
+        });
+
+        /**
+         * Проверяет, что существующая группа в «Завершённых» переиспользуется, а недостающая создаётся
+         */
+        it('complete_existingGroupInCompleted_isReusedAndMissingIsCreated', async () => {
+            const work = await group(notesId, 'Работа');
+            const project = await group(work.id, 'Проект');
+            await data.runAction(work.id, 'createNote', { title: 'Первая' });
+            await data.runAction(project.id, 'createNote', { title: 'Вторая' });
+            await data.runAction(childByName(work.id, 'Первая')!.id, 'complete');
+            const archivedWork = childByName(completedId, 'Работа')!;
+
+            await data.runAction(childByName(project.id, 'Вторая')!.id, 'complete');
+
+            expect(data.getChildren(completedId)).toHaveLength(1);
+            const names = data.getChildren(archivedWork.id).map((o) => o.properties.name);
+            expect(names.sort()).toEqual(['Первая', 'Проект']);
+            const archivedProject = childByName(archivedWork.id, 'Проект')!;
+            expect(data.getChildren(archivedProject.id).map((o) => o.properties.name)).toEqual([
+                'Вторая',
+            ]);
+        });
+
+        /**
+         * Проверяет, что перенос и создание групп идут одним набором изменений, отмена возвращает всё
+         */
+        it('complete_isOneChangesetAndUndoRestoresNoteAndRemovesCreatedGroups', async () => {
+            const work = await group(notesId, 'Работа');
+            await data.runAction(work.id, 'createNote', { title: 'Идея' });
+            const note = childByName(work.id, 'Идея')!;
+            const before = api.changesets.length;
+
+            await data.runAction(note.id, 'complete');
+            expect(api.changesets).toHaveLength(before + 1);
+
+            await data.undo();
+            expect(data.getObject(note.id)?.parent).toBe(work.id);
+            expect(data.getChildren(completedId)).toEqual([]);
+        });
+
+        /**
+         * Проверяет, что «Завершить» доступно только у заметки в «Активных»
+         */
+        it('complete_available_onlyForNoteInActive', async () => {
+            await data.runAction(notesId, 'createNote', { title: 'Идея' });
+            const note = childByName(notesId, 'Идея')!;
+            expect(actionIds(note.id)).toContain('complete');
+
+            await data.runAction(note.id, 'complete');
+
+            expect(actionIds(note.id)).not.toContain('complete');
+        });
+
     });
 
     /**

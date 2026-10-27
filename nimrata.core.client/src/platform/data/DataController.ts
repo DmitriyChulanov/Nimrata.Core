@@ -5,7 +5,12 @@ import { applyOperations, createUndoHistory, invertOperations, touchedIds } from
 import { uuid7 } from './uuid7';
 
 import type { ApiClient } from '@platform/api/apiClient';
-import type { ActionDefinition, ActionPlacement, TypeDefinition } from '@platform/types/types';
+import type {
+    ActionDefinition,
+    ActionPlacement,
+    CommandDefinition,
+    TypeDefinition,
+} from '@platform/types/types';
 
 /**
  * Объект в дереве: значения свойств лежат в `properties`, отсутствующее значение — нет ключа
@@ -172,6 +177,29 @@ export interface ActionRegistrationOptions {
 }
 
 /**
+ * Контекст обработчика команды
+ */
+export interface CommandContext {
+    /** Значения параметров: собранные диалогом или сохранённые пользовательской командой */
+    params: Record<string, unknown>;
+    /** Набор изменений команды: всё, что обработчик делает через него, — один набор */
+    tx: ChangeScope;
+}
+
+/**
+ * Обработчик команды; может быть асинхронным
+ */
+export type CommandHandler = (context: CommandContext) => void | Promise<void>;
+
+/**
+ * Параметры регистрации команды
+ */
+export interface CommandRegistrationOptions {
+    /** Условие доступности: команда показывается на панели и запускается, только пока оно истинно */
+    available?: () => boolean;
+}
+
+/**
  * Параметры контроллера данных
  */
 export interface DataControllerOptions {
@@ -251,6 +279,26 @@ export interface DataController {
      * в этом месте. Действие без обработчика не возвращается
      */
     getActions(objectId: string, placement?: ActionPlacement): ActionDefinition[];
+    /**
+     * Привязывает обработчик к команде расширения `id` (описана в `commands` манифеста).
+     * Повторная регистрация того же `id` заменяет обработчик. Возвращает функцию отписки
+     */
+    registerCommand(
+        id: string,
+        handler: CommandHandler,
+        options?: CommandRegistrationOptions,
+    ): () => void;
+    /** Есть ли у команды обработчик и выполняется ли её условие доступности */
+    isCommandAvailable(id: string): boolean;
+    /**
+     * Запускает команду одним набором изменений; проверяет доступность и обязательные параметры
+     * по описанию команды. Отказ и исключение обработчика возвращаются причиной
+     */
+    runCommand(
+        command: Pick<CommandDefinition, 'id' | 'parameters'>,
+        params?: Record<string, unknown>,
+        options?: OperationOptions,
+    ): Promise<ChangeResult>;
     /** Запускает действие над объектом-целью одним набором; проверяет обязательные параметры */
     runAction(
         objectId: string,
@@ -313,6 +361,21 @@ function isEmptyParam(value: unknown): boolean {
 }
 
 /**
+ * Проверяет обязательные параметры команды или действия
+ *
+ * @param definitions - описания параметров
+ * @param params - переданные значения
+ * @returns сообщение для первого незаполненного обязательного параметра; иначе `undefined`
+ */
+function missingRequired(
+    definitions: readonly { id: string; name: string; required?: boolean }[] | undefined,
+    params: Record<string, unknown>,
+): string | undefined {
+    const missing = (definitions ?? []).find((p) => p.required && isEmptyParam(params[p.id]));
+    return missing && `Параметр «${missing.name}» обязателен.`;
+}
+
+/**
  * Создаёт контроллер данных
  *
  * @param options - API-клиент и генератор идентификаторов
@@ -329,6 +392,11 @@ export function createDataController(options: DataControllerOptions): DataContro
     const actionHandlers = new Map<
         string,
         { handler: ActionHandler; options?: ActionRegistrationOptions }
+    >();
+
+    const commandHandlers = new Map<
+        string,
+        { handler: CommandHandler; options?: CommandRegistrationOptions }
     >();
 
     // Индекс «родитель → потомки по порядку»: строится по требованию, сбрасывается при любом
@@ -765,6 +833,29 @@ export function createDataController(options: DataControllerOptions): DataContro
                 if (actionHandlers.get(key) === entry) actionHandlers.delete(key);
             };
         },
+        registerCommand(id, handler, options) {
+            const entry = { handler, options };
+            commandHandlers.set(id, entry);
+            return () => {
+                if (commandHandlers.get(id) === entry) commandHandlers.delete(id);
+            };
+        },
+        isCommandAvailable(id) {
+            const entry = commandHandlers.get(id);
+            return entry !== undefined && (entry.options?.available?.() ?? true);
+        },
+        runCommand(command, params = {}, opts) {
+            const entry = commandHandlers.get(command.id);
+            if (!entry || (entry.options?.available && !entry.options.available())) {
+                return Promise.resolve({
+                    ok: false,
+                    error: `Команда "${command.id}" недоступна.`,
+                });
+            }
+            const missing = missingRequired(command.parameters, params);
+            if (missing) return Promise.resolve({ ok: false, error: missing });
+            return execute((tx) => entry.handler({ params, tx }), opts);
+        },
         getActions(objectId, placement) {
             const object = objects.get(objectId);
             if (!object) return [];
@@ -784,14 +875,8 @@ export function createDataController(options: DataControllerOptions): DataContro
                     error: `У объекта нет действия "${actionId}" с обработчиком.`,
                 });
             }
-            for (const p of found.definition.parameters ?? []) {
-                if (p.required && isEmptyParam(params[p.id])) {
-                    return Promise.resolve({
-                        ok: false,
-                        error: `Параметр «${p.name}» обязателен.`,
-                    });
-                }
-            }
+            const missing = missingRequired(found.definition.parameters, params);
+            if (missing) return Promise.resolve({ ok: false, error: missing });
             return execute(
                 (tx) =>
                     found.handler({

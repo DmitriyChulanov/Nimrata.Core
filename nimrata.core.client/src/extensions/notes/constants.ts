@@ -13,6 +13,15 @@ export const NOTE = 'Note';
  */
 export const NOTE_GROUP = 'NoteGroup';
 /**
- * Запись быстрого доступа: механизм (скрыт в дереве) со ссылкой `target` на заметку или группу
+ * Команда-шаблон «Открыть в дереве» (параметр-ссылка `target`): основа команд быстрого доступа
  */
-export const QUICK_ACCESS_ENTRY = 'QuickAccessEntry';
+export const OPEN_IN_TREE_COMMAND = 'openInTree';
+
+/**
+ * Тип корня «Активные»: здесь создают и ведут заметки
+ */
+export const ACTIVE_NOTES_ROOT = 'ActiveNotesRoot';
+/**
+ * Тип корня «Завершённые»: сюда действие «Завершить» переносит заметки
+ */
+export const COMPLETED_NOTES_ROOT = 'CompletedNotesRoot';

@@ -5,10 +5,11 @@ import { useData } from '@platform/data/useData';
 import { ActionDialog } from './ActionDialog';
 
 import type { ReactNode } from 'react';
-import type { ActionDefinition } from '@platform/types/types';
+import type { ChangeResult } from '@platform/data/DataController';
+import type { ActionDefinition, CommandDefinition } from '@platform/types/types';
 
 /**
- * Результат хука `useActionLauncher`: запуск действий и связанное с ним состояние
+ * Результат хука `useActionLauncher`: запуск действий и команд и связанное с ним состояние
  */
 export interface ActionLauncher {
     /**
@@ -16,6 +17,12 @@ export interface ActionLauncher {
      * Отказ запуска без диалога попадает в `error`
      */
     launch(objectId: string, action: ActionDefinition): Promise<void>;
+    /**
+     * Запускает команду расширения: без параметров сразу, с параметрами — через тот же диалог, что и
+     * у действий. С `savedParams` (пользовательская команда) диалога нет: команда запускается
+     * сохранёнными значениями. Отказ запуска без диалога попадает в `error`
+     */
+    launchCommand(command: CommandDefinition, savedParams?: Record<string, unknown>): Promise<void>;
     /** Диалог параметров (или `null`): рисуется там, где вызвана хук-функция */
     dialog: ReactNode;
     /** Причина последнего отказа запуска без диалога */
@@ -25,31 +32,44 @@ export interface ActionLauncher {
 }
 
 /**
- * Общий запуск действий для кнопок таблицы свойств и пунктов контекстного меню
+ * Запуск, ожидающий ввода параметров в диалоге
+ */
+interface Pending {
+    /** Название и параметры для диалога (форма совпадает с описанием действия) */
+    subject: Pick<ActionDefinition, 'id' | 'name' | 'parameters'>;
+    /** Запускает действие или команду с собранными значениями */
+    run(params: Record<string, unknown>): Promise<ChangeResult>;
+}
+
+/**
+ * Общий запуск действий и команд: кнопки таблицы свойств, пункты контекстного меню и панель
+ * «Команды» делят один диалог параметров
  */
 export function useActionLauncher(): ActionLauncher {
     const data = useData();
-    const [pending, setPending] = useState<{ objectId: string; action: ActionDefinition } | null>(
-        null,
-    );
+    const [pending, setPending] = useState<Pending | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    async function launch(objectId: string, action: ActionDefinition) {
+    async function start(
+        subject: Pending['subject'],
+        run: Pending['run'],
+        savedParams?: Record<string, unknown>,
+    ) {
         setError(null);
-        if ((action.parameters ?? []).length > 0) {
-            setPending({ objectId, action });
+        if (savedParams === undefined && (subject.parameters ?? []).length > 0) {
+            setPending({ subject, run });
             return;
         }
-        const result = await data.runAction(objectId, action.id);
+        const result = await run(savedParams ?? {});
         if (!result.ok) setError(result.error);
     }
 
     const dialog = pending ? (
         <ActionDialog
-            action={pending.action}
+            action={pending.subject}
             onCancel={() => setPending(null)}
             onSubmit={async (params) => {
-                const result = await data.runAction(pending.objectId, pending.action.id, params);
+                const result = await pending.run(params);
                 if (result.ok) {
                     setPending(null);
                     return null;
@@ -59,5 +79,13 @@ export function useActionLauncher(): ActionLauncher {
         />
     ) : null;
 
-    return { launch, dialog, error, clearError: () => setError(null) };
+    return {
+        launch: (objectId, action) =>
+            start(action, (params) => data.runAction(objectId, action.id, params)),
+        launchCommand: (command, savedParams) =>
+            start(command, (params) => data.runCommand(command, params), savedParams),
+        dialog,
+        error,
+        clearError: () => setError(null),
+    };
 }

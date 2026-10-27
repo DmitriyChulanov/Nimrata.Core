@@ -59,7 +59,7 @@ describe('built-in extensions', () => {
         expect(roots()).toEqual(['NotesRoot']);
 
         await tasks.ensureStart(data);
-        expect(roots()).toEqual(['NotesRoot', 'SelectTodayMechanism', 'TasksRoot']);
+        expect(roots()).toEqual(['NotesRoot', 'TasksRoot']);
     });
 
     /**
@@ -85,7 +85,9 @@ describe('built-in extensions', () => {
     it('register_unregisterOneExtension_keepsActionsOfTheOther', async () => {
         const { data, unregisters } = await start();
         for (const extension of extensionRegistry.list()) await extension.ensureStart(data);
-        const notesRoot = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
+        const notesRoot = data
+            .getChildren(data.getChildren(null).find((o) => o.type === 'NotesRoot')!.id)
+            .find((o) => o.type === 'ActiveNotesRoot')!;
         const current = data
             .getChildren(data.getChildren(null).find((o) => o.type === 'TasksRoot')!.id)
             .find((o) => o.type === 'CurrentTasksRoot')!;

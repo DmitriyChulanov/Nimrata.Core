@@ -89,7 +89,10 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
             new { email = ServerFactory.AdminEmail, password = ServerFactory.AdminPassword });
         var token = (await login.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken;
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return (await client.GetFromJsonAsync<JsonElement[]>("/api/types"))!;
+        // Платформенные типы (без расширения, например CustomCommand) приходят из миграций, не из манифестов
+        return (await client.GetFromJsonAsync<JsonElement[]>("/api/types"))!
+            .Where(type => type.GetProperty("extension").ValueKind != JsonValueKind.Null)
+            .ToArray();
     }
 
     /// <summary>
@@ -100,7 +103,7 @@ public sealed class ManifestTests(ServerFactory factory) : IClassFixture<ServerF
     private static async Task<long> RowCount(string database)
     {
         await using var connection = new NpgsqlConnection(database);
-        return await connection.ExecuteScalarAsync<long>("select count(*) from types");
+        return await connection.ExecuteScalarAsync<long>("select count(*) from types where extension_id is not null");
     }
 
     /// <summary>

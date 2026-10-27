@@ -1,10 +1,46 @@
 {
     "extension": "tasks",
-    "version": 13,
+    "version": 15,
     "name": "Трекер задач",
     "description": "Задачи по годам, месяцам и дням: категории, повторы, выбор текущего дня и уведомления.",
     "icon": "list-checks",
     "defaultEnabled": true,
+    "commands": [
+        {
+            "id": "selectToday",
+            "name": "Выделить текущий день",
+            "description": "Показывает в дереве сегодняшний день «Текущих задач».",
+            "icon": "crosshair"
+        },
+        {
+            "id": "completedReport",
+            "name": "Отчёт по завершённым задачам",
+            "description": "Формирует и скачивает .xlsx со сводкой завершённых задач за период.",
+            "icon": "file-spreadsheet",
+            "parameters": [
+                { "id": "start", "name": "Начало", "kind": "date", "required": true },
+                { "id": "end", "name": "Конец", "kind": "date", "required": true }
+            ]
+        },
+        {
+            "id": "createSchedule",
+            "name": "Создать расписание",
+            "description": "Создаёт месяцы и дни периода в «Текущих задачах» и достраивает повторы. Пустое начало — сегодня, пустой конец — конец года.",
+            "icon": "calendar-range",
+            "parameters": [
+                {
+                    "id": "start",
+                    "name": "Начало",
+                    "kind": "date"
+                },
+                {
+                    "id": "end",
+                    "name": "Конец",
+                    "kind": "date"
+                }
+            ]
+        }
+    ],
     "types": [
         {
             "id": "TasksRoot",
@@ -57,24 +93,6 @@
             "allowedChildren": ["Year"],
             "icon": "circle-check",
             "iconColor": "green"
-        },
-        {
-            "id": "SelectTodayMechanism",
-            "name": "Выделить текущий день",
-            "sealed": true,
-            "singleton": true,
-            "hiddenInTree": true,
-            "automation": true,
-            "allowedChildren": [],
-            "actions": [
-                {
-                    "id": "selectToday",
-                    "name": "Выделить",
-                    "placements": ["automation"]
-                }
-            ],
-            "icon": "crosshair",
-            "iconColor": "gray"
         },
         {
             "id": "Year",
@@ -281,6 +299,19 @@
                             "id": "category",
                             "name": "Категория",
                             "kind": "string"
+                        }
+                    ]
+                },
+                {
+                    "id": "postpone",
+                    "name": "Отложить",
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "parameters": [
+                        {
+                            "id": "date",
+                            "name": "Дата",
+                            "kind": "date",
+                            "required": true
                         }
                     ]
                 }

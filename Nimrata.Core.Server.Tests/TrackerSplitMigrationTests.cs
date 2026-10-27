@@ -81,7 +81,9 @@ public sealed class TrackerSplitMigrationTests(ServerFactory factory) : IClassFi
         Assert.DoesNotContain(owners, t => t.ExtensionId == "tracker");
         Assert.All(NotesTypes, id => Assert.Equal("notes", owners.Single(t => t.Id == id).ExtensionId));
         Assert.All(TasksTypes, id => Assert.Equal("tasks", owners.Single(t => t.Id == id).ExtensionId));
-        Assert.All(owners, t => Assert.True(t.Version > 11, $"{t.Id}: версия {t.Version}"));
+        // Платформенные типы и упразднённые SelectTodayMechanism и QuickAccessEntry манифестами не обновляются
+        Assert.All(owners.Where(t => t.ExtensionId is not null && t.Id is not ("SelectTodayMechanism" or "QuickAccessEntry")),
+            t => Assert.True(t.Version > 11, $"{t.Id}: версия {t.Version}"));
 
         var objects = (await connection.QueryAsync<(Guid Id, string TypeId)>("select id, type_id from objects")).ToList();
         Assert.Contains((LegacyNotesRootId, "NotesRoot"), objects);
