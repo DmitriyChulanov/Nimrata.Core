@@ -66,6 +66,7 @@ export function CommandsTab() {
                     savedParams: readCustomParams(object),
                 });
             }
+            custom.sort((a, b) => a.label.localeCompare(b.label, 'ru'));
             return { extension, items: [...own, ...custom] };
         })
         .filter((block) => block.items.length > 0);

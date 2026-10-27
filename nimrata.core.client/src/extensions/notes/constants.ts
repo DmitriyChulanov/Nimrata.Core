@@ -13,9 +13,9 @@ export const NOTE = 'Note';
  */
 export const NOTE_GROUP = 'NoteGroup';
 /**
- * Запись быстрого доступа: механизм (скрыт в дереве) со ссылкой `target` на заметку или группу
+ * Команда-шаблон «Открыть в дереве» (параметр-ссылка `target`): основа команд быстрого доступа
  */
-export const QUICK_ACCESS_ENTRY = 'QuickAccessEntry';
+export const OPEN_IN_TREE_COMMAND = 'openInTree';
 
 /**
  * Тип корня «Активные»: здесь создают и ведут заметки

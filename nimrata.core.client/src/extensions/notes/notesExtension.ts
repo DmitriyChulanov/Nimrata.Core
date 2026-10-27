@@ -15,6 +15,7 @@ import type {
     DataController,
     DataObject,
     ExtensionDescriptor,
+    ExtensionOptions,
     HookResult,
 } from '@platform';
 
@@ -117,7 +118,7 @@ function completeNote(data: DataController, note: DataObject, tx: ChangeScope): 
  * @param data - контроллер данных
  * @returns функция отписки
  */
-export function registerNotes(data: DataController): () => void {
+export function registerNotes(data: DataController, options: ExtensionOptions = {}): () => void {
     const disposers: (() => void)[] = [];
 
     disposers.push(
@@ -158,7 +159,7 @@ export function registerNotes(data: DataController): () => void {
             available: inActive,
         }),
         registerOpenExternalLink(data, [NOTE]),
-        registerQuickAccess(data),
+        registerQuickAccess(data, options.reveal),
     );
 
     return () => disposers.forEach((dispose) => dispose());
@@ -191,6 +192,6 @@ export function ensureNotesStart(data: DataController): Promise<ChangeResult> {
  */
 export const notesExtension: ExtensionDescriptor = {
     id: 'notes',
-    register: (data) => registerNotes(data),
+    register: registerNotes,
     ensureStart: ensureNotesStart,
 };
