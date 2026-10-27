@@ -13,7 +13,7 @@ import {
 import manifest from './manifest.json';
 import { ensureTasksStart, registerTasks } from './tasksExtension';
 
-import type { DataController, DataObject, TypeDefinition } from '@platform';
+import type { CommandDefinition, DataController, DataObject, TypeDefinition } from '@platform';
 
 const types = manifest.types.map((t) => ({
     ...t,
@@ -21,7 +21,7 @@ const types = manifest.types.map((t) => ({
     extensionVersion: manifest.version,
 })) as TypeDefinition[];
 
-const command = manifest.commands.find((c) => c.id === 'completedReport')!;
+const command = manifest.commands.find((c) => c.id === 'completedReport') as CommandDefinition;
 
 async function start() {
     const api = createFakeApi(types, []);

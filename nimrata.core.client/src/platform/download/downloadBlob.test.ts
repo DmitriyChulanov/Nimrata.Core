@@ -20,7 +20,7 @@ describe('Platform: downloadBlob', () => {
 
         downloadBlob(blob, 'Отчёт.xlsx');
 
-        const clicked = click.mock.contexts[0];
+        const clicked = click.mock.contexts[0] as HTMLAnchorElement | undefined;
         expect(create).toHaveBeenCalledWith(blob);
         expect(clicked?.download).toBe('Отчёт.xlsx');
         expect(clicked?.href).toBe('blob:test');
