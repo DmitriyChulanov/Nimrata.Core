@@ -323,7 +323,8 @@ public sealed class ManifestValidatorTests
         using var document = JsonDocument.Parse(File.ReadAllText(ManifestPath("tasks")));
         var root = document.RootElement;
 
-        var command = root.GetProperty("commands").EnumerateArray().Single();
+        var command = root.GetProperty("commands").EnumerateArray()
+            .Single(c => c.GetProperty("id").GetString() == "selectToday");
         Assert.Equal("selectToday", command.GetProperty("id").GetString());
         Assert.Equal("Выделить текущий день", command.GetProperty("name").GetString());
         Assert.DoesNotContain(root.GetProperty("types").EnumerateArray(),

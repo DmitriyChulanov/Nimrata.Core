@@ -6,7 +6,7 @@ import { createFakeApi } from '@platform/data/fakeApi';
 import manifest from './manifest.json';
 import { ensureTasksStart, registerTasks } from './tasksExtension';
 
-import type { TypeDefinition } from '@platform';
+import type { CommandDefinition, TypeDefinition } from '@platform';
 
 const types = manifest.types.map((t) => ({
     ...t,
@@ -39,7 +39,7 @@ async function atDate(year: number, month: number, day: number, body: () => Prom
     }
 }
 
-const command = manifest.commands.find((c) => c.id === 'selectToday')!;
+const command = manifest.commands.find((c) => c.id === 'selectToday') as CommandDefinition;
 
 /**
  * Команда «Выделить текущий день»
