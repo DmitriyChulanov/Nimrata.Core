@@ -273,6 +273,19 @@
                             "kind": "string"
                         }
                     ]
+                },
+                {
+                    "id": "postpone",
+                    "name": "Отложить",
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "parameters": [
+                        {
+                            "id": "date",
+                            "name": "Дата",
+                            "kind": "date",
+                            "required": true
+                        }
+                    ]
                 }
             ],
             "icon": "tag",
