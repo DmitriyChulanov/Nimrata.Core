@@ -45,6 +45,10 @@ export const TASK = 'Task';
  * Идентификатор команды «Выделить текущий день» в манифесте
  */
 export const SELECT_TODAY_COMMAND = 'selectToday';
+/**
+ * Идентификатор команды «Создать расписание» в манифесте
+ */
+export const CREATE_SCHEDULE_COMMAND = 'createSchedule';
 
 /**
  * Идентификатор команды «Отчёт по завершённым задачам» в манифесте
