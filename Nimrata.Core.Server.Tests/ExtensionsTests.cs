@@ -21,6 +21,11 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
         {
           "extension": "alpha", "version": 1,
           "name": "Альфа", "description": "Первое расширение", "icon": "list-checks", "defaultEnabled": true,
+          "commands": [
+            { "id": "alphaRun", "name": "Запустить", "icon": "star" },
+            { "id": "alphaAsk", "name": "Спросить", "icon": "star", "description": "С параметром",
+              "parameters": [ { "id": "days", "name": "Дней", "kind": "integer", "required": true } ] }
+          ],
           "types": [
             { "id": "AlphaGroup", "name": "Группа", "allowedChildren": ["AlphaRoot", "AlphaItem", "AlphaGroup"] },
             { "id": "AlphaRoot", "name": "Корень", "singleton": true, "allowedChildren": ["AlphaItem"] },
@@ -204,6 +209,47 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
     }
 
     // --- Каталог и подключения ---
+
+    /// <summary>
+    /// Проверяет, что каталог отдаёт команды расширения из манифеста, а у расширения без команд список пуст
+    /// </summary>
+    [Fact]
+    public async Task Catalog_ExtensionWithCommands_ReturnsThem()
+    {
+        var catalog = (await _me.GetFromJsonAsync<JsonElement[]>("/api/extensions"))!;
+
+        var alpha = catalog.Single(e => e.GetProperty("id").GetString() == "alpha");
+        var commands = alpha.GetProperty("commands").EnumerateArray().ToArray();
+        Assert.Equal(["alphaRun", "alphaAsk"], commands.Select(c => c.GetProperty("id").GetString()).ToArray());
+        Assert.Equal("Спросить", commands[1].GetProperty("name").GetString());
+        Assert.Equal("days", commands[1].GetProperty("parameters")[0].GetProperty("id").GetString());
+        var beta = catalog.Single(e => e.GetProperty("id").GetString() == "beta");
+        Assert.Empty(beta.GetProperty("commands").EnumerateArray());
+    }
+
+    /// <summary>
+    /// Проверяет, что платформенный тип «Пользовательская команда» скрыт в дереве, не принадлежит расширению
+    /// и создаётся при любых подключениях
+    /// </summary>
+    [Fact]
+    public async Task CustomCommandType_IsPlatformHiddenAndCreatableWithExtensionsDisabled()
+    {
+        var types = (await _me.GetFromJsonAsync<JsonElement[]>("/api/types"))!;
+        var type = types.Single(t => t.GetProperty("id").GetString() == "CustomCommand");
+        Assert.True(type.GetProperty("hiddenInTree").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, type.GetProperty("extension").ValueKind);
+        Assert.Equal(["name", "extension", "command", "params"],
+            type.GetProperty("properties").EnumerateArray().Select(p => p.GetProperty("id").GetString()).ToArray());
+        foreach (var id in new[] { "alpha", "beta" })
+            (await _me.PutAsJsonAsync($"/api/extensions/{id}/connection", new { connected = false })).EnsureSuccessStatusCode();
+
+        var response = await Apply(_me, Create(Guid.CreateVersion7(), "CustomCommand", properties: new
+        {
+            name = "Открыть X", extension = "alpha", command = "alphaRun", @params = "{}",
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 
     /// <summary>
     /// Проверяет, что каталог расширений закрыт без токена
