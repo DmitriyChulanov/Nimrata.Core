@@ -1,6 +1,6 @@
 {
     "extension": "notes",
-    "version": 14,
+    "version": 15,
     "name": "Трекер заметок",
     "description": "Заметки и группы заметок, быстрый доступ к избранному.",
     "icon": "notebook",
@@ -9,6 +9,15 @@
         {
             "id": "NotesRoot",
             "name": "Заметки",
+            "sealed": true,
+            "singleton": true,
+            "allowedChildren": ["ActiveNotesRoot", "CompletedNotesRoot"],
+            "icon": "notebook",
+            "iconColor": "purple"
+        },
+        {
+            "id": "ActiveNotesRoot",
+            "name": "Активные",
             "sealed": true,
             "singleton": true,
             "allowedChildren": ["Note", "NoteGroup"],
@@ -42,6 +51,15 @@
             ],
             "icon": "notebook",
             "iconColor": "purple"
+        },
+        {
+            "id": "CompletedNotesRoot",
+            "name": "Завершённые",
+            "sealed": true,
+            "singleton": true,
+            "allowedChildren": ["Note", "NoteGroup"],
+            "icon": "circle-check",
+            "iconColor": "green"
         },
         {
             "id": "NoteGroup",
@@ -169,18 +187,6 @@
                     ]
                 },
                 {
-                    "id": "status",
-                    "name": "Статус",
-                    "kind": "enum",
-                    "category": "Основное",
-                    "values": [
-                        {
-                            "value": "completed",
-                            "name": "Завершена"
-                        }
-                    ]
-                },
-                {
                     "id": "link",
                     "name": "Внешняя ссылка",
                     "kind": "string",
@@ -188,6 +194,11 @@
                 }
             ],
             "actions": [
+                {
+                    "id": "complete",
+                    "name": "Завершить",
+                    "placements": ["propertyGrid", "contextMenu"]
+                },
                 {
                     "id": "openExternalLink",
                     "name": "Перейти по внешней ссылке",
@@ -214,11 +225,6 @@
                     "property": "priority",
                     "equals": "high",
                     "color": "red"
-                },
-                {
-                    "property": "status",
-                    "equals": "completed",
-                    "color": "green"
                 }
             ],
             "icon": "file-text",
