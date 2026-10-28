@@ -1,9 +1,9 @@
-import { cancelIfFailed, createNode } from '@platform';
+import { ancestors, cancelIfFailed, createNode } from '@platform';
 
 import { categoryFromTemplate } from './categoryTemplates';
 import { CURRENT_TASKS_ROOT, DAY_TYPES, TASK } from './constants';
 import { parseIso, todayIso } from './dates';
-import { ancestors, ensureCategory, ensureDay, findRoot } from './nodes';
+import { ensureCategory, ensureDay, findRoot } from './nodes';
 
 import type { ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
@@ -50,16 +50,9 @@ export function syncTask(data: DataController, id: string, tx: ChangeScope): Hoo
  * Дата задачи (`ГГГГ-ММ-ДД`) берётся из ближайшего родителя-дня; нигде не хранится
  */
 export function taskDate(data: DataController, task: DataObject): string | undefined {
-    for (let id = task.parent; id;) {
-        const parent = data.getObject(id);
-        if (!parent) return undefined;
-        if (DAY_TYPES.includes(parent.type)) {
-            const date = parent.properties.date;
-            return typeof date === 'string' ? date : undefined;
-        }
-        id = parent.parent;
-    }
-    return undefined;
+    const day = ancestors(data, task).find((o) => DAY_TYPES.includes(o.type));
+    const date = day?.properties.date;
+    return typeof date === 'string' ? date : undefined;
 }
 
 /**

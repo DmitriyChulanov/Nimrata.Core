@@ -98,6 +98,8 @@ export { createRevealBridge } from './extensionApi/revealBridge';
 export type { RevealBridge } from './extensionApi/revealBridge';
 export { safeUrl } from './extensionApi/safeUrl';
 export { collator, collatorBase } from './collator';
+export { ancestors, objectLabel } from './objectQueries/objectQueries';
+export type { ObjectReader } from './objectQueries/objectQueries';
 export { downloadBlob } from './download/downloadBlob';
 export { CommandsTab } from './commands/CommandsTab';
 export { registerCommands } from './commands/registerCommands';

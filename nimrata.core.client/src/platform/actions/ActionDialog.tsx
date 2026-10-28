@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 
 import { useData } from '@platform/data/useData';
+import { objectLabel } from '@platform/objectQueries/objectQueries';
 import './ActionDialog.css';
 import { Button, Checkbox, Dialog, Select, TextArea, TextField } from '@platform/ui';
 
@@ -74,9 +75,7 @@ function initialDraft(parameters: PropertyDefinition[]): Draft {
  */
 function titleOf(data: DataController, id: string): string {
     const object = data.getObject(id);
-    if (!object) return id;
-    const name = object.properties.name;
-    return typeof name === 'string' && name ? name : (data.getType(object.type)?.name ?? id);
+    return object ? objectLabel(data, object) : id;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { orThrow } from '@platform';
+import { ancestors, orThrow } from '@platform';
 
 import { CATEGORY, COMPLETED, COMPLETED_TASKS_ROOT, CURRENT_TASKS_ROOT, TASK } from './constants';
 import { parseIso } from './dates';
@@ -12,11 +12,9 @@ import type { ChangeScope, DataController, DataObject } from '@platform';
  */
 export function categoryChain(data: DataController, task: DataObject): string[] {
     const names: string[] = [];
-    for (let id = task.parent; id;) {
-        const parent = data.getObject(id);
-        if (!parent || parent.type !== CATEGORY) break;
+    for (const parent of ancestors(data, task)) {
+        if (parent.type !== CATEGORY) break;
         names.unshift(String(parent.properties.name ?? ''));
-        id = parent.parent;
     }
     return names;
 }
@@ -29,12 +27,11 @@ export function pruneEmptyCategories(
     tx: ChangeScope,
     start: string | null,
 ): void {
-    for (let id = start; id;) {
-        const node = data.getObject(id);
-        if (!node || node.type !== CATEGORY || data.getChildren(id).length > 0) return;
-        const parent = node.parent;
-        orThrow(tx.remove(id));
-        id = parent;
+    const first = start ? data.getObject(start) : undefined;
+    if (!first) return;
+    for (const node of [first, ...ancestors(data, first)]) {
+        if (node.type !== CATEGORY || data.getChildren(node.id).length > 0) return;
+        orThrow(tx.remove(node.id));
     }
 }
 

@@ -4,6 +4,7 @@ import { useActionLauncher } from '@platform/actions/useActionLauncher';
 import { collator } from '@platform/collator';
 import { useData } from '@platform/data/useData';
 import { Icon } from '@platform/icons/Icon';
+import { objectLabel, ancestors } from '@platform/objectQueries/objectQueries';
 import { Button, ContextMenu, Dialog } from '@platform/ui';
 
 import { TypeIcon } from './TypeIcon';
@@ -48,19 +49,6 @@ interface Row {
 }
 
 /**
- * Название объекта для показа: вычисляемое имя, иначе название типа
- *
- * @param data - контроллер данных
- * @param object - объект
- * @returns текст названия
- */
-function titleOf(data: DataController, object: DataObject): string {
-    const name = object.properties.name;
-    if (typeof name === 'string' && name !== '') return name;
-    return data.getType(object.type)?.name ?? object.type;
-}
-
-/**
  * Типы, объекты которых можно создать под узлом: допустимые дочерние неабстрактные типы
  */
 function creatableTypes(data: DataController, parent: DataObject): TypeDefinition[] {
@@ -77,7 +65,7 @@ function visibleChildren(data: DataController, parent: string | null) {
     return data
         .getChildren(parent)
         .filter((o) => !data.getType(o.type)?.hiddenInTree)
-        .map((object) => ({ object, title: titleOf(data, object) }))
+        .map((object) => ({ object, title: objectLabel(data, object) }))
         .sort(
             (a, b) =>
                 a.object.order - b.object.order ||
@@ -132,15 +120,9 @@ export function Tree() {
     const [handledReveal, setHandledReveal] = useState(revealRequest?.seq ?? 0);
     if (revealRequest && revealRequest.seq !== handledReveal) {
         setHandledReveal(revealRequest.seq);
-        const ancestors: string[] = [];
-        for (
-            let parent = data.getObject(revealRequest.id)?.parent;
-            parent;
-            parent = data.getObject(parent)?.parent
-        ) {
-            ancestors.push(parent);
-        }
-        if (ancestors.length > 0) setExpanded((prev) => new Set([...prev, ...ancestors]));
+        const revealed = data.getObject(revealRequest.id);
+        const parents = revealed ? ancestors(data, revealed).map((o) => o.id) : [];
+        if (parents.length > 0) setExpanded((prev) => new Set([...prev, ...parents]));
     }
     const scrolledReveal = useRef(revealRequest?.seq ?? 0);
 
@@ -573,7 +555,7 @@ export function Tree() {
                 >
                     <p>
                         {deletingObjects.length === 1
-                            ? `Удалить «${titleOf(data, deletingObjects[0])}» вместе со всеми вложенными объектами?`
+                            ? `Удалить «${objectLabel(data, deletingObjects[0])}» вместе со всеми вложенными объектами?`
                             : `Удалить выделенные объекты (${deletingObjects.length}) вместе со всеми вложенными объектами?`}
                     </p>
                 </Dialog>
