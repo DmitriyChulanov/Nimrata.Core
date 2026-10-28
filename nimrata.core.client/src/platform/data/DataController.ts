@@ -293,6 +293,20 @@ export interface DataController {
      */
     getActionParameters(objectId: string, action: ActionDefinition): PropertyDefinition[];
     /**
+     * Действия, общие для группы объектов: объявлены и имеют обработчик у каждого объекта. Недоступное
+     * (`available`) хотя бы одному объекту действие возвращается с причиной в `unavailable`, а у группы
+     * из одного объекта такое действие, как в `getActions`, не возвращается. Описание берётся у первого объекта
+     */
+    getGroupActions(objectIds: readonly string[], placement?: ActionPlacement): GroupAction[];
+    /**
+     * Параметры действия для диалога по группе: варианты `enum` — пересечение вариантов всех объектов;
+     * `null`, если пересечение пусто и действие запустить нельзя
+     */
+    getGroupActionParameters(
+        objectIds: readonly string[],
+        action: ActionDefinition,
+    ): PropertyDefinition[] | null;
+    /**
      * Привязывает обработчик к команде расширения `id` (описана в `commands` манифеста).
      * Повторная регистрация того же `id` заменяет обработчик. Возвращает функцию отписки
      */
@@ -319,6 +333,26 @@ export interface DataController {
         params?: Record<string, unknown>,
         options?: OperationOptions,
     ): Promise<ChangeResult>;
+    /**
+     * Запускает действие над каждым из объектов по очереди одним набором изменений: следующий объект
+     * видит результат предыдущих, первый отказ отменяет весь запуск. Для группы отказ называет объект
+     */
+    runActionOnMany(
+        objectIds: readonly string[],
+        actionId: string,
+        params?: Record<string, unknown>,
+        options?: OperationOptions,
+    ): Promise<ChangeResult>;
+}
+
+/**
+ * Действие группы объектов и его доступность
+ */
+export interface GroupAction {
+    /** Описание действия */
+    action: ActionDefinition;
+    /** Причина недоступности для группы; `null`, если действие можно запускать */
+    unavailable: string | null;
 }
 
 /**
@@ -775,12 +809,69 @@ export function createDataController(options: DataControllerOptions): DataContro
 
     const actionKey = (typeId: string, actionId: string) => `${typeId}\u0000${actionId}`;
 
-    function findAction(object: DataObject, actionId: string) {
+    /** Действие, объявленное в типе объекта и имеющее обработчик; без проверки доступности */
+    function declaredAction(object: DataObject, actionId: string) {
         const definition = types.get(object.type)?.actions?.find((a) => a.id === actionId);
         const entry = actionHandlers.get(actionKey(object.type, actionId));
-        if (!definition || !entry) return undefined;
+        return definition && entry ? { definition, entry } : undefined;
+    }
+
+    function findAction(object: DataObject, actionId: string) {
+        const declared = declaredAction(object, actionId);
+        if (!declared) return undefined;
+        const { definition, entry } = declared;
         if (entry.options?.available && !entry.options.available(object)) return undefined;
         return { definition, handler: entry.handler };
+    }
+
+    /** Название объекта для сообщений: заголовок, имя, иначе название типа */
+    function objectLabel(object: DataObject): string {
+        const title = object.properties.title ?? object.properties.name;
+        return typeof title === 'string' && title
+            ? title
+            : (types.get(object.type)?.name ?? object.type);
+    }
+
+    function actionParameters(objectId: string, action: ActionDefinition): PropertyDefinition[] {
+        const object = objects.get(objectId);
+        const providers = object
+            ? actionHandlers.get(actionKey(object.type, action.id))?.options?.parameterValues
+            : undefined;
+        const result: PropertyDefinition[] = [];
+        for (const parameter of action.parameters ?? []) {
+            const provider = providers?.[parameter.id];
+            if (!object || !provider) {
+                result.push(parameter);
+                continue;
+            }
+            const values = provider(snapshotOf(object));
+            if (values.length > 0) result.push({ ...parameter, values });
+        }
+        return result;
+    }
+
+    function getGroupActionParameters(
+        objectIds: readonly string[],
+        action: ActionDefinition,
+    ): PropertyDefinition[] | null {
+        const perObject = objectIds.map((id) => actionParameters(id, action));
+        const result: PropertyDefinition[] = [];
+        for (const parameter of action.parameters ?? []) {
+            const mine = perObject.map((list) => list.find((p) => p.id === parameter.id));
+            // Параметр убран у объекта (пустой список вариантов): общих значений нет
+            if (mine.some((p) => p === undefined)) return null;
+            const [first, ...rest] = mine as PropertyDefinition[];
+            if (parameter.kind !== 'enum') {
+                result.push(parameter);
+                continue;
+            }
+            const values = (first.values ?? []).filter((v) =>
+                rest.every((p) => (p.values ?? []).some((x) => x.value === v.value)),
+            );
+            if (values.length === 0) return null;
+            result.push({ ...first, values });
+        }
+        return result;
     }
 
     return {
@@ -878,23 +969,34 @@ export function createDataController(options: DataControllerOptions): DataContro
                     (placement === undefined || (a.placements ?? []).includes(placement)),
             );
         },
-        getActionParameters(objectId, action) {
-            const object = objects.get(objectId);
-            const providers = object
-                ? actionHandlers.get(actionKey(object.type, action.id))?.options?.parameterValues
-                : undefined;
-            const result: PropertyDefinition[] = [];
-            for (const parameter of action.parameters ?? []) {
-                const provider = providers?.[parameter.id];
-                if (!object || !provider) {
-                    result.push(parameter);
-                    continue;
-                }
-                const values = provider(snapshotOf(object));
-                if (values.length > 0) result.push({ ...parameter, values });
+        getActionParameters: actionParameters,
+        getGroupActions(objectIds, placement) {
+            const group = objectIds.map((id) => objects.get(id));
+            const [first] = group;
+            if (!first || group.some((o) => o === undefined)) return [];
+            const members = group as DataObject[];
+            const result: GroupAction[] = [];
+            for (const action of types.get(first.type)?.actions ?? []) {
+                const declared = members.map((o) => declaredAction(o, action.id));
+                if (declared.some((d) => d === undefined)) continue;
+                const inPlace = (d: (typeof declared)[number]) =>
+                    placement === undefined || (d?.definition.placements ?? []).includes(placement);
+                if (!declared.every(inPlace)) continue;
+                const blocked = members.find((o, i) => {
+                    const available = declared[i]?.entry.options?.available;
+                    return available !== undefined && !available(o);
+                });
+                if (blocked && members.length === 1) continue;
+                const unavailable = blocked
+                    ? `Недоступно для объекта «${objectLabel(blocked)}»`
+                    : members.length > 1 && getGroupActionParameters(objectIds, action) === null
+                      ? 'Нет общих значений параметров'
+                      : null;
+                result.push({ action, unavailable });
             }
             return result;
         },
+        getGroupActionParameters,
         runAction(objectId, actionId, params = {}, opts) {
             const object = objects.get(objectId);
             if (!object) return Promise.resolve({ ok: false, error: 'Объект не найден.' });
@@ -916,6 +1018,33 @@ export function createDataController(options: DataControllerOptions): DataContro
                     }),
                 opts,
             );
+        },
+        runActionOnMany(objectIds, actionId, params = {}, opts) {
+            const prefixed = objectIds.length > 1;
+            return execute(async (tx, scope) => {
+                for (const id of objectIds) {
+                    const object = objects.get(id);
+                    if (!object) throw new Error('Объект не найден.');
+                    const label = prefixed ? `${objectLabel(object)}: ` : '';
+                    const found = findAction(object, actionId);
+                    if (!found) {
+                        throw new Error(
+                            `${label}у объекта нет действия "${actionId}" с обработчиком.`,
+                        );
+                    }
+                    const missing = missingRequired(found.definition.parameters, params);
+                    if (missing) throw new Error(missing);
+                    try {
+                        await found.handler({ object: snapshotOf(object), params, tx });
+                    } catch (error) {
+                        throw new Error(`${label}${errorMessage(error)}`, { cause: error });
+                    }
+                    if (scope.error !== null) {
+                        scope.error = `${label}${scope.error}`;
+                        return;
+                    }
+                }
+            }, opts);
         },
     };
 }

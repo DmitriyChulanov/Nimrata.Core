@@ -200,6 +200,8 @@ public static class ManifestValidator
         if (kind is not null && !Kinds.Contains(kind))
             errors.Add($"{path}.kind: неизвестный вид \"{kind}\" (допустимо: {string.Join(", ", Kinds)})");
 
+        ValidateOrder(property, path, errors);
+
         if (kind == "enum")
         {
             if (!property.TryGetProperty("values", out var values) || values.ValueKind != JsonValueKind.Array
@@ -253,6 +255,9 @@ public static class ManifestValidator
             errors.Add($"{path}.id: действие \"{name}\" повторяется");
         if (action.TryGetProperty("icon", out var icon) && icon.ValueKind != JsonValueKind.String)
             errors.Add($"{path}.icon: нужна строка с именем иконки");
+        if (action.TryGetProperty("category", out var category) && category.ValueKind != JsonValueKind.String)
+            errors.Add($"{path}.category: нужна строка");
+        ValidateOrder(action, path, errors);
 
         if (action.TryGetProperty("placements", out var placements))
         {
@@ -280,6 +285,15 @@ public static class ManifestValidator
             foreach (var parameter in parameters.EnumerateArray())
                 ValidateProperty(parameter, $"{path}.parameters[{n++}]", takenParameters, typeIds, errors);
         }
+    }
+
+    /// <summary>
+    /// Проверяет необязательный <c>order</c> свойства или действия: число сквозного порядка в таблице свойств
+    /// </summary>
+    private static void ValidateOrder(JsonElement owner, string path, List<string> errors)
+    {
+        if (owner.TryGetProperty("order", out var order) && order.ValueKind != JsonValueKind.Number)
+            errors.Add($"{path}.order: нужно число");
     }
 
     private static bool IsTrue(JsonElement source, string name) =>

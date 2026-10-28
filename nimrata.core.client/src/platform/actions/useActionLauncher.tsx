@@ -18,8 +18,8 @@ export interface ActionLauncher {
      */
     launch(objectId: string, action: ActionDefinition): Promise<void>;
     /**
-     * Запускает действие над каждым из объектов по очереди: диалог параметров один, значения общие.
-     * Первый отказ прерывает запуск
+     * Запускает действие над каждым из объектов по очереди одним набором изменений: диалог параметров
+     * один, значения общие. Первый отказ прерывает запуск и отменяет изменения всех объектов
      */
     launchMany(objectIds: readonly string[], action: ActionDefinition): Promise<void>;
     /**
@@ -89,14 +89,19 @@ export function useActionLauncher(): ActionLauncher {
             start({ ...action, parameters: data.getActionParameters(objectId, action) }, (params) =>
                 data.runAction(objectId, action.id, params),
             ),
-        launchMany: (objectIds, action) =>
-            start(action, async (params) => {
-                for (const id of objectIds) {
-                    const result = await data.runAction(id, action.id, params);
-                    if (!result.ok) return result;
-                }
-                return { ok: true };
-            }),
+        launchMany: async (objectIds, action) => {
+            const parameters =
+                objectIds.length === 1
+                    ? data.getActionParameters(objectIds[0]!, action)
+                    : data.getGroupActionParameters(objectIds, action);
+            if (parameters === null) {
+                setError(`«${action.name}»: у выделенных объектов нет общих значений параметров.`);
+                return;
+            }
+            await start({ ...action, parameters }, (params) =>
+                data.runActionOnMany(objectIds, action.id, params),
+            );
+        },
         launchCommand: (command, savedParams) =>
             start(command, (params) => data.runCommand(command, params), savedParams),
         dialog,

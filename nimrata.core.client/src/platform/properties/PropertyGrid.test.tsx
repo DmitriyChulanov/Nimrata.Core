@@ -98,13 +98,14 @@ describe('PropertyGrid: rendering', () => {
     });
 
     /**
-     * Проверяет, что свойства сгруппированы по категориям в порядке описания типа
+     * Проверяет, что заголовок категории вставляется при её смене в порядке описания типа
      */
-    it('propertyGrid_properties_groupedByCategoryInTypeDescriptionOrder', async () => {
+    it('propertyGrid_properties_sectionedByCategoryChangeInTypeDescriptionOrder', async () => {
         await renderGrid();
 
         const groups = screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'));
-        expect(groups).toEqual(['Основное', 'Расчёт', 'Срок', 'Прочее']);
+        // Порядок сквозной: «Код» (Расчёт) стоит после «Срока», поэтому категория повторяется
+        expect(groups).toEqual(['Основное', 'Расчёт', 'Срок', 'Расчёт', 'Прочее']);
         const main = screen.getByRole('group', { name: 'Основное' });
         expect(within(main).getByLabelText('Название')).toHaveValue('Первая');
         expect(within(main).getByLabelText('Описание')).toHaveValue('');

@@ -127,8 +127,8 @@ describe('Property grid actions', () => {
         await setup();
         await openJob();
 
-        const bar = screen.getByRole('toolbar', { name: 'Действия' });
-        const labels = within(bar)
+        const grid = document.querySelector('.property-grid') as HTMLElement;
+        const labels = within(grid)
             .getAllByRole('button')
             .map((b) => b.textContent);
         expect(labels).toEqual(['Завершить', 'Только в таблице', 'Отложить']);
@@ -169,7 +169,7 @@ describe('Property grid actions', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Развернуть' }));
         await userEvent.click(screen.getByRole('treeitem', { name: 'Входящие' }));
 
-        expect(screen.queryByRole('toolbar', { name: 'Действия' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Завершить' })).not.toBeInTheDocument();
     });
 });
 

@@ -154,6 +154,8 @@ interface EditorProps {
     property: PropertyDefinition;
     /** Текущее значение: идентификатор цели */
     value: unknown;
+    /** У выделенных объектов цели разные: вместо названия показывается «Различны» */
+    mixed?: boolean;
     /** Запрещено ли редактирование */
     disabled: boolean;
     /** Отправляет новое значение; возвращает `false`, если оно отклонено */
@@ -163,13 +165,26 @@ interface EditorProps {
 /**
  * Редактор ссылки на объект: название цели, выбор в диалоге, очистка и переход к цели в дереве
  */
-export function ReferenceEditor({ data, property, value, disabled, onCommit }: EditorProps) {
+export function ReferenceEditor({
+    data,
+    property,
+    value,
+    mixed = false,
+    disabled,
+    onCommit,
+}: EditorProps) {
     const { reveal } = useSelection();
     const [picking, setPicking] = useState(false);
 
-    const id = typeof value === 'string' && value !== '' ? value : null;
+    const id = !mixed && typeof value === 'string' && value !== '' ? value : null;
     const target = id ? data.getObject(id) : undefined;
-    const text = !id ? '—' : target ? titleOf(data, target) : 'Недоступный объект';
+    const text = mixed
+        ? 'Различны'
+        : !id
+          ? '—'
+          : target
+            ? titleOf(data, target)
+            : 'Недоступный объект';
 
     return (
         <div className="property-grid-reference">
@@ -193,7 +208,7 @@ export function ReferenceEditor({ data, property, value, disabled, onCommit }: E
             <IconButton
                 icon="x"
                 label={`Очистить: ${property.name}`}
-                disabled={disabled || !id}
+                disabled={disabled || (!id && !mixed)}
                 onClick={() => void onCommit(null)}
             />
             {picking && (

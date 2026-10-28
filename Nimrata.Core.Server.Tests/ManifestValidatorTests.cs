@@ -313,6 +313,24 @@ public sealed class ManifestValidatorTests
     }
 
     /// <summary>
+    /// Проверяет, что сквозной порядок и категория строк таблицы свойств принимаются только нужного вида
+    /// </summary>
+    /// <param name="type">JSON типа</param>
+    /// <param name="expected">Фрагмент ошибки; пусто — ошибок нет</param>
+    [Theory]
+    [InlineData("""{ "id": "A", "name": "A", "properties": [ { "id": "p", "name": "P", "kind": "string", "order": 2.5 } ], "actions": [ { "id": "x", "name": "X", "order": 1, "category": "Группа" } ] }""", "")]
+    [InlineData("""{ "id": "A", "name": "A", "properties": [ { "id": "p", "name": "P", "kind": "string", "order": "1" } ] }""", "properties[0].order:")]
+    [InlineData("""{ "id": "A", "name": "A", "actions": [ { "id": "x", "name": "X", "order": "1" } ] }""", "actions[0].order:")]
+    [InlineData("""{ "id": "A", "name": "A", "actions": [ { "id": "x", "name": "X", "category": 1 } ] }""", "actions[0].category:")]
+    public void Order_AndActionCategory_AreValidated(string type, string expected)
+    {
+        var errors = Validate(WithMetadata(Meta, type));
+
+        if (expected == "") Assert.Empty(errors);
+        else Assert.Contains(errors, error => error.Contains(expected));
+    }
+
+    /// <summary>
     /// Проверяет, что упразднённые флаг типа и место показа «automation» отклоняются
     /// </summary>
     /// <param name="type">JSON типа</param>

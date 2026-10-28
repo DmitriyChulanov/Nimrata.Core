@@ -5,17 +5,24 @@ import { useData } from '@platform/data/useData';
 import { useSelection } from '@platform/selection/useSelection';
 import { Button } from '@platform/ui';
 
+import { commonProperties, sortItems, toSections } from './gridModel';
 import { ReferenceEditor } from './ReferenceEditor';
 import './PropertyGrid.css';
 
 import type { ReactNode } from 'react';
-import type { DataController } from '@platform/data/DataController';
+import type { DataController, DataObject } from '@platform/data/DataController';
 import type { PropertyDefinition } from '@platform/types/types';
+import type { CommonProperty, GridItem } from './gridModel';
 
 /**
- * Название категории для свойств без категории
+ * Текст значения, когда у выделенных объектов оно разное
  */
-const OTHER_CATEGORY = 'Прочее';
+const MIXED_TEXT = 'Различны';
+
+/**
+ * Значение пункта списка «Различны»: не совпадает ни с одним значением перечисления
+ */
+const MIXED_OPTION = '\u0000mixed';
 
 /**
  * Результат разбора введённого текста: значение (`null` — очистить) либо причина отказа
@@ -63,27 +70,6 @@ function toText(value: unknown): string {
 }
 
 /**
- * Группирует свойства по категориям; «Прочее» всегда последней
- *
- * @param properties - свойства типа
- * @returns пары название категории и её свойства
- */
-function groupByCategory(properties: PropertyDefinition[]) {
-    const groups = new Map<string, PropertyDefinition[]>();
-    for (const p of properties) {
-        const category = p.category || OTHER_CATEGORY;
-        const list = groups.get(category);
-        if (list) list.push(p);
-        else groups.set(category, [p]);
-    }
-    // «Прочее» всегда последним, остальные категории — в порядке появления в описании типа
-    const other = groups.get(OTHER_CATEGORY);
-    groups.delete(OTHER_CATEGORY);
-    if (other) groups.set(OTHER_CATEGORY, other);
-    return [...groups];
-}
-
-/**
  * Общие свойства редакторов значения
  */
 interface EditorProps {
@@ -91,6 +77,8 @@ interface EditorProps {
     property: PropertyDefinition;
     /** Текущее значение свойства */
     value: unknown;
+    /** У выделенных объектов значения разные: показывается «Различны», пока значение не выбрано */
+    mixed: boolean;
     /** Запрещено ли редактирование */
     disabled: boolean;
     /** Идентификатор элемента ввода для связи с подписью */
@@ -104,7 +92,15 @@ interface EditorProps {
 /**
  * Строка, многострочный текст, целое, дата, время: правка черновика, отправка по Enter или уходу фокуса
  */
-function TextEditor({ property, value, disabled, inputId, onCommit, onInvalid }: EditorProps) {
+function TextEditor({
+    property,
+    value,
+    mixed,
+    disabled,
+    inputId,
+    onCommit,
+    onInvalid,
+}: EditorProps) {
     const [draft, setDraft] = useState<string | null>(null);
     const submitted = useRef<string | null>(null);
     const multiline = property.kind === 'text';
@@ -112,7 +108,7 @@ function TextEditor({ property, value, disabled, inputId, onCommit, onInvalid }:
 
     async function commit() {
         if (draft === null || draft === submitted.current) return;
-        if (draft === toText(value)) {
+        if (!mixed && draft === toText(value)) {
             setDraft(null);
             return;
         }
@@ -131,6 +127,7 @@ function TextEditor({ property, value, disabled, inputId, onCommit, onInvalid }:
     const common = {
         id: inputId,
         value: text,
+        placeholder: mixed ? MIXED_TEXT : undefined,
         disabled,
         onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
         onBlur: () => void commit(),
@@ -159,27 +156,38 @@ function TextEditor({ property, value, disabled, inputId, onCommit, onInvalid }:
  * @returns редактор значения
  */
 function PropertyEditor(props: EditorProps & { data: DataController }) {
-    const { property, value, disabled, inputId, onCommit, data } = props;
+    const { property, value, mixed, disabled, inputId, onCommit, data } = props;
 
     switch (property.kind) {
         case 'boolean':
             return (
-                <input
-                    id={inputId}
-                    type="checkbox"
-                    checked={value === true}
-                    disabled={disabled}
-                    onChange={(e) => void onCommit(e.target.checked)}
-                />
+                <span className="property-grid-boolean">
+                    <input
+                        id={inputId}
+                        type="checkbox"
+                        ref={(element) => {
+                            if (element) element.indeterminate = mixed;
+                        }}
+                        checked={!mixed && value === true}
+                        disabled={disabled}
+                        onChange={(e) => void onCommit(e.target.checked)}
+                    />
+                    {mixed && <span className="property-grid-readonly">{MIXED_TEXT}</span>}
+                </span>
             );
         case 'enum':
             return (
                 <select
                     id={inputId}
-                    value={toText(value)}
+                    value={mixed ? MIXED_OPTION : toText(value)}
                     disabled={disabled}
                     onChange={(e) => void onCommit(e.target.value === '' ? null : e.target.value)}
                 >
+                    {mixed && (
+                        <option value={MIXED_OPTION} disabled>
+                            {MIXED_TEXT}
+                        </option>
+                    )}
                     <option value=""></option>
                     {(property.values ?? []).map((v) => (
                         <option key={v.value} value={v.value}>
@@ -194,6 +202,7 @@ function PropertyEditor(props: EditorProps & { data: DataController }) {
                     data={data}
                     property={property}
                     value={value}
+                    mixed={mixed}
                     disabled={disabled}
                     onCommit={onCommit}
                 />
@@ -212,12 +221,14 @@ function PropertyEditor(props: EditorProps & { data: DataController }) {
 function Row({
     property,
     value,
+    mixed,
     data,
     onCommit,
     onInvalid,
 }: {
     property: PropertyDefinition;
     value: unknown;
+    mixed: boolean;
     data: DataController;
     onCommit: (value: unknown) => Promise<boolean>;
     onInvalid: (message: string) => void;
@@ -238,6 +249,7 @@ function Row({
             <PropertyEditor
                 property={property}
                 value={value}
+                mixed={mixed}
                 disabled={disabled}
                 inputId={inputId}
                 onCommit={onCommit}
@@ -249,7 +261,33 @@ function Row({
 }
 
 /**
- * Таблица свойств выбранного объекта: категории, редакторы по виду свойства, правка наборами изменений
+ * Строка действия: кнопка по центру на всю ширину таблицы
+ */
+function ActionRow({
+    item,
+    onLaunch,
+}: {
+    item: Extract<GridItem, { kind: 'action' }>;
+    onLaunch: () => void;
+}) {
+    const { action, unavailable } = item;
+    return (
+        <div className="property-grid-action-row">
+            <Button
+                icon={action.icon}
+                disabled={unavailable !== null}
+                title={unavailable ?? undefined}
+                onClick={onLaunch}
+            >
+                {action.name}
+            </Button>
+        </div>
+    );
+}
+
+/**
+ * Таблица свойств выделенных объектов: сквозной порядок свойств и действий, категории, редакторы
+ * по виду свойства. Для группы показаны общие свойства и действия; правка и запуск применяются ко всем
  */
 export function PropertyGrid() {
     const data = useData();
@@ -260,54 +298,100 @@ export function PropertyGrid() {
     const object = selectedId ? data.getObject(selectedId) : undefined;
     if (!object) return <p>Объект не выбран.</p>;
 
+    const group = selectedIds.flatMap((id) => {
+        const o = data.getObject(id);
+        return o ? [o] : [];
+    });
+    const objects: DataObject[] = group.some((o) => o.id === object.id) ? group : [object];
+    const ids = objects.map((o) => o.id);
     const type = data.getType(object.type);
-    const groups = groupByCategory((type?.properties ?? []).filter((p) => !p.hidden));
-    const actions = data.getActions(object.id, 'propertyGrid');
+
+    const items: GridItem[] = [
+        ...commonProperties(object, objects, data.getType).map((entry): GridItem => ({
+            kind: 'property',
+            id: entry.property.id,
+            order: entry.property.order,
+            category: entry.property.category,
+            entry,
+        })),
+        ...data.getGroupActions(ids, 'propertyGrid').map(({ action, unavailable }): GridItem => ({
+            kind: 'action',
+            id: action.id,
+            order: action.order,
+            category: action.category,
+            action,
+            unavailable,
+        })),
+    ];
+    const sections = toSections(sortItems(items));
     const shownError = error ?? launcher.error;
+    const groupKey = ids.join(',');
 
     async function commit(property: PropertyDefinition, value: unknown): Promise<boolean> {
         setError(null);
-        const result = await data.setProperty(object!.id, property.id, value);
+        const result =
+            ids.length === 1
+                ? await data.setProperty(object!.id, property.id, value)
+                : await data.perform((tx) => {
+                      // Объекты, где значение уже равно новому, пропускаем
+                      for (const id of ids) {
+                          const current = data.getObject(id)?.properties[property.id] ?? null;
+                          if (current === (value ?? null)) continue;
+                          tx.setProperty(id, property.id, value);
+                      }
+                  });
         if (!result.ok) setError(result.error);
         return result.ok;
+    }
+
+    function renderItem(item: GridItem): ReactNode {
+        if (item.kind === 'action') {
+            return (
+                <ActionRow
+                    key={`action:${item.id}`}
+                    item={item}
+                    onLaunch={() => {
+                        setError(null);
+                        if (ids.length === 1) void launcher.launch(object!.id, item.action);
+                        else void launcher.launchMany(ids, item.action);
+                    }}
+                />
+            );
+        }
+        const { property, value }: CommonProperty = item.entry;
+        return (
+            <Row
+                key={`${groupKey}:${property.id}`}
+                property={property}
+                value={value.mixed ? undefined : value.value}
+                mixed={value.mixed}
+                data={data}
+                onCommit={(next) => commit(property, next)}
+                onInvalid={setError}
+            />
+        );
     }
 
     return (
         <div className="property-grid">
             <h2>{type?.name ?? object.type}</h2>
-            {selectedIds.length > 1 && <p>Выделено объектов: {selectedIds.length}</p>}
+            {ids.length > 1 && <p>Выделено объектов: {ids.length}</p>}
             {shownError && <p role="alert">{shownError}</p>}
-            {actions.length > 0 && (
-                <div role="toolbar" aria-label="Действия" className="property-grid-actions">
-                    {actions.map((action) => (
-                        <Button
-                            key={action.id}
-                            onClick={() => {
-                                setError(null);
-                                void launcher.launch(object.id, action);
-                            }}
-                        >
-                            {action.name}
-                        </Button>
-                    ))}
-                </div>
-            )}
             {launcher.dialog}
-            {groups.map(([category, properties]) => (
-                <section key={category} role="group" aria-label={category}>
-                    <h3>{category}</h3>
-                    {properties.map((property) => (
-                        <Row
-                            key={`${object.id}:${property.id}`}
-                            property={property}
-                            value={object.properties[property.id]}
-                            data={data}
-                            onCommit={(value) => commit(property, value)}
-                            onInvalid={setError}
-                        />
-                    ))}
-                </section>
-            ))}
+            {sections.map((section, index) =>
+                section.category === null ? (
+                    <div key={`start:${index}`}>{section.items.map(renderItem)}</div>
+                ) : (
+                    <section
+                        key={`${section.category}:${index}`}
+                        role="group"
+                        aria-label={section.category}
+                    >
+                        <h3>{section.category}</h3>
+                        {section.items.map(renderItem)}
+                    </section>
+                ),
+            )}
         </div>
     );
 }
