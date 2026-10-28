@@ -2,25 +2,13 @@ import { useState } from 'react';
 
 import { collator } from '@platform/collator';
 import { Icon } from '@platform/icons/Icon';
+import { objectLabel } from '@platform/objectQueries/objectQueries';
 import { useSelection } from '@platform/selection/useSelection';
 import { TypeIcon } from '@platform/tree/TypeIcon';
 import { Button, Dialog, IconButton } from '@platform/ui';
 
 import type { DataController, DataObject } from '@platform/data/DataController';
 import type { PropertyDefinition } from '@platform/types/types';
-
-/**
- * Название объекта для показа: вычисляемое имя, иначе название типа
- *
- * @param data - контроллер данных
- * @param object - объект
- * @returns текст названия
- */
-function titleOf(data: DataController, object: DataObject): string {
-    const name = object.properties.name;
-    if (typeof name === 'string' && name !== '') return name;
-    return data.getType(object.type)?.name ?? object.type;
-}
 
 /**
  * Потомки родителя, видимые в дереве, в порядке показа
@@ -33,7 +21,7 @@ function visibleChildren(data: DataController, parent: string | null) {
     return data
         .getChildren(parent)
         .filter((o) => !data.getType(o.type)?.hiddenInTree)
-        .map((object) => ({ object, title: titleOf(data, object) }))
+        .map((object) => ({ object, title: objectLabel(data, object) }))
         .sort(
             (a, b) =>
                 a.object.order - b.object.order ||
@@ -183,7 +171,7 @@ export function ReferenceEditor({
         : !id
           ? '—'
           : target
-            ? titleOf(data, target)
+            ? objectLabel(data, target)
             : 'Недоступный объект';
 
     return (

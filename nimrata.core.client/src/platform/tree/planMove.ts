@@ -1,3 +1,5 @@
+import { ancestors } from '@platform/objectQueries/objectQueries';
+
 import type { DataController, DataObject } from '@platform/data/DataController';
 
 /**
@@ -29,8 +31,12 @@ export function planMove(
     const parent = position === 'inside' ? target.id : target.parent;
 
     // Нельзя переносить узел в самого себя и в собственного потомка
-    for (let p: string | null = parent; p !== null; p = data.getObject(p)?.parent ?? null) {
-        if (p === dragId) return { ok: false };
+    const parentObject = parent === null ? undefined : data.getObject(parent);
+    if (
+        parent === dragId ||
+        (parentObject && ancestors(data, parentObject).some((o) => o.id === dragId))
+    ) {
+        return { ok: false };
     }
     if (parent !== null) {
         const parentType = data.getType(data.getObject(parent)?.type ?? '');
