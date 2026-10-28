@@ -4,6 +4,8 @@ export { Button, IconButton } from './Button';
 export type { ButtonProps, ButtonVariant, IconButtonProps } from './Button';
 export { Checkbox } from './Checkbox';
 export type { CheckboxProps } from './Checkbox';
+export { ContextMenu } from './ContextMenu';
+export type { ContextMenuProps, ContextMenuSeparator } from './ContextMenu';
 export { Dialog } from './Dialog';
 export type { DialogProps } from './Dialog';
 export { Menu } from './Menu';

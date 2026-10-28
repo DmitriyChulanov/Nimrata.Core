@@ -253,7 +253,7 @@ function Row({
  */
 export function PropertyGrid() {
     const data = useData();
-    const { selectedId } = useSelection();
+    const { selectedId, selectedIds } = useSelection();
     const [error, setError] = useState<string | null>(null);
     const launcher = useActionLauncher();
 
@@ -275,6 +275,7 @@ export function PropertyGrid() {
     return (
         <div className="property-grid">
             <h2>{type?.name ?? object.type}</h2>
+            {selectedIds.length > 1 && <p>Выделено объектов: {selectedIds.length}</p>}
             {shownError && <p role="alert">{shownError}</p>}
             {actions.length > 0 && (
                 <div role="toolbar" aria-label="Действия" className="property-grid-actions">

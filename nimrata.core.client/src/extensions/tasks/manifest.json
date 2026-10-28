@@ -1,6 +1,6 @@
 {
     "extension": "tasks",
-    "version": 15,
+    "version": 16,
     "name": "Трекер задач",
     "description": "Задачи по годам, месяцам и дням: категории, повторы, выбор текущего дня и уведомления.",
     "icon": "list-checks",
@@ -61,6 +61,7 @@
                 {
                     "id": "createTask",
                     "name": "Создать задачу",
+                    "icon": "plus",
                     "placements": ["contextMenu"],
                     "parameters": [
                         {
@@ -143,6 +144,7 @@
                 {
                     "id": "createTask",
                     "name": "Создать задачу",
+                    "icon": "plus",
                     "placements": ["contextMenu"],
                     "parameters": [
                         {
@@ -192,6 +194,7 @@
                 {
                     "id": "createTask",
                     "name": "Создать задачу",
+                    "icon": "plus",
                     "placements": ["contextMenu"],
                     "parameters": [
                         {
@@ -241,6 +244,7 @@
                 {
                     "id": "createTask",
                     "name": "Создать задачу",
+                    "icon": "plus",
                     "placements": ["contextMenu"],
                     "parameters": [
                         {
@@ -282,6 +286,7 @@
                 {
                     "id": "createTask",
                     "name": "Создать задачу",
+                    "icon": "plus",
                     "placements": ["contextMenu"],
                     "parameters": [
                         {
@@ -305,6 +310,7 @@
                 {
                     "id": "postpone",
                     "name": "Отложить",
+                    "icon": "clock",
                     "placements": ["propertyGrid", "contextMenu"],
                     "parameters": [
                         {
@@ -438,21 +444,25 @@
                 {
                     "id": "openExternalLink",
                     "name": "Перейти по внешней ссылке",
+                    "icon": "globe",
                     "placements": ["propertyGrid", "contextMenu"]
                 },
                 {
                     "id": "openInternalLink",
                     "name": "Перейти по внутренней ссылке",
+                    "icon": "link",
                     "placements": ["propertyGrid", "contextMenu"]
                 },
                 {
                     "id": "complete",
                     "name": "Завершить",
+                    "icon": "circle-check",
                     "placements": ["propertyGrid", "contextMenu"]
                 },
                 {
                     "id": "postpone",
                     "name": "Отложить",
+                    "icon": "clock",
                     "placements": ["propertyGrid", "contextMenu"],
                     "parameters": [
                         {

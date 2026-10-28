@@ -18,6 +18,11 @@ export interface ActionLauncher {
      */
     launch(objectId: string, action: ActionDefinition): Promise<void>;
     /**
+     * Запускает действие над каждым из объектов по очереди: диалог параметров один, значения общие.
+     * Первый отказ прерывает запуск
+     */
+    launchMany(objectIds: readonly string[], action: ActionDefinition): Promise<void>;
+    /**
      * Запускает команду расширения: без параметров сразу, с параметрами — через тот же диалог, что и
      * у действий. С `savedParams` (пользовательская команда) диалога нет: команда запускается
      * сохранёнными значениями. Отказ запуска без диалога попадает в `error`
@@ -82,6 +87,14 @@ export function useActionLauncher(): ActionLauncher {
     return {
         launch: (objectId, action) =>
             start(action, (params) => data.runAction(objectId, action.id, params)),
+        launchMany: (objectIds, action) =>
+            start(action, async (params) => {
+                for (const id of objectIds) {
+                    const result = await data.runAction(id, action.id, params);
+                    if (!result.ok) return result;
+                }
+                return { ok: true };
+            }),
         launchCommand: (command, savedParams) =>
             start(command, (params) => data.runCommand(command, params), savedParams),
         dialog,
