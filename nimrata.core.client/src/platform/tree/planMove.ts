@@ -1,6 +1,7 @@
 import { ancestors } from '@platform/objectQueries/objectQueries';
 
-import type { DataController, DataObject } from '@platform/data/DataController';
+import type { DataObject } from '@platform/data/DataController';
+import type { ObjectReader } from '@platform/objectQueries/objectQueries';
 
 /**
  * Куда относительно целевого узла опускается переносимый: перед ним, внутрь или после него
@@ -18,7 +19,7 @@ export type MovePlan = { ok: true; parent: string | null; order: number } | { ok
  * Корень принимает любые типы; у остальных родителей тип должен входить в `allowedChildren`
  */
 export function planMove(
-    data: DataController,
+    data: ObjectReader,
     siblings: (parent: string | null) => DataObject[],
     dragId: string,
     targetId: string,

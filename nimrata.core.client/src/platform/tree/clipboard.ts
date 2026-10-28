@@ -1,3 +1,5 @@
+import { childrenInOrder } from './treeModel';
+
 import type { ChangeResult, ChangeScope, DataController } from '@platform/data/DataController';
 
 /**
@@ -28,7 +30,7 @@ export function topLevelIds(data: DataController, ids: readonly string[]): strin
     });
     const order = new Map<string, number>();
     const walk = (parent: string | null) => {
-        for (const child of data.getChildren(parent)) {
+        for (const child of childrenInOrder(data, parent)) {
             order.set(child.id, order.size);
             walk(child.id);
         }
@@ -51,7 +53,7 @@ export function copySubtrees(data: DataController, ids: readonly string[]): Clip
             sourceId: id,
             type: object.type,
             properties: structuredClone(object.properties),
-            children: data.getChildren(id).map((c) => snapshot(c.id)),
+            children: childrenInOrder(data, id).map((c) => snapshot(c.id)),
         };
     };
     return topLevelIds(data, ids).map(snapshot);

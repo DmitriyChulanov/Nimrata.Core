@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
-import { collator } from '@platform/collator';
 import { useData } from '@platform/data/useData';
 import { Icon } from '@platform/icons/Icon';
-import { objectLabel, ancestors } from '@platform/objectQueries/objectQueries';
+import { objectLabel } from '@platform/objectQueries/objectQueries';
 import { Button, ContextMenu, Dialog } from '@platform/ui';
 
 import { TypeIcon } from './TypeIcon';
@@ -12,6 +11,7 @@ import { useSelection } from '@platform/selection/useSelection';
 
 import { canPaste, copySubtrees, pasteSubtrees, topLevelIds } from './clipboard';
 import { planMove, positionInRow } from './planMove';
+import { expandToReveal, flatten, visibleChildren } from './treeModel';
 import { colorPresentation, resolveRuleColor } from './colorRules';
 import './ruleColors.css';
 
@@ -35,20 +35,6 @@ const OVERSCAN = 5;
  */
 const DEFAULT_VIEWPORT = 400;
 /**
- * Строка плоского списка дерева
- */
-interface Row {
-    /** Объект строки */
-    object: DataObject;
-    /** Название для показа */
-    title: string;
-    /** Уровень вложенности; корень — 0 */
-    level: number;
-    /** Есть ли видимые потомки */
-    hasChildren: boolean;
-}
-
-/**
  * Типы, объекты которых можно создать под узлом: допустимые дочерние неабстрактные типы
  */
 function creatableTypes(data: DataController, parent: DataObject): TypeDefinition[] {
@@ -56,42 +42,6 @@ function creatableTypes(data: DataController, parent: DataObject): TypeDefinitio
     return allowed
         .map((id) => data.getType(id))
         .filter((t): t is TypeDefinition => t !== undefined && !t.abstract);
-}
-
-/**
- * Видимые потомки узла: без скрытых типов, по порядку, затем по названию
- */
-function visibleChildren(data: DataController, parent: string | null) {
-    return data
-        .getChildren(parent)
-        .filter((o) => !data.getType(o.type)?.hiddenInTree)
-        .map((object) => ({ object, title: objectLabel(data, object) }))
-        .sort(
-            (a, b) =>
-                a.object.order - b.object.order ||
-                collator.compare(a.title, b.title) ||
-                (a.object.id < b.object.id ? -1 : 1),
-        );
-}
-
-/**
- * Разворачивает дерево в плоский список видимых строк
- *
- * @param data - контроллер данных
- * @param expanded - идентификаторы раскрытых узлов
- * @returns строки по порядку показа
- */
-function flatten(data: DataController, expanded: ReadonlySet<string>): Row[] {
-    const rows: Row[] = [];
-    const walk = (parent: string | null, level: number) => {
-        for (const { object, title } of visibleChildren(data, parent)) {
-            const hasChildren = visibleChildren(data, object.id).length > 0;
-            rows.push({ object, title, level, hasChildren });
-            if (hasChildren && expanded.has(object.id)) walk(object.id, level + 1);
-        }
-    };
-    walk(null, 1);
-    return rows;
 }
 
 /**
@@ -120,9 +70,7 @@ export function Tree() {
     const [handledReveal, setHandledReveal] = useState(revealRequest?.seq ?? 0);
     if (revealRequest && revealRequest.seq !== handledReveal) {
         setHandledReveal(revealRequest.seq);
-        const revealed = data.getObject(revealRequest.id);
-        const parents = revealed ? ancestors(data, revealed).map((o) => o.id) : [];
-        if (parents.length > 0) setExpanded((prev) => new Set([...prev, ...parents]));
+        setExpanded((prev) => expandToReveal(data, prev, revealRequest.id));
     }
     const scrolledReveal = useRef(revealRequest?.seq ?? 0);
 
