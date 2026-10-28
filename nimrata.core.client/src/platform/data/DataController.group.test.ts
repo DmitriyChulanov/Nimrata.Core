@@ -120,7 +120,7 @@ describe('DataController: group actions', () => {
     /**
      * Проверяет, что варианты параметров группы — пересечение, а пустое пересечение делает действие недоступным
      */
-    it('getGroupActionParameters_enumValues_intersectionOrNullWhenEmpty', async () => {
+    it('groupLaunch_enumValues_intersectionOrUnavailableWhenEmpty', async () => {
         const { data } = await setup();
         const levels = {
             a: [
@@ -135,11 +135,13 @@ describe('DataController: group actions', () => {
         });
         const pick = data.getType('Item')!.actions!.find((a) => a.id === 'pick')!;
 
-        const common = data.getGroupActionParameters(['a', 'b'], pick);
-        expect(common?.[0]?.values).toEqual([{ value: 'high', name: 'Высокий' }]);
+        const common = data.groupLaunch(['a', 'b'], pick);
+        expect('parameters' in common && common.parameters[0]?.values).toEqual([
+            { value: 'high', name: 'Высокий' },
+        ]);
 
         current = { a: levels.a, b: [] };
-        expect(data.getGroupActionParameters(['a', 'b'], pick)).toBeNull();
+        expect(data.groupLaunch(['a', 'b'], pick)).toHaveProperty('unavailable');
         expect(data.getGroupActions(['a', 'b'], 'propertyGrid')[0]?.unavailable).toBe(
             'Нет общих значений параметров',
         );

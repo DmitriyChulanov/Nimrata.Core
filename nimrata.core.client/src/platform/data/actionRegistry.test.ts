@@ -141,7 +141,9 @@ describe('createActionRegistry', () => {
             unavailable: '«Выбрать»: у выделенных объектов нет общих значений параметров.',
         });
         expect(registry.groupLaunch(['a'], pick)).toEqual({
-            parameters: [expect.objectContaining({ id: 'level', values: [{ value: 'x', name: 'X' }] })],
+            parameters: [
+                expect.objectContaining({ id: 'level', values: [{ value: 'x', name: 'X' }] }),
+            ],
         });
     });
 

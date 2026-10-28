@@ -303,16 +303,9 @@ export interface DataController {
      */
     getGroupActions(objectIds: readonly string[], placement?: ActionPlacement): GroupAction[];
     /**
-     * Параметры действия для диалога по группе: варианты `enum` — пересечение вариантов всех объектов;
-     * `null`, если пересечение пусто и действие запустить нельзя
-     */
-    getGroupActionParameters(
-        objectIds: readonly string[],
-        action: ActionDefinition,
-    ): PropertyDefinition[] | null;
-    /**
      * Подготовка запуска действия по выделению: параметры для диалога (один объект — свои варианты,
-     * группа — общие) либо причина недоступности. Правило «нет общих значений» живёт в реестре
+     * группа — варианты `enum` как пересечение по всем объектам) либо причина недоступности, если
+     * пересечение пусто. Правило «нет общих значений» живёт в реестре
      */
     groupLaunch(objectIds: readonly string[], action: ActionDefinition): GroupLaunch;
     /**
@@ -838,7 +831,6 @@ export function createDataController(options: DataControllerOptions): DataContro
         getActions: registry.getActions,
         getActionParameters: registry.getActionParameters,
         getGroupActions: registry.getGroupActions,
-        getGroupActionParameters: registry.getGroupActionParameters,
         groupLaunch: registry.groupLaunch,
         runAction: registry.runAction,
         runActionOnMany: registry.runActionOnMany,
