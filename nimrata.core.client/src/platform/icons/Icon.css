@@ -1,13 +1,8 @@
-/* Иконка реестра: размер и штрих из токенов, цвет наследуется от текста. */
+/* Иконка реестра: размер из токенов, цвет наследуется от текста. */
 .icon {
     flex: none;
     width: var(--icon-md);
     height: var(--icon-md);
-    stroke-width: var(--icon-stroke);
-}
-
-.icon * {
-    vector-effect: non-scaling-stroke;
 }
 
 .icon--sm {

@@ -31,7 +31,7 @@ export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'children' | 'n
 }
 
 /**
- * Иконка из реестра по имени: одноцветная, размер и штрих берутся из токенов
+ * Иконка из реестра по имени: одноцветная цельная, размер берётся из токенов
  *
  * @param props - имя, размер и свойства SVG
  * @returns SVG, скрытый от вспомогательных технологий, если не задан `aria-label`
@@ -46,7 +46,7 @@ export function Icon({ name, size = 'md', tone, className, ...props }: IconProps
             console.warn(`Иконка «${name}» не найдена в реестре, показана запасная`);
         }
     }
-    const Component = ICON_REGISTRY[resolved];
+    const { component: Component, weight } = ICON_REGISTRY[resolved];
     const decorative = props['aria-label'] === undefined;
     const classes = ['icon', size === 'md' ? '' : `icon--${size}`, className]
         .filter(Boolean)
@@ -54,7 +54,9 @@ export function Icon({ name, size = 'md', tone, className, ...props }: IconProps
 
     return (
         <Component
+            weight={weight}
             className={classes}
+            data-icon={resolved}
             aria-hidden={decorative ? 'true' : undefined}
             role={decorative ? undefined : 'img'}
             focusable="false"

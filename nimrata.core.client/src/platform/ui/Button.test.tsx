@@ -40,7 +40,7 @@ describe('Button: rendering', () => {
         render(<Button icon="plus">Добавить</Button>);
 
         const button = screen.getByRole('button', { name: 'Добавить' });
-        expect(button.querySelector('svg.lucide-plus')).not.toBeNull();
+        expect(button.querySelector('svg[data-icon="plus"]')).not.toBeNull();
     });
 
     /**

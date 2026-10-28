@@ -27,7 +27,7 @@ describe('TypeIcon: rendering', () => {
     it('typeIcon_paletteColor_setsTone', () => {
         const { container } = render(<TypeIcon type={type({ iconColor: 'blue' })} />);
 
-        const svg = container.querySelector('svg.lucide-folder');
+        const svg = container.querySelector('svg[data-icon="folder"]');
         expect(svg).toHaveAttribute('data-tone', 'blue');
     });
 
@@ -55,6 +55,6 @@ describe('TypeIcon: rendering', () => {
     it('typeIcon_withoutType_rendersFallback', () => {
         const { container } = render(<TypeIcon type={undefined} />);
 
-        expect(container.querySelector('svg.lucide-circle')).not.toBeNull();
+        expect(container.querySelector('svg[data-icon="circle"]')).not.toBeNull();
     });
 });

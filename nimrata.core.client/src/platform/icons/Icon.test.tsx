@@ -18,7 +18,7 @@ describe('Icon: rendering', () => {
         const { container } = render(<Icon name="folder" />);
 
         const svg = container.querySelector('svg');
-        expect(svg).toHaveClass('icon', 'lucide-folder');
+        expect(svg).toHaveClass('icon');
         expect(svg).toHaveAttribute('aria-hidden', 'true');
     });
 
@@ -78,7 +78,7 @@ describe('Icon: rendering', () => {
             </>,
         );
 
-        const svgs = container.querySelectorAll('svg.lucide-circle');
+        const svgs = container.querySelectorAll('svg[data-icon="circle"]');
         expect(svgs).toHaveLength(2);
         expect(warn).toHaveBeenCalledTimes(1);
     });
@@ -91,7 +91,7 @@ describe('Icon: rendering', () => {
 
         const { container } = render(<Icon />);
 
-        expect(container.querySelector('svg.lucide-circle')).not.toBeNull();
+        expect(container.querySelector('svg[data-icon="circle"]')).not.toBeNull();
         expect(warn).not.toHaveBeenCalled();
     });
 });

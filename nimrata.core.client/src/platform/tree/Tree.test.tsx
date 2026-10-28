@@ -60,7 +60,7 @@ describe('Tree: rendering', () => {
         await renderTree([obj('r', 'Folder', null, 0, 'Мои папки')]);
 
         const item = screen.getByRole('treeitem', { name: 'Мои папки' });
-        expect(item.querySelector('svg.lucide-folder')).not.toBeNull();
+        expect(item.querySelector('svg[data-icon="folder"]')).not.toBeNull();
     });
 
     /**
