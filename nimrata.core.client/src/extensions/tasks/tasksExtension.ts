@@ -1,20 +1,26 @@
 import {
     createNode,
     ensureCreated,
+    ensureSettingsNode,
+    findSettingsNode,
     registerOpenExternalLink,
     registerOpenInternalLink,
+    registerSettingsGuard,
 } from '@platform';
+
+import { registerCategoryTemplates, templateOptions } from './categoryTemplates';
 
 import { registerCompletion } from './completion';
 import {
     COMPLETED_TASKS_ROOT,
-    CURRENT_TASKS_ROOT,
-    DAY,
-    DAY_OFF,
     CATEGORY,
+    CATEGORY_TEMPLATES,
+    CURRENT_TASKS_ROOT,
+    DAY_TYPES,
     MONTH,
     TASK,
     TASKS_ROOT,
+    TASKS_SETTINGS,
 } from './constants';
 import { registerCompletedReport } from './completedReport';
 import { NotificationsBinding } from './NotificationsBinding';
@@ -52,11 +58,21 @@ export function registerTasks(data: DataController, options: ExtensionOptions = 
         ),
     );
 
-    for (const parentType of [CURRENT_TASKS_ROOT, MONTH, DAY, DAY_OFF, CATEGORY]) {
+    for (const parentType of [CURRENT_TASKS_ROOT, MONTH, CATEGORY]) {
         disposers.push(data.registerAction(parentType, 'createTask', createTaskAction(data)));
+    }
+    // У дня выбирается типовая категория; без типовых категорий параметр в диалоге скрыт
+    for (const dayType of DAY_TYPES) {
+        disposers.push(
+            data.registerAction(dayType, 'createTask', createTaskAction(data), {
+                parameterValues: { template: () => templateOptions(data) },
+            }),
+        );
     }
 
     disposers.push(
+        registerCategoryTemplates(data),
+        registerSettingsGuard(data, [TASKS_SETTINGS, CATEGORY_TEMPLATES]),
         registerOpenInternalLink(data, TASK, options.reveal),
         registerOpenExternalLink(data, [TASK]),
         registerSelectToday(data, options.reveal),
@@ -80,11 +96,19 @@ export function registerTasks(data: DataController, options: ExtensionOptions = 
  */
 export async function ensureTasksStart(data: DataController): Promise<ChangeResult> {
     const created = await ensureCreated(data, async () => {
-        if (data.getChildren(null).some((o) => o.type === TASKS_ROOT)) return { ok: true };
+        const hasTasks = data.getChildren(null).some((o) => o.type === TASKS_ROOT);
+        const settings = findSettingsNode(data, TASKS_SETTINGS);
+        const hasGroup =
+            settings && data.getChildren(settings.id).some((o) => o.type === CATEGORY_TEMPLATES);
+        if (hasTasks && hasGroup) return { ok: true };
         return data.perform((tx) => {
-            const tasks = createNode(tx, null, TASKS_ROOT);
-            createNode(tx, tasks, CURRENT_TASKS_ROOT);
-            createNode(tx, tasks, COMPLETED_TASKS_ROOT);
+            if (!hasTasks) {
+                const tasks = createNode(tx, null, TASKS_ROOT);
+                createNode(tx, tasks, CURRENT_TASKS_ROOT);
+                createNode(tx, tasks, COMPLETED_TASKS_ROOT);
+            }
+            if (!hasGroup)
+                createNode(tx, ensureSettingsNode(data, tx, TASKS_SETTINGS), CATEGORY_TEMPLATES);
         });
     });
     if (!created.ok) return created;

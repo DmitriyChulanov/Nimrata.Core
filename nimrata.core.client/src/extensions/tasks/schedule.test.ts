@@ -44,7 +44,9 @@ function days(data: DataController, type = 'CurrentTasksRoot'): DataObject[] {
             else walk(o.id);
         });
     walk(root(data, type).id);
-    return result.sort((a, b) => String(a.properties.date).localeCompare(String(b.properties.date)));
+    return result.sort((a, b) =>
+        String(a.properties.date).localeCompare(String(b.properties.date)),
+    );
 }
 
 function months(data: DataController, type = 'CurrentTasksRoot') {

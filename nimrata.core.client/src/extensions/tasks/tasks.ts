@@ -1,5 +1,6 @@
 import { cancelIfFailed, createNode } from '@platform';
 
+import { categoryFromTemplate } from './categoryTemplates';
 import { CURRENT_TASKS_ROOT, DAY_TYPES, TASK } from './constants';
 import { parseIso, todayIso } from './dates';
 import { ancestors, ensureCategory, ensureDay, findRoot } from './nodes';
@@ -115,7 +116,9 @@ export function createTaskAction(data: DataController) {
             container = ensureDay(data, tx, root.id, ymd);
         }
 
-        const category = typeof params.category === 'string' ? params.category.trim() : '';
+        const templateCategory = categoryFromTemplate(data, params.template);
+        const category =
+            templateCategory ?? (typeof params.category === 'string' ? params.category.trim() : '');
         if (category !== '') container = ensureCategory(data, tx, container, category);
 
         createNode(tx, container, TASK, { title });

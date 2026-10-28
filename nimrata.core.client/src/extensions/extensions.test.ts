@@ -46,7 +46,7 @@ describe('built-in extensions', () => {
     /**
      * Проверяет, что каждое расширение при старте создаёт только свои корни
      */
-    it('ensureStart_eachExtension_createsOnlyItsOwnRoots', async () => {
+    it('ensureStart_eachExtension_createsOnlyItsOwnRootsAndSettings', async () => {
         const { data } = await start();
         const [tasks, notes] = extensionRegistry.list();
         const roots = () =>
@@ -59,7 +59,7 @@ describe('built-in extensions', () => {
         expect(roots()).toEqual(['NotesRoot']);
 
         await tasks.ensureStart(data);
-        expect(roots()).toEqual(['NotesRoot', 'TasksRoot']);
+        expect(roots()).toEqual(['NotesRoot', 'SettingsRoot', 'TasksRoot']);
     });
 
     /**

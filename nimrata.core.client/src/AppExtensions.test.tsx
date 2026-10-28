@@ -111,6 +111,9 @@ it('extensions_loginWithExistingRoots_createsNoDuplicatesAndSendsNoChangesets', 
         { id: 'n', type: 'NotesRoot', parent: null, order: 1, properties: {} },
         { id: 'na', type: 'ActiveNotesRoot', parent: 'n', order: 0, properties: {} },
         { id: 'nc', type: 'CompletedNotesRoot', parent: 'n', order: 1, properties: {} },
+        { id: 's', type: 'SettingsRoot', parent: null, order: 2, properties: {} },
+        { id: 'ts', type: 'TasksSettings', parent: 's', order: 0, properties: {} },
+        { id: 'ct', type: 'CategoryTemplates', parent: 'ts', order: 0, properties: {} },
     ]);
     render(<App />);
 

@@ -86,7 +86,9 @@ export function useActionLauncher(): ActionLauncher {
 
     return {
         launch: (objectId, action) =>
-            start(action, (params) => data.runAction(objectId, action.id, params)),
+            start({ ...action, parameters: data.getActionParameters(objectId, action) }, (params) =>
+                data.runAction(objectId, action.id, params),
+            ),
         launchMany: (objectIds, action) =>
             start(action, async (params) => {
                 for (const id of objectIds) {

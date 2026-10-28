@@ -9,6 +9,8 @@ import type {
     ActionDefinition,
     ActionPlacement,
     CommandDefinition,
+    EnumValue,
+    PropertyDefinition,
     TypeDefinition,
 } from '@platform/types/types';
 
@@ -174,6 +176,12 @@ export type ActionHandler = (context: ActionContext) => void | Promise<void>;
 export interface ActionRegistrationOptions {
     /** Условие доступности: действие показывается и запускается только для объектов, где оно истинно */
     available?: (object: DataObject) => boolean;
+    /**
+     * Варианты параметров вида `enum`, зависящие от данных: по идентификатору параметра возвращают
+     * значения для объекта-цели. Пустой список скрывает параметр в диалоге; `values` манифеста
+     * остаются запасным описанием
+     */
+    parameterValues?: Record<string, (object: DataObject) => EnumValue[]>;
 }
 
 /**
@@ -279,6 +287,11 @@ export interface DataController {
      * в этом месте. Действие без обработчика не возвращается
      */
     getActions(objectId: string, placement?: ActionPlacement): ActionDefinition[];
+    /**
+     * Параметры действия для диалога: варианты `enum`, заданные через `parameterValues`, подставлены
+     * по текущим данным, а параметры с пустым списком вариантов убраны
+     */
+    getActionParameters(objectId: string, action: ActionDefinition): PropertyDefinition[];
     /**
      * Привязывает обработчик к команде расширения `id` (описана в `commands` манифеста).
      * Повторная регистрация того же `id` заменяет обработчик. Возвращает функцию отписки
@@ -864,6 +877,23 @@ export function createDataController(options: DataControllerOptions): DataContro
                     findAction(object, a.id) !== undefined &&
                     (placement === undefined || (a.placements ?? []).includes(placement)),
             );
+        },
+        getActionParameters(objectId, action) {
+            const object = objects.get(objectId);
+            const providers = object
+                ? actionHandlers.get(actionKey(object.type, action.id))?.options?.parameterValues
+                : undefined;
+            const result: PropertyDefinition[] = [];
+            for (const parameter of action.parameters ?? []) {
+                const provider = providers?.[parameter.id];
+                if (!object || !provider) {
+                    result.push(parameter);
+                    continue;
+                }
+                const values = provider(snapshotOf(object));
+                if (values.length > 0) result.push({ ...parameter, values });
+            }
+            return result;
         },
         runAction(objectId, actionId, params = {}, opts) {
             const object = objects.get(objectId);

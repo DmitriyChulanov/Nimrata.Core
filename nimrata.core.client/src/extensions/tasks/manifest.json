@@ -1,6 +1,6 @@
 {
     "extension": "tasks",
-    "version": 16,
+    "version": 18,
     "name": "Трекер задач",
     "description": "Задачи по годам, месяцам и дням: категории, повторы, выбор текущего дня и уведомления.",
     "icon": "list-checks",
@@ -18,8 +18,18 @@
             "description": "Формирует и скачивает .xlsx со сводкой завершённых задач за период.",
             "icon": "file-spreadsheet",
             "parameters": [
-                { "id": "start", "name": "Начало", "kind": "date", "required": true },
-                { "id": "end", "name": "Конец", "kind": "date", "required": true }
+                {
+                    "id": "start",
+                    "name": "Начало",
+                    "kind": "date",
+                    "required": true
+                },
+                {
+                    "id": "end",
+                    "name": "Конец",
+                    "kind": "date",
+                    "required": true
+                }
             ]
         },
         {
@@ -62,7 +72,6 @@
                     "id": "createTask",
                     "name": "Создать задачу",
                     "icon": "plus",
-                    "placements": ["contextMenu"],
                     "parameters": [
                         {
                             "id": "title",
@@ -140,32 +149,6 @@
                     "readOnly": true
                 }
             ],
-            "actions": [
-                {
-                    "id": "createTask",
-                    "name": "Создать задачу",
-                    "icon": "plus",
-                    "placements": ["contextMenu"],
-                    "parameters": [
-                        {
-                            "id": "title",
-                            "name": "Название",
-                            "kind": "string",
-                            "required": true
-                        },
-                        {
-                            "id": "date",
-                            "name": "Дата",
-                            "kind": "date"
-                        },
-                        {
-                            "id": "category",
-                            "name": "Категория",
-                            "kind": "string"
-                        }
-                    ]
-                }
-            ],
             "icon": "calendar-days",
             "iconColor": "orange"
         },
@@ -195,7 +178,7 @@
                     "id": "createTask",
                     "name": "Создать задачу",
                     "icon": "plus",
-                    "placements": ["contextMenu"],
+                    "placements": ["propertyGrid", "contextMenu"],
                     "parameters": [
                         {
                             "id": "title",
@@ -204,14 +187,16 @@
                             "required": true
                         },
                         {
-                            "id": "date",
-                            "name": "Дата",
-                            "kind": "date"
-                        },
-                        {
-                            "id": "category",
-                            "name": "Категория",
-                            "kind": "string"
+                            "id": "template",
+                            "name": "Типовая категория",
+                            "kind": "enum",
+                            "default": "none",
+                            "values": [
+                                {
+                                    "value": "none",
+                                    "name": "Без категории"
+                                }
+                            ]
                         }
                     ]
                 }
@@ -245,7 +230,7 @@
                     "id": "createTask",
                     "name": "Создать задачу",
                     "icon": "plus",
-                    "placements": ["contextMenu"],
+                    "placements": ["propertyGrid", "contextMenu"],
                     "parameters": [
                         {
                             "id": "title",
@@ -254,14 +239,16 @@
                             "required": true
                         },
                         {
-                            "id": "date",
-                            "name": "Дата",
-                            "kind": "date"
-                        },
-                        {
-                            "id": "category",
-                            "name": "Категория",
-                            "kind": "string"
+                            "id": "template",
+                            "name": "Типовая категория",
+                            "kind": "enum",
+                            "default": "none",
+                            "values": [
+                                {
+                                    "value": "none",
+                                    "name": "Без категории"
+                                }
+                            ]
                         }
                     ]
                 }
@@ -287,23 +274,13 @@
                     "id": "createTask",
                     "name": "Создать задачу",
                     "icon": "plus",
-                    "placements": ["contextMenu"],
+                    "placements": ["propertyGrid", "contextMenu"],
                     "parameters": [
                         {
                             "id": "title",
                             "name": "Название",
                             "kind": "string",
                             "required": true
-                        },
-                        {
-                            "id": "date",
-                            "name": "Дата",
-                            "kind": "date"
-                        },
-                        {
-                            "id": "category",
-                            "name": "Категория",
-                            "kind": "string"
                         }
                     ]
                 },
@@ -493,6 +470,40 @@
             ],
             "icon": "square-check-big",
             "iconColor": "blue"
+        },
+        {
+            "id": "TasksSettings",
+            "name": "Трекер задач",
+            "sealed": true,
+            "singleton": true,
+            "allowedChildren": ["CategoryTemplates"],
+            "icon": "settings",
+            "iconColor": "gray"
+        },
+        {
+            "id": "CategoryTemplates",
+            "name": "Категории задач",
+            "sealed": true,
+            "singleton": true,
+            "allowedChildren": ["CategoryTemplate"],
+            "icon": "tag",
+            "iconColor": "gray"
+        },
+        {
+            "id": "CategoryTemplate",
+            "name": "Типовая категория",
+            "sealed": true,
+            "allowedChildren": [],
+            "properties": [
+                {
+                    "id": "name",
+                    "name": "Название",
+                    "kind": "string",
+                    "category": "Основное"
+                }
+            ],
+            "icon": "tag",
+            "iconColor": "gray"
         }
     ]
 }
