@@ -66,17 +66,13 @@ export function ExtensionsProvider({
     }, [controller]);
 
     const lifecycle = useMemo(
-        () =>
-            // eslint-disable-next-line react-hooks/refs -- ссылка читается колбэком при переключении, а не при рендере
-            createExtensionLifecycle({
-                api,
-                controller,
-                registry,
-                reveal,
-                onDataReloaded: dropUnavailableSelection,
-            }),
-        [api, controller, registry, reveal, dropUnavailableSelection],
+        () => createExtensionLifecycle({ api, controller, registry, reveal }),
+        [api, controller, registry, reveal],
     );
+
+    useEffect(() => {
+        lifecycle.setOnDataReloaded(dropUnavailableSelection);
+    }, [lifecycle, dropUnavailableSelection]);
 
     useEffect(() => {
         void lifecycle.initialize();

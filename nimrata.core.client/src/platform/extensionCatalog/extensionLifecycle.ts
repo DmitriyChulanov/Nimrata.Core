@@ -57,6 +57,8 @@ export interface ExtensionLifecycle {
     setConnected(id: string, connected: boolean): Promise<ChangeResult>;
     /** Отменяет запущенный `initialize` и снимает все регистрации */
     dispose(): void;
+    /** Заменяет обработчик перезагрузки данных, не пересоздавая подключение */
+    setOnDataReloaded(handler: (() => void) | undefined): void;
 }
 
 /**
@@ -86,7 +88,8 @@ function connectedIds(items: ExtensionInfo[]): Set<string> {
  * @returns подключение с состоянием и операциями
  */
 export function createExtensionLifecycle(options: ExtensionLifecycleOptions): ExtensionLifecycle {
-    const { api, controller, registry, reveal, onDataReloaded } = options;
+    const { api, controller, registry, reveal } = options;
+    let onDataReloaded = options.onDataReloaded;
 
     let state: ExtensionLifecycleState = {
         catalog: [],
@@ -215,6 +218,9 @@ export function createExtensionLifecycle(options: ExtensionLifecycleOptions): Ex
             return initialize();
         },
         setConnected,
+        setOnDataReloaded(handler) {
+            onDataReloaded = handler;
+        },
         dispose() {
             generation++;
             registrations.forEach((unregister) => unregister());

@@ -241,6 +241,20 @@ describe('setConnected', () => {
         expect(lifecycle.getState().switchingId).toBeNull();
     });
 
+    it('setOnDataReloaded заменяет обработчик перезагрузки данных', async () => {
+        fetchCatalog.mockResolvedValue([info('a', false)]);
+        putConnection.mockResolvedValue(info('a', true));
+        const { lifecycle, onDataReloaded } = setup();
+        const replacement = vi.fn();
+        await lifecycle.initialize();
+        lifecycle.setOnDataReloaded(replacement);
+
+        await lifecycle.setConnected('a', true);
+
+        expect(onDataReloaded).not.toHaveBeenCalled();
+        expect(replacement).toHaveBeenCalledTimes(1);
+    });
+
     it('отказ запуска возвращается вызывающему и не попадает в общее error', async () => {
         fetchCatalog.mockResolvedValue([info('b', false)]);
         putConnection.mockResolvedValue(info('b', true));

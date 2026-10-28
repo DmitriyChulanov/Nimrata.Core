@@ -107,6 +107,13 @@ function isEmptyParam(value: unknown): boolean {
     return value === undefined || value === null || value === '';
 }
 
+/** Шаг запуска: объект, приставка причин отказа и обработчик */
+interface RunStep {
+    label: string;
+    object: DataObject;
+    handler: ActionHandler;
+}
+
 function snapshotOf(object: DataObject): DataObject {
     return { ...object, properties: { ...object.properties } };
 }
@@ -226,31 +233,50 @@ export function createActionRegistry({ reader, execute }: ActionRegistryOptions)
     }
 
     /**
-     * Запуск по выделению одним набором. Один объект — частный случай группы: без приставки с
-     * именем объекта в причинах отказа
+     * Проверка запуска без исполнения: объекты, действия с обработчиками и обязательные параметры.
+     * Один объект — частный случай группы: без приставки с именем объекта в причинах отказа
      */
+    function resolveRun(
+        objectIds: readonly string[],
+        actionId: string,
+        params: Record<string, unknown>,
+    ): { error: string } | { steps: RunStep[] } {
+        const prefixed = objectIds.length > 1;
+        const steps: RunStep[] = [];
+        for (const id of objectIds) {
+            const object = reader.getObject(id);
+            if (!object) return { error: 'Объект не найден.' };
+            const label = prefixed ? `${objectLabel(reader, object)}: ` : '';
+            const found = findAction(object, actionId);
+            if (!found) {
+                const lack = `объекта нет действия "${actionId}" с обработчиком.`;
+                return { error: prefixed ? `${label}у ${lack}` : `У ${lack}` };
+            }
+            const missing = missingRequired(found.definition.parameters, params);
+            if (missing) return { error: missing };
+            steps.push({ label, object, handler: found.handler });
+        }
+        return { steps };
+    }
+
+    /** Запуск по выделению одним набором; отказы проверки возвращаются без очереди */
     function runMany(
         objectIds: readonly string[],
         actionId: string,
         params: Record<string, unknown>,
         opts: OperationOptions | undefined,
     ): Promise<ChangeResult> {
-        const prefixed = objectIds.length > 1;
+        // Отказ возвращается сразу, до очереди наборов изменений
+        const early = resolveRun(objectIds, actionId, params);
+        if ('error' in early) return Promise.resolve({ ok: false, error: early.error });
         return execute(async (tx, scope) => {
-            for (const id of objectIds) {
-                const object = reader.getObject(id);
-                if (!object) throw new Error('Объект не найден.');
-                const label = prefixed ? `${objectLabel(reader, object)}: ` : '';
-                const found = findAction(object, actionId);
-                if (!found) {
-                    const lack = `объекта нет действия "${actionId}" с обработчиком.`;
-                    throw new Error(prefixed ? `${label}у ${lack}` : `У ${lack}`);
-                }
-                const missing = missingRequired(found.definition.parameters, params);
-                if (missing) throw new Error(missing);
+            // Данные могли измениться за время ожидания в очереди
+            const resolved = resolveRun(objectIds, actionId, params);
+            if ('error' in resolved) throw new Error(resolved.error);
+            for (const { label, object, handler } of resolved.steps) {
                 const context: ActionContext = { object: snapshotOf(object), params, tx };
                 try {
-                    await found.handler(context);
+                    await handler(context);
                 } catch (error) {
                     throw new Error(`${label}${errorMessage(error)}`, { cause: error });
                 }
