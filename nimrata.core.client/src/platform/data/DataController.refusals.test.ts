@@ -87,7 +87,7 @@ describe('DataController: refusals before execution', () => {
         });
         expect(await data.runActionOnMany(['b'], 'mark')).toEqual({
             ok: false,
-            error: 'у объекта нет действия "mark" с обработчиком.',
+            error: 'У объекта нет действия "mark" с обработчиком.',
         });
         expect(await data.runActionOnMany(['a', 'b'], 'ask', {})).toEqual({
             ok: false,

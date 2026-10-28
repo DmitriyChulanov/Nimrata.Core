@@ -243,7 +243,8 @@ export function createActionRegistry({ reader, execute }: ActionRegistryOptions)
                 const label = prefixed ? `${objectLabel(reader, object)}: ` : '';
                 const found = findAction(object, actionId);
                 if (!found) {
-                    throw new Error(`${label}у объекта нет действия "${actionId}" с обработчиком.`);
+                    const lack = `объекта нет действия "${actionId}" с обработчиком.`;
+                    throw new Error(prefixed ? `${label}у ${lack}` : `У ${lack}`);
                 }
                 const missing = missingRequired(found.definition.parameters, params);
                 if (missing) throw new Error(missing);
