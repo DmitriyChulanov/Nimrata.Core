@@ -1,4 +1,5 @@
 import { ApiError } from '@platform/api/apiClient';
+import { objectLabel as labelOf } from '@platform/objectQueries/objectQueries';
 
 import type { Operation } from './undoHistory';
 import { applyOperations, createUndoHistory, invertOperations, touchedIds } from './undoHistory';
@@ -824,12 +825,12 @@ export function createDataController(options: DataControllerOptions): DataContro
         return { definition, handler: entry.handler };
     }
 
-    /** Название объекта для сообщений: заголовок, имя, иначе название типа */
+    /** Название объекта для сообщений */
     function objectLabel(object: DataObject): string {
-        const title = object.properties.title ?? object.properties.name;
-        return typeof title === 'string' && title
-            ? title
-            : (types.get(object.type)?.name ?? object.type);
+        return labelOf(
+            { getObject: (id) => objects.get(id), getType: (id) => types.get(id) },
+            object,
+        );
     }
 
     function actionParameters(objectId: string, action: ActionDefinition): PropertyDefinition[] {

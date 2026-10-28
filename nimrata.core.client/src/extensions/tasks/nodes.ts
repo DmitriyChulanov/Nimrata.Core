@@ -1,6 +1,6 @@
 // Узлы дерева Трекера: поиск и создание по требованию (годы, месяцы, дни, категории), корни
 
-import { createNode } from '@platform';
+import { ancestors, createNode } from '@platform';
 
 import { CATEGORY, DAY, DAY_OFF, DAY_TYPES, MONTH, TASKS_ROOT, YEAR } from './constants';
 import { dayName, isWeekend, monthName, pad } from './dates';
@@ -131,24 +131,6 @@ export function ensureCategory(
         { name },
         CATEGORY_ORDER,
     );
-}
-
-/**
- * Предки объекта от ближайшего к корню
- *
- * @param data - контроллер данных
- * @param object - объект, чьих предков нужно найти
- * @returns цепочка родителей, начиная с непосредственного
- */
-export function ancestors(data: DataController, object: DataObject): DataObject[] {
-    const chain: DataObject[] = [];
-    for (let id = object.parent; id;) {
-        const parent = data.getObject(id);
-        if (!parent) break;
-        chain.push(parent);
-        id = parent.parent;
-    }
-    return chain;
 }
 
 /**

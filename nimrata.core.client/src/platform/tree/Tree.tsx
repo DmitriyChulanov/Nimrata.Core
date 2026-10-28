@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
-import { collator } from '@platform/collator';
 import { useData } from '@platform/data/useData';
 import { Icon } from '@platform/icons/Icon';
+import { objectLabel } from '@platform/objectQueries/objectQueries';
 import { Button, ContextMenu, Dialog } from '@platform/ui';
 
 import { TypeIcon } from './TypeIcon';
@@ -11,6 +11,7 @@ import { useSelection } from '@platform/selection/useSelection';
 
 import { canPaste, copySubtrees, pasteSubtrees, topLevelIds } from './clipboard';
 import { planMove, positionInRow } from './planMove';
+import { expandToReveal, flatten, visibleChildren } from './treeModel';
 import { colorPresentation, resolveRuleColor } from './colorRules';
 import './ruleColors.css';
 
@@ -34,33 +35,6 @@ const OVERSCAN = 5;
  */
 const DEFAULT_VIEWPORT = 400;
 /**
- * Строка плоского списка дерева
- */
-interface Row {
-    /** Объект строки */
-    object: DataObject;
-    /** Название для показа */
-    title: string;
-    /** Уровень вложенности; корень — 0 */
-    level: number;
-    /** Есть ли видимые потомки */
-    hasChildren: boolean;
-}
-
-/**
- * Название объекта для показа: вычисляемое имя, иначе название типа
- *
- * @param data - контроллер данных
- * @param object - объект
- * @returns текст названия
- */
-function titleOf(data: DataController, object: DataObject): string {
-    const name = object.properties.name;
-    if (typeof name === 'string' && name !== '') return name;
-    return data.getType(object.type)?.name ?? object.type;
-}
-
-/**
  * Типы, объекты которых можно создать под узлом: допустимые дочерние неабстрактные типы
  */
 function creatableTypes(data: DataController, parent: DataObject): TypeDefinition[] {
@@ -68,42 +42,6 @@ function creatableTypes(data: DataController, parent: DataObject): TypeDefinitio
     return allowed
         .map((id) => data.getType(id))
         .filter((t): t is TypeDefinition => t !== undefined && !t.abstract);
-}
-
-/**
- * Видимые потомки узла: без скрытых типов, по порядку, затем по названию
- */
-function visibleChildren(data: DataController, parent: string | null) {
-    return data
-        .getChildren(parent)
-        .filter((o) => !data.getType(o.type)?.hiddenInTree)
-        .map((object) => ({ object, title: titleOf(data, object) }))
-        .sort(
-            (a, b) =>
-                a.object.order - b.object.order ||
-                collator.compare(a.title, b.title) ||
-                (a.object.id < b.object.id ? -1 : 1),
-        );
-}
-
-/**
- * Разворачивает дерево в плоский список видимых строк
- *
- * @param data - контроллер данных
- * @param expanded - идентификаторы раскрытых узлов
- * @returns строки по порядку показа
- */
-function flatten(data: DataController, expanded: ReadonlySet<string>): Row[] {
-    const rows: Row[] = [];
-    const walk = (parent: string | null, level: number) => {
-        for (const { object, title } of visibleChildren(data, parent)) {
-            const hasChildren = visibleChildren(data, object.id).length > 0;
-            rows.push({ object, title, level, hasChildren });
-            if (hasChildren && expanded.has(object.id)) walk(object.id, level + 1);
-        }
-    };
-    walk(null, 1);
-    return rows;
 }
 
 /**
@@ -132,15 +70,7 @@ export function Tree() {
     const [handledReveal, setHandledReveal] = useState(revealRequest?.seq ?? 0);
     if (revealRequest && revealRequest.seq !== handledReveal) {
         setHandledReveal(revealRequest.seq);
-        const ancestors: string[] = [];
-        for (
-            let parent = data.getObject(revealRequest.id)?.parent;
-            parent;
-            parent = data.getObject(parent)?.parent
-        ) {
-            ancestors.push(parent);
-        }
-        if (ancestors.length > 0) setExpanded((prev) => new Set([...prev, ...ancestors]));
+        setExpanded((prev) => expandToReveal(data, prev, revealRequest.id));
     }
     const scrolledReveal = useRef(revealRequest?.seq ?? 0);
 
@@ -573,7 +503,7 @@ export function Tree() {
                 >
                     <p>
                         {deletingObjects.length === 1
-                            ? `Удалить «${titleOf(data, deletingObjects[0])}» вместе со всеми вложенными объектами?`
+                            ? `Удалить «${objectLabel(data, deletingObjects[0])}» вместе со всеми вложенными объектами?`
                             : `Удалить выделенные объекты (${deletingObjects.length}) вместе со всеми вложенными объектами?`}
                     </p>
                 </Dialog>
