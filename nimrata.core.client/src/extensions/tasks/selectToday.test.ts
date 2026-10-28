@@ -57,11 +57,14 @@ describe('Tracker: "Select today" command', () => {
     /**
      * Проверяет, что обработчик зарегистрирован и стартовая настройка не создаёт скрытых объектов
      */
-    it('selectToday_startSetup_registersHandlerAndCreatesOnlyTasksRoot', async () => {
+    it('selectToday_startSetup_registersHandlerAndCreatesOnlyTasksAndSettingsRoots', async () => {
         const { data } = await start();
 
         expect(data.isCommandAvailable('selectToday')).toBe(true);
-        expect(data.getChildren(null).map((o) => o.type)).toEqual(['TasksRoot']);
+        expect(data.getChildren(null).map((o) => o.type)).toEqual([
+            'TasksRoot',
+            'SettingsRoot',
+        ]);
     });
 
     /**

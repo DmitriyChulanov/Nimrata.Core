@@ -89,6 +89,18 @@ function checkParent(
 }
 
 /**
+ * Платформенные типы без расширения (как в миграциях сервера), которые есть у каждого пользователя
+ */
+const PLATFORM_TYPES = [
+    { id: 'SettingsRoot', name: 'Настройки', sealed: true, singleton: true, icon: 'settings' },
+];
+
+function withPlatformTypes(types: unknown[]): unknown[] {
+    const known = new Set((types as TypeLike[]).map((t) => t.id));
+    return [...types, ...PLATFORM_TYPES.filter((t) => !known.has(t.id))];
+}
+
+/**
  * Подставной API-клиент для тестов: хранит типы и объекты в памяти и применяет наборы изменений
  *
  * @param types - описания типов, отдаваемые по `/types`
@@ -158,7 +170,7 @@ export function createFakeApi(
     };
     const catalogItem = (e: Required<FakeExtension>) => ({ ...e });
     const api: FakeApi = {
-        types,
+        types: withPlatformTypes(types),
         objects,
         changesets: [],
         extensions: (options.extensions ?? []).map((e) => ({

@@ -83,15 +83,33 @@ describe('Tasks: interface', () => {
     });
 
     /**
-     * Проверяет, что создание из меню текущих задач создаёт месяц, день и задачу
+     * Создаёт день `2026-03-05` в «Текущих задачах» и возвращает его и категорию «Работа»
      */
-    it('tasksUi_createTaskFromCurrentTasksMenu_createsMonthDayAndTask', async () => {
+    async function seedDay(data: Awaited<ReturnType<typeof setup>>['data']) {
+        await data.runAction(currentRoot(data).id, 'createTask', {
+            title: 'Старая',
+            date: '2026-03-05',
+            category: 'Работа',
+        });
+        const month = data.getChildren(currentRoot(data).id)[0];
+        const day = data.getChildren(month.id)[0];
+        const category = data.getChildren(day.id).find((o) => o.type === 'Category')!;
+        return { day, category };
+    }
+
+    /**
+     * Проверяет, что «Создать задачу» из меню дня спрашивает только название и берёт дату из дня
+     */
+    it('tasksUi_createTaskFromDayMenu_asksOnlyTitleAndUsesDayDate', async () => {
         const { data } = await setup();
+        await seedDay(data);
         mount(data);
         await expandRow(/^.*Задачи$/);
+        await expandRow(/Текущие задачи/);
+        await expandRow(/март, 2026/);
         await userEvent.pointer({
             keys: '[MouseRight]',
-            target: screen.getByRole('treeitem', { name: /Текущие задачи/ }),
+            target: screen.getByRole('treeitem', { name: /05\.03\.2026, четверг/ }),
         });
         await userEvent.click(
             within(screen.getByRole('menu', { name: 'Действия с объектом' })).getByRole(
@@ -100,16 +118,80 @@ describe('Tasks: interface', () => {
             ),
         );
         const dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
+        expect(within(dialog).queryByLabelText(/Дата/)).not.toBeInTheDocument();
+        expect(within(dialog).queryByLabelText(/Категория/)).not.toBeInTheDocument();
         await userEvent.type(within(dialog).getByLabelText(/Название/), 'Позвонить');
-        await userEvent.type(within(dialog).getByLabelText(/Дата/), '2026-03-05');
-        await userEvent.type(within(dialog).getByLabelText(/Категория/), 'Работа');
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
 
-        await expandRow(/Текущие задачи/);
-        await expandRow(/март, 2026/);
         await expandRow(/05\.03\.2026, четверг/);
-        await expandRow(/Работа/);
         expect(await screen.findByRole('treeitem', { name: /Позвонить/ })).toBeInTheDocument();
+    });
+
+    /**
+     * Проверяет, что диалог дня предлагает типовые категории и кладёт задачу в категорию по выбору
+     */
+    it('tasksUi_createTaskInDayWithTemplates_offersTemplateSelect', async () => {
+        const { data } = await setup();
+        const { day } = await seedDay(data);
+        const settings = data.getChildren(null).find((o) => o.type === 'SettingsRoot')!;
+        const group = data.getChildren(data.getChildren(settings.id)[0].id)[0];
+        const template = await data.create({ type: 'CategoryTemplate', parent: group.id });
+        if (template.ok) await data.setProperty(template.id, 'name', 'Семья');
+        mount(data, day.id);
+        await userEvent.click(screen.getByRole('button', { name: `выбрать ${day.id}` }));
+
+        await userEvent.click(screen.getByRole('button', { name: 'Создать задачу' }));
+        const dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
+        await userEvent.type(within(dialog).getByLabelText(/Название/), 'Ужин');
+        await userEvent.selectOptions(within(dialog).getByLabelText(/Типовая категория/), 'Семья');
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
+
+        const family = data.getChildren(day.id).find((o) => o.properties.name === 'Семья')!;
+        expect(data.getChildren(family.id).map((t) => t.properties.title)).toEqual(['Ужин']);
+    });
+
+    /**
+     * Проверяет, что без типовых категорий выбор в диалоге дня скрыт
+     */
+    it('tasksUi_createTaskInDayWithoutTemplates_hidesTemplateSelect', async () => {
+        const { data } = await setup();
+        const { day } = await seedDay(data);
+        mount(data, day.id);
+        await userEvent.click(screen.getByRole('button', { name: `выбрать ${day.id}` }));
+
+        await userEvent.click(screen.getByRole('button', { name: 'Создать задачу' }));
+
+        const dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
+        expect(within(dialog).queryByLabelText(/Типовая категория/)).not.toBeInTheDocument();
+    });
+
+    /**
+     * Проверяет, что таблица свойств дня и категории показывает действие «Создать задачу»
+     */
+    it('tasksUi_createTaskInPropertyGrid_isShownForDayAndCategory', async () => {
+        const { data } = await setup();
+        const { day, category } = await seedDay(data);
+        mount(data, day.id);
+
+        await userEvent.click(screen.getByRole('button', { name: `выбрать ${day.id}` }));
+        expect(screen.getByRole('button', { name: 'Создать задачу' })).toBeInTheDocument();
+        expect(data.getActions(category.id, 'propertyGrid').map((a) => a.id)).toContain(
+            'createTask',
+        );
+    });
+
+    /**
+     * Проверяет, что у корня «Текущие задачи» и месяца нет пользовательского действия «Создать задачу»
+     */
+    it('tasksUi_createTask_isNotOfferedForCurrentRootAndMonth', async () => {
+        const { data } = await setup();
+        await seedDay(data);
+        const month = data.getChildren(currentRoot(data).id)[0];
+
+        for (const id of [currentRoot(data).id, month.id]) {
+            expect(data.getActions(id, 'contextMenu')).toEqual([]);
+            expect(data.getActions(id, 'propertyGrid')).toEqual([]);
+        }
     });
 
     /**

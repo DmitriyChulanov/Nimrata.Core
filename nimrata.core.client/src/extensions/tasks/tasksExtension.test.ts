@@ -46,7 +46,7 @@ describe('Tasks: start structure', () => {
                 .getChildren(null)
                 .map((o) => o.type)
                 .sort(),
-        ).toEqual(['TasksRoot']);
+        ).toEqual(['SettingsRoot', 'TasksRoot']);
         const tasks = byType(data, 'TasksRoot');
         expect(data.getChildren(tasks.id).map((o) => o.type)).toEqual([
             'CurrentTasksRoot',
@@ -66,13 +66,15 @@ describe('Tasks: start structure', () => {
         api.objects = [
             ...data.getChildren(null),
             ...data.getChildren(byType(data, 'TasksRoot').id),
+            ...data.getChildren(byType(data, 'SettingsRoot').id),
+            ...data.getChildren(data.getChildren(byType(data, 'SettingsRoot').id)[0].id),
         ];
         await data.load();
         const afterReload = await ensureTasksStart(data);
 
         expect(again.ok && afterReload.ok).toBe(true);
         expect(api.changesets).toHaveLength(1);
-        expect(data.getChildren(null)).toHaveLength(1);
+        expect(data.getChildren(null)).toHaveLength(2);
     });
 
     /**
@@ -142,7 +144,7 @@ describe('Tasks: start structure under race', () => {
 
         expect(result.ok).toBe(true);
         expect(api.changesets).toHaveLength(1);
-        expect(data.getChildren(null)).toHaveLength(1);
+        expect(data.getChildren(null)).toHaveLength(2);
     });
 });
 
@@ -167,7 +169,7 @@ describe('Tasks: user isolation', () => {
         expect(first.data.getChildren(null).filter((o) => o.type === 'TasksRoot')).toHaveLength(1);
         expect(first.data.getObject('r1')).toBeDefined();
         expect(second.data.getObject('r1')).toBeUndefined();
-        expect(second.data.getChildren(null)).toHaveLength(1);
+        expect(second.data.getChildren(null)).toHaveLength(2);
     });
 });
 

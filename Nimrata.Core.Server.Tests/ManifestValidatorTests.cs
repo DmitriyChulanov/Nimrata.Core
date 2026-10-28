@@ -204,7 +204,7 @@ public sealed class ManifestValidatorTests
     /// <param name="extension">Идентификатор расширения</param>
     /// <param name="singletons">Типы, которые должны быть singleton</param>
     [Theory]
-    [InlineData("tasks", "TasksRoot,CurrentTasksRoot,CompletedTasksRoot")]
+    [InlineData("tasks", "TasksRoot,CurrentTasksRoot,CompletedTasksRoot,TasksSettings,CategoryTemplates")]
     [InlineData("notes", "NotesRoot,ActiveNotesRoot,CompletedNotesRoot")]
     public void ExtensionManifest_AutoCreatedTypesAreSingleton(string extension, string singletons)
     {

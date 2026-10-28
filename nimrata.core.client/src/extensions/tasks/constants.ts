@@ -59,3 +59,20 @@ export const COMPLETED_REPORT_COMMAND = 'completedReport';
  * Значение статуса «Завершена» у задачи
  */
 export const COMPLETED = 'completed';
+
+/**
+ * Тип узла настроек Трекера задач внутри корня «Настройки»
+ */
+export const TASKS_SETTINGS = 'TasksSettings';
+/**
+ * Тип группы типовых категорий в настройках
+ */
+export const CATEGORY_TEMPLATES = 'CategoryTemplates';
+/**
+ * Тип типовой категории: от неё в день наследуется только название
+ */
+export const CATEGORY_TEMPLATE = 'CategoryTemplate';
+/**
+ * Значение параметра «Типовая категория»: задача кладётся в день без категории
+ */
+export const NO_TEMPLATE = 'none';

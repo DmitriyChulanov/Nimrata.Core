@@ -156,3 +156,10 @@ export type {
     TextAreaProps,
     TextFieldProps,
 } from './ui';
+export {
+    SETTINGS_ROOT,
+    ensureSettingsNode,
+    findSettingsNode,
+    findSettingsRoot,
+    registerSettingsGuard,
+} from './settings/settings';

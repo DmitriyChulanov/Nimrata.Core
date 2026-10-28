@@ -252,6 +252,25 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
     }
 
     /// <summary>
+    /// Проверяет, что платформенный тип «Настройки» — singleton без расширения, принимает узлы
+    /// любого расширения и не даёт создать второй корень
+    /// </summary>
+    [Fact]
+    public async Task SettingsRootType_IsPlatformSingletonAndAcceptsExtensionNodes()
+    {
+        var types = (await _me.GetFromJsonAsync<JsonElement[]>("/api/types"))!;
+        var type = types.Single(t => t.GetProperty("id").GetString() == "SettingsRoot");
+        Assert.True(type.GetProperty("singleton").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, type.GetProperty("extension").ValueKind);
+        var settings = Guid.CreateVersion7();
+
+        await ApplyOk(_me, Create(settings, "SettingsRoot"), Create(Guid.CreateVersion7(), "AlphaItem", settings));
+        var second = await Apply(_me, Create(Guid.CreateVersion7(), "SettingsRoot"));
+
+        await AssertRejected(second, HttpStatusCode.Conflict, "уже есть", "singleton_exists");
+    }
+
+    /// <summary>
     /// Проверяет, что каталог расширений закрыт без токена
     /// </summary>
     [Fact]
