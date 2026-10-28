@@ -70,6 +70,49 @@ describe('DataController: refusals before execution', () => {
     });
 
     /**
+     * Проверяет, что отказ одиночного запуска возвращается сразу, не дожидаясь набора в очереди
+     */
+    it('runAction_refusalWithPendingChangeset_returnsWithoutWaiting', async () => {
+        const { api, data } = await setup();
+        let release!: () => void;
+        const gate = new Promise<void>((resolve) => (release = resolve));
+        const post = api.post.bind(api);
+        api.post = (path, body) => gate.then(() => post(path, body));
+        const pending = data.setProperty('a', 'name', 'Новое');
+
+        expect(await data.runAction('zzz', 'mark')).toEqual({
+            ok: false,
+            error: 'Объект не найден.',
+        });
+        expect(await data.runAction('a', 'bare')).toEqual({
+            ok: false,
+            error: 'У объекта нет действия "bare" с обработчиком.',
+        });
+        release();
+        expect(await pending).toEqual({ ok: true });
+    });
+
+    /**
+     * Проверяет, что при расхождении с сервером отказ запуска остаётся прежним, без текста про перезагрузку
+     */
+    it('runAction_refusalWhenNeedsReload_keepsOwnReason', async () => {
+        const { api, data } = await setup();
+        data.registerAction('Item', 'ask', () => {});
+        api.rejectNext(409, 'Конфликт');
+        await data.setProperty('a', 'name', 'Новое');
+        expect(data.getSnapshot().needsReload).toBe(true);
+
+        expect(await data.runAction('zzz', 'mark')).toEqual({
+            ok: false,
+            error: 'Объект не найден.',
+        });
+        expect(await data.runAction('a', 'ask', {})).toEqual({
+            ok: false,
+            error: 'Параметр «Дней» обязателен.',
+        });
+    });
+
+    /**
      * Проверяет тексты отказов запуска по группе (с именем объекта) и отсутствие записи на сервер
      */
     it('runActionOnMany_refusals_returnExactReasonsAndWriteNothing', async () => {
