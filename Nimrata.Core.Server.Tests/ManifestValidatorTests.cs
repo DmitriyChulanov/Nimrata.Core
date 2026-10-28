@@ -300,6 +300,19 @@ public sealed class ManifestValidatorTests
     }
 
     /// <summary>
+    /// Проверяет, что иконка действия должна быть строкой, а строковая принимается
+    /// </summary>
+    [Fact]
+    public void ActionIcon_MustBeString()
+    {
+        var bad = Validate(WithMetadata(Meta, """{ "id": "A", "name": "A", "actions": [ { "id": "x", "name": "X", "icon": 5 } ] }"""));
+        var good = Validate(WithMetadata(Meta, """{ "id": "A", "name": "A", "actions": [ { "id": "x", "name": "X", "icon": "plus" } ] }"""));
+
+        Assert.Contains(bad, error => error.Contains("$.types[0].actions[0].icon:"));
+        Assert.DoesNotContain(good, error => error.Contains("icon"));
+    }
+
+    /// <summary>
     /// Проверяет, что упразднённые флаг типа и место показа «automation» отклоняются
     /// </summary>
     /// <param name="type">JSON типа</param>

@@ -4,18 +4,21 @@ import { useActionLauncher } from '@platform/actions/useActionLauncher';
 import { collator } from '@platform/collator';
 import { useData } from '@platform/data/useData';
 import { Icon } from '@platform/icons/Icon';
-import { Button, Dialog } from '@platform/ui';
+import { Button, ContextMenu, Dialog } from '@platform/ui';
 
 import { TypeIcon } from './TypeIcon';
 import { useSelection } from '@platform/selection/useSelection';
 
+import { canPaste, copySubtrees, pasteSubtrees, topLevelIds } from './clipboard';
 import { planMove, positionInRow } from './planMove';
 import { colorPresentation, resolveRuleColor } from './colorRules';
 import './ruleColors.css';
 
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import type { DataController, DataObject } from '@platform/data/DataController';
-import type { TypeDefinition } from '@platform/types/types';
+import type { ContextMenuSeparator, MenuEntry } from '@platform/ui';
+import type { ActionDefinition, TypeDefinition } from '@platform/types/types';
+import type { ClipboardNode } from './clipboard';
 import type { DropPosition } from './planMove';
 
 /**
@@ -108,7 +111,10 @@ function flatten(data: DataController, expanded: ReadonlySet<string>): Row[] {
  */
 export function Tree() {
     const data = useData();
-    const { selectedId, select, revealRequest } = useSelection();
+    const { selectedId, selectedIds, select, setSelection, reveal, revealRequest } = useSelection();
+    const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+    // Опорная строка для выделения диапазона Shift+клик
+    const anchor = useRef<string | null>(null);
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
     const version = data.getSnapshot().version;
 
@@ -171,38 +177,111 @@ export function Tree() {
     const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
     const last = Math.min(rows.length, Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + OVERSCAN);
 
-    const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
-    const [deleting, setDeleting] = useState<string | null>(null);
+    // Меню открыто для группы `ids` (одиночный объект — группа из одного)
+    const [menu, setMenu] = useState<{ ids: string[]; x: number; y: number } | null>(null);
+    const [deleting, setDeleting] = useState<string[] | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // Внутренний буфер обмена: живёт, пока открыто приложение
+    const [clipboard, setClipboard] = useState<ClipboardNode[]>([]);
     const launcher = useActionLauncher();
-
-    useEffect(() => {
-        if (!menu) return;
-        const close = () => setMenu(null);
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') close();
-        };
-        document.addEventListener('click', close);
-        document.addEventListener('keydown', onKey);
-        return () => {
-            document.removeEventListener('click', close);
-            document.removeEventListener('keydown', onKey);
-        };
-    }, [menu]);
 
     const createChild = async (parent: string, type: string) => {
         setError(null);
         const result = await data.create({ type, parent });
-        if (result.ok) setExpanded((prev) => new Set(prev).add(parent));
-        else setError(result.error);
+        if (result.ok) {
+            setExpanded((prev) => new Set(prev).add(parent));
+            reveal(result.id);
+        } else setError(result.error);
     };
 
-    const confirmDelete = async (id: string) => {
+    const copySelection = (ids: readonly string[]) => {
+        const nodes = copySubtrees(data, ids);
+        if (nodes.length > 0) setClipboard(nodes);
+    };
+
+    const pasteInto = async (target: string) => {
+        if (!canPaste(data, clipboard, target)) return;
+        setError(null);
+        const result = await pasteSubtrees(data, clipboard, target);
+        if (!result.ok) {
+            setError(result.error);
+            return;
+        }
+        setExpanded((prev) => new Set(prev).add(target));
+        reveal(result.ids[0], result.ids);
+    };
+
+    const confirmDelete = async (ids: readonly string[]) => {
         setDeleting(null);
         setError(null);
-        const result = await data.remove(id);
-        if (!result.ok) setError(result.error);
-        else if (selectedId !== null && !data.getObject(selectedId)) select(null);
+        const result = await data.perform((tx) => {
+            for (const id of ids) {
+                const removed = tx.remove(id);
+                if (!removed.ok) throw new Error(removed.error);
+            }
+        });
+        if (!result.ok) {
+            setError(result.error);
+            return;
+        }
+        const alive = selectedIds.filter((id) => data.getObject(id));
+        if (alive.length !== selectedIds.length) {
+            setSelection(alive, selectedId && alive.includes(selectedId) ? selectedId : null);
+        }
+    };
+
+    const selectRow = (e: ReactMouseEvent, id: string) => {
+        if (e.shiftKey && anchor.current && rows.some((r) => r.object.id === anchor.current)) {
+            const from = rows.findIndex((r) => r.object.id === anchor.current);
+            const to = rows.findIndex((r) => r.object.id === id);
+            const [lo, hi] = from < to ? [from, to] : [to, from];
+            setSelection(
+                rows.slice(lo, hi + 1).map((r) => r.object.id),
+                id,
+            );
+            return;
+        }
+        anchor.current = id;
+        if (e.ctrlKey || e.metaKey) {
+            if (!selectedSet.has(id)) {
+                setSelection([...selectedIds, id], id);
+            } else {
+                const rest = selectedIds.filter((s) => s !== id);
+                setSelection(
+                    rest,
+                    id === selectedId ? (rest[rest.length - 1] ?? null) : selectedId,
+                );
+            }
+            return;
+        }
+        select(id);
+    };
+
+    /**
+     * Ctrl/Cmd+C, +V, +A и Delete; клавиши сверяются по физическому коду, чтобы работать в любой раскладке
+     */
+    const onTreeKey = (e: ReactKeyboardEvent) => {
+        if (e.altKey) return;
+        const mod = e.ctrlKey || e.metaKey;
+        // Синтетические события без `code` распознаются по символу
+        const code = e.code || `Key${e.key.toUpperCase()}`;
+        if (mod && code === 'KeyA') {
+            e.preventDefault();
+            setSelection(
+                rows.map((r) => r.object.id),
+                selectedId ?? rows[0]?.object.id ?? null,
+            );
+        } else if (mod && code === 'KeyC') {
+            e.preventDefault();
+            copySelection(selectedIds);
+        } else if (mod && code === 'KeyV') {
+            e.preventDefault();
+            if (selectedIds.length === 1) void pasteInto(selectedIds[0]);
+        } else if (e.key === 'Delete' && !mod) {
+            e.preventDefault();
+            const top = topLevelIds(data, selectedIds);
+            if (top.length > 0) setDeleting(top);
+        }
     };
 
     // Перенос перетаскиванием: тянем строку, цель и положение берём из позиции указателя
@@ -244,10 +323,83 @@ export function Tree() {
         if (target) void moveTo(object.id, target.id, position);
     };
 
-    const menuObject = menu ? data.getObject(menu.id) : undefined;
-    const creatable = menuObject ? creatableTypes(data, menuObject) : [];
-    const menuActions = menuObject ? data.getActions(menuObject.id, 'contextMenu') : [];
-    const deletingObject = deleting ? data.getObject(deleting) : undefined;
+    const deletingObjects = (deleting ?? []).flatMap((id) => data.getObject(id) ?? []);
+
+    /**
+     * Пункты контекстного меню группы: «Создать», «Копировать» и «Вставить» (создание и вставка — только
+     * для одного узла), затем действия типа, затем «Удалить»; группы разделены чертой
+     */
+    const buildMenuItems = (ids: readonly string[]): (MenuEntry | ContextMenuSeparator)[] => {
+        const targets = ids.flatMap((id) => data.getObject(id) ?? []);
+        if (targets.length === 0) return [];
+        const single = targets.length === 1 ? targets[0] : null;
+
+        const edit: MenuEntry[] = [];
+        if (single) {
+            for (const type of creatableTypes(data, single)) {
+                edit.push({
+                    id: `create:${type.id}`,
+                    label: `Создать: ${type.name}`,
+                    icon: 'plus',
+                    onSelect: () => void createChild(single.id, type.id),
+                });
+            }
+        }
+        edit.push({
+            id: 'copy',
+            label: 'Копировать',
+            icon: 'copy',
+            onSelect: () => copySelection(ids),
+        });
+        if (single) {
+            edit.push({
+                id: 'paste',
+                label: 'Вставить',
+                icon: 'clipboard',
+                disabled: !canPaste(data, clipboard, single.id),
+                onSelect: () => void pasteInto(single.id),
+            });
+        }
+
+        // Действие доступно группе, если оно есть у каждого выделенного объекта
+        const [firstTarget, ...others] = targets;
+        const common: ActionDefinition[] = data
+            .getActions(firstTarget.id, 'contextMenu')
+            .filter((action) =>
+                others.every((o) =>
+                    data.getActions(o.id, 'contextMenu').some((a) => a.id === action.id),
+                ),
+            );
+        const actions: MenuEntry[] = common.map((action) => ({
+            id: `action:${action.id}`,
+            label: action.name,
+            icon: action.icon ?? 'play',
+            onSelect: () => {
+                setError(null);
+                void launcher.launchMany(
+                    targets.map((t) => t.id),
+                    action,
+                );
+            },
+        }));
+
+        const remove: MenuEntry = {
+            id: 'delete',
+            label: 'Удалить',
+            icon: 'trash-2',
+            danger: true,
+            onSelect: () => setDeleting(topLevelIds(data, ids)),
+        };
+
+        const items: (MenuEntry | ContextMenuSeparator)[] = [];
+        [edit, actions, [remove]].forEach((group, n) => {
+            if (group.length === 0) return;
+            if (items.length > 0) items.push({ id: `separator:${n}`, separator: true });
+            items.push(...group);
+        });
+        return items;
+    };
+    const menuItems = menu ? buildMenuItems(menu.ids) : [];
 
     return (
         <>
@@ -257,6 +409,8 @@ export function Tree() {
                 ref={containerRef}
                 role="tree"
                 aria-label="Дерево объектов"
+                aria-multiselectable="true"
+                onKeyDown={onTreeKey}
                 style={{ height: '100%', overflow: 'auto', position: 'relative' }}
                 onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
             >
@@ -277,7 +431,7 @@ export function Tree() {
                                 aria-level={level}
                                 aria-posinset={first + i + 1}
                                 aria-setsize={rows.length}
-                                aria-selected={selectedId === object.id}
+                                aria-selected={selectedSet.has(object.id)}
                                 aria-expanded={hasChildren ? isOpen : undefined}
                                 data-rule-color={paletteColor}
                                 style={{
@@ -353,12 +507,21 @@ export function Tree() {
                                     void moveTo(id, object.id, position);
                                 }}
                                 onDragEnd={() => setDrag(null)}
-                                onClick={() => select(object.id)}
+                                onClick={(e) => selectRow(e, object.id)}
                                 onContextMenu={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    select(object.id);
-                                    setMenu({ id: object.id, x: e.clientX, y: e.clientY });
+                                    // Правый клик внутри выделения работает на всю группу, вне — на один узел
+                                    const inGroup = selectedSet.has(object.id);
+                                    if (!inGroup) {
+                                        anchor.current = object.id;
+                                        select(object.id);
+                                    }
+                                    setMenu({
+                                        ids: inGroup ? [...selectedIds] : [object.id],
+                                        x: e.clientX,
+                                        y: e.clientY,
+                                    });
                                 }}
                             >
                                 {hasChildren ? (
@@ -382,49 +545,16 @@ export function Tree() {
                     })}
                 </div>
             </div>
-            {menu && menuObject && (
-                <ul
-                    role="menu"
-                    aria-label="Действия с объектом"
-                    style={{ position: 'fixed', left: menu.x, top: menu.y, margin: 0, padding: 4 }}
-                >
-                    {creatable.map((type) => (
-                        <li key={type.id} role="none">
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => void createChild(menuObject.id, type.id)}
-                            >
-                                Создать: {type.name}
-                            </button>
-                        </li>
-                    ))}
-                    {menuActions.map((action) => (
-                        <li key={action.id} role="none">
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => {
-                                    setError(null);
-                                    void launcher.launch(menuObject.id, action);
-                                }}
-                            >
-                                {action.name}
-                            </button>
-                        </li>
-                    ))}
-                    <li role="none">
-                        <button
-                            type="button"
-                            role="menuitem"
-                            onClick={() => setDeleting(menuObject.id)}
-                        >
-                            Удалить
-                        </button>
-                    </li>
-                </ul>
+            {menu && menuItems.length > 0 && (
+                <ContextMenu
+                    label="Действия с объектом"
+                    x={menu.x}
+                    y={menu.y}
+                    items={menuItems}
+                    onClose={() => setMenu(null)}
+                />
             )}
-            {deletingObject && (
+            {deletingObjects.length > 0 && (
                 <Dialog
                     title="Подтверждение удаления"
                     role="alertdialog"
@@ -434,7 +564,7 @@ export function Tree() {
                             <Button onClick={() => setDeleting(null)}>Отмена</Button>
                             <Button
                                 variant="danger"
-                                onClick={() => void confirmDelete(deletingObject.id)}
+                                onClick={() => void confirmDelete(deletingObjects.map((o) => o.id))}
                             >
                                 Удалить
                             </Button>
@@ -442,8 +572,9 @@ export function Tree() {
                     }
                 >
                     <p>
-                        Удалить «{titleOf(data, deletingObject)}» вместе со всеми вложенными
-                        объектами?
+                        {deletingObjects.length === 1
+                            ? `Удалить «${titleOf(data, deletingObjects[0])}» вместе со всеми вложенными объектами?`
+                            : `Удалить выделенные объекты (${deletingObjects.length}) вместе со всеми вложенными объектами?`}
                     </p>
                 </Dialog>
             )}

@@ -147,9 +147,9 @@ describe('Tree: context menu', () => {
     const menuItems = () => screen.getAllByRole('menuitem').map((i) => i.textContent);
 
     /**
-     * Проверяет, что меню предлагает только допустимые неабстрактные типы потомков, затем удаление
+     * Проверяет, что меню предлагает допустимые неабстрактные типы потомков, затем копирование, вставку и удаление
      */
-    it('tree_createMenu_offersOnlyAllowedNonAbstractChildTypesThenDelete', async () => {
+    it('tree_createMenu_offersAllowedNonAbstractChildTypesThenCopyPasteDelete', async () => {
         const user = userEvent.setup();
         await renderTree(family);
 
@@ -158,13 +158,19 @@ describe('Tree: context menu', () => {
             target: screen.getByRole('treeitem', { name: 'Папка' }),
         });
 
-        expect(menuItems()).toEqual(['Создать: Заметка', 'Создать: Папка', 'Удалить']);
+        expect(menuItems()).toEqual([
+            'Создать: Заметка',
+            'Создать: Папка',
+            'Копировать',
+            'Вставить',
+            'Удалить',
+        ]);
     });
 
     /**
-     * Проверяет, что у типа без допустимых потомков в меню только удаление
+     * Проверяет, что у типа без допустимых потомков в меню нет пунктов создания
      */
-    it('tree_typeWithoutAllowedChildren_menuHasOnlyDelete', async () => {
+    it('tree_typeWithoutAllowedChildren_menuHasNoCreateItems', async () => {
         const user = userEvent.setup();
         await renderTree(family);
 
@@ -173,7 +179,7 @@ describe('Tree: context menu', () => {
             target: screen.getByRole('treeitem', { name: 'Лист' }),
         });
 
-        expect(menuItems()).toEqual(['Удалить']);
+        expect(menuItems()).toEqual(['Копировать', 'Вставить', 'Удалить']);
     });
 
     /**

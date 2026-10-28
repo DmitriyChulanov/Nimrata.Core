@@ -251,6 +251,8 @@ public static class ManifestValidator
         RequireString(action, "name", path, errors);
         if (RequireString(action, "id", path, errors) is { } name && !taken.Add(name))
             errors.Add($"{path}.id: действие \"{name}\" повторяется");
+        if (action.TryGetProperty("icon", out var icon) && icon.ValueKind != JsonValueKind.String)
+            errors.Add($"{path}.icon: нужна строка с именем иконки");
 
         if (action.TryGetProperty("placements", out var placements))
         {

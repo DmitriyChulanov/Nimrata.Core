@@ -124,7 +124,12 @@ export function ExtensionsProvider({
     // Снимает выделение, если выделенного объекта после перезагрузки больше нет
     const dropUnavailableSelection = useCallback(() => {
         const current = selectionRef.current;
-        if (current?.selectedId && !controller.getObject(current.selectedId)) current.select(null);
+        if (!current) return;
+        const alive = current.selectedIds.filter((id) => controller.getObject(id));
+        if (alive.length === current.selectedIds.length) return;
+        const primary =
+            current.selectedId && alive.includes(current.selectedId) ? current.selectedId : null;
+        current.setSelection(alive, primary);
     }, [controller]);
 
     /**

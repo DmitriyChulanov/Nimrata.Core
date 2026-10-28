@@ -1,6 +1,6 @@
 {
     "extension": "notes",
-    "version": 16,
+    "version": 17,
     "name": "Трекер заметок",
     "description": "Заметки и группы заметок, команды быстрого доступа.",
     "icon": "notebook",
@@ -43,6 +43,7 @@
                 {
                     "id": "createNote",
                     "name": "Создать заметку",
+                    "icon": "plus",
                     "placements": ["contextMenu"],
                     "parameters": [
                         {
@@ -56,6 +57,7 @@
                 {
                     "id": "createNoteGroup",
                     "name": "Создать группу заметок",
+                    "icon": "folder",
                     "placements": ["contextMenu"],
                     "parameters": [
                         {
@@ -95,6 +97,7 @@
                 {
                     "id": "createNote",
                     "name": "Создать заметку",
+                    "icon": "plus",
                     "placements": ["contextMenu"],
                     "parameters": [
                         {
@@ -108,6 +111,7 @@
                 {
                     "id": "createNoteGroup",
                     "name": "Создать группу заметок",
+                    "icon": "folder",
                     "placements": ["contextMenu"],
                     "parameters": [
                         {
@@ -121,11 +125,13 @@
                 {
                     "id": "createQuickAccessCommand",
                     "name": "Создать команду для быстрого доступа",
+                    "icon": "zap",
                     "placements": ["propertyGrid", "contextMenu"]
                 },
                 {
                     "id": "removeQuickAccessCommand",
                     "name": "Удалить команду для быстрого доступа",
+                    "icon": "x",
                     "placements": ["propertyGrid", "contextMenu"]
                 }
             ],
@@ -189,21 +195,25 @@
                 {
                     "id": "complete",
                     "name": "Завершить",
+                    "icon": "circle-check",
                     "placements": ["propertyGrid", "contextMenu"]
                 },
                 {
                     "id": "openExternalLink",
                     "name": "Перейти по внешней ссылке",
+                    "icon": "globe",
                     "placements": ["propertyGrid", "contextMenu"]
                 },
                 {
                     "id": "createQuickAccessCommand",
                     "name": "Создать команду для быстрого доступа",
+                    "icon": "zap",
                     "placements": ["propertyGrid", "contextMenu"]
                 },
                 {
                     "id": "removeQuickAccessCommand",
                     "name": "Удалить команду для быстрого доступа",
+                    "icon": "x",
                     "placements": ["propertyGrid", "contextMenu"]
                 }
             ],
