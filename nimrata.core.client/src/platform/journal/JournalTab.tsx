@@ -1,5 +1,6 @@
 import { useApi } from '@platform/auth/useApi';
 import { useData } from '@platform/data/useData';
+import { objectLabel } from '@platform/objectQueries/objectQueries';
 import { useSelection } from '@platform/selection/useSelection';
 import { useTypes } from '@platform/types/useTypes';
 
@@ -25,10 +26,7 @@ export function JournalTab() {
         objectLabel: (id) => {
             const object = data.getObject(id);
             if (!object) return null;
-            const title = object.properties.title ?? object.properties.name;
-            return typeof title === 'string' && title
-                ? title
-                : (getType(object.type)?.name ?? object.type);
+            return objectLabel({ getObject: data.getObject, getType }, object);
         },
         objectTypeId: (id) => data.getObject(id)?.type ?? null,
     };

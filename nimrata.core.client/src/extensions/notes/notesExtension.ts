@@ -1,4 +1,5 @@
 import {
+    ancestors,
     cancelIfFailed,
     createNode,
     ensureCreated,
@@ -48,24 +49,6 @@ function requireText(value: unknown, message: string): string {
 }
 
 /**
- * Цепочка предков объекта от ближайшего к корню
- *
- * @param data - контроллер данных
- * @param object - объект
- * @returns предки, начиная с непосредственного родителя
- */
-function ancestorsOf(data: DataController, object: DataObject): DataObject[] {
-    const chain: DataObject[] = [];
-    for (let id = object.parent; id;) {
-        const parent = data.getObject(id);
-        if (!parent) break;
-        chain.push(parent);
-        id = parent.parent;
-    }
-    return chain;
-}
-
-/**
  * Лежит ли объект в «Активных» заметках (или сам является их корнем)
  *
  * @param data - контроллер данных
@@ -75,7 +58,7 @@ function ancestorsOf(data: DataController, object: DataObject): DataObject[] {
 function isInActive(data: DataController, object: DataObject): boolean {
     return (
         object.type === ACTIVE_NOTES_ROOT ||
-        ancestorsOf(data, object).some((o) => o.type === ACTIVE_NOTES_ROOT)
+        ancestors(data, object).some((o) => o.type === ACTIVE_NOTES_ROOT)
     );
 }
 
@@ -88,7 +71,7 @@ function isInActive(data: DataController, object: DataObject): boolean {
  * @param tx - область изменений
  */
 function completeNote(data: DataController, note: DataObject, tx: ChangeScope): void {
-    const chain = ancestorsOf(data, note);
+    const chain = ancestors(data, note);
     const activeIndex = chain.findIndex((o) => o.type === ACTIVE_NOTES_ROOT);
     const active = chain[activeIndex];
     const notesRoot = chain[activeIndex + 1];
