@@ -1,23 +1,11 @@
+import { reloadData } from './reloadData';
+
 import type { ChangeResult, DataController } from '../data/DataController';
 
 /**
  * Код отказа сервера: второй объект singleton-типа у того же родителя и владельца
  */
 export const SINGLETON_EXISTS = 'singleton_exists';
-
-/**
- * Перезагружает данные; при неудаче возвращает причину
- *
- * @param data - контроллер данных
- * @returns успех либо причина, по которой данные не загрузились
- */
-async function reload(data: DataController): Promise<ChangeResult> {
-    await data.load();
-    const { status, error } = data.getSnapshot();
-    return status === 'ready'
-        ? { ok: true }
-        : { ok: false, error: error ?? 'Не удалось загрузить данные.' };
-}
 
 /**
  * Обвязка для `ensureStart` расширения: создание стартовой структуры устойчиво к устаревшим
@@ -38,16 +26,16 @@ export async function ensureCreated(
     attempt: () => Promise<ChangeResult>,
 ): Promise<ChangeResult> {
     if (data.getSnapshot().needsReload) {
-        const fresh = await reload(data);
+        const fresh = await reloadData(data);
         if (!fresh.ok) return fresh;
     }
 
     let result = await attempt();
     if (!result.ok && result.status === 409 && !result.code) {
-        const fresh = await reload(data);
+        const fresh = await reloadData(data);
         if (!fresh.ok) return fresh;
         result = await attempt();
     }
-    if (!result.ok && result.code === SINGLETON_EXISTS) return reload(data);
+    if (!result.ok && result.code === SINGLETON_EXISTS) return reloadData(data);
     return result;
 }
