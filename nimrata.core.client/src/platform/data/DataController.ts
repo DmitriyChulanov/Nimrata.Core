@@ -1,6 +1,9 @@
 import { ApiError } from '@platform/api/apiClient';
-import { objectLabel as labelOf } from '@platform/objectQueries/objectQueries';
 
+import { createActionRegistry } from './actionRegistry';
+import { errorMessage } from './errorMessage';
+
+import type { GroupLaunch } from './actionRegistry';
 import type { Operation } from './undoHistory';
 import { applyOperations, createUndoHistory, invertOperations, touchedIds } from './undoHistory';
 import { uuid7 } from './uuid7';
@@ -308,6 +311,11 @@ export interface DataController {
         action: ActionDefinition,
     ): PropertyDefinition[] | null;
     /**
+     * Подготовка запуска действия по выделению: параметры для диалога (один объект — свои варианты,
+     * группа — общие) либо причина недоступности. Правило «нет общих значений» живёт в реестре
+     */
+    groupLaunch(objectIds: readonly string[], action: ActionDefinition): GroupLaunch;
+    /**
      * Привязывает обработчик к команде расширения `id` (описана в `commands` манифеста).
      * Повторная регистрация того же `id` заменяет обработчик. Возвращает функцию отписки
      */
@@ -357,16 +365,6 @@ export interface GroupAction {
 }
 
 /**
- * Текст причины из произвольной ошибки
- *
- * @param error - пойманное исключение
- * @returns сообщение ошибки или строковое представление значения
- */
-function errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-}
-
-/**
  * Предел вложенности хуков: защита от бесконечной рекурсии
  */
 const MAX_HOOK_DEPTH = 16;
@@ -399,31 +397,6 @@ interface HookEntry {
 }
 
 /**
- * Пустой ли параметр действия
- *
- * @param value - значение параметра
- * @returns `true` для `undefined`, `null` и пустой строки
- */
-function isEmptyParam(value: unknown): boolean {
-    return value === undefined || value === null || value === '';
-}
-
-/**
- * Проверяет обязательные параметры команды или действия
- *
- * @param definitions - описания параметров
- * @param params - переданные значения
- * @returns сообщение для первого незаполненного обязательного параметра; иначе `undefined`
- */
-function missingRequired(
-    definitions: readonly { id: string; name: string; required?: boolean }[] | undefined,
-    params: Record<string, unknown>,
-): string | undefined {
-    const missing = (definitions ?? []).find((p) => p.required && isEmptyParam(params[p.id]));
-    return missing && `Параметр «${missing.name}» обязателен.`;
-}
-
-/**
  * Создаёт контроллер данных
  *
  * @param options - API-клиент и генератор идентификаторов
@@ -437,16 +410,6 @@ export function createDataController(options: DataControllerOptions): DataContro
     let snapshot: DataSnapshot = { status: 'idle', version: 0, error: null, needsReload: false };
     const listeners = new Set<() => void>();
     const hookEntries: HookEntry[] = [];
-    const actionHandlers = new Map<
-        string,
-        { handler: ActionHandler; options?: ActionRegistrationOptions }
-    >();
-
-    const commandHandlers = new Map<
-        string,
-        { handler: CommandHandler; options?: CommandRegistrationOptions }
-    >();
-
     // Индекс «родитель → потомки по порядку»: строится по требованию, сбрасывается при любом
     // изменении модели (в том числе внутри набора, между его операциями)
     let childrenIndex: Map<string | null, DataObject[]> | null = null;
@@ -808,72 +771,10 @@ export function createDataController(options: DataControllerOptions): DataContro
         };
     }
 
-    const actionKey = (typeId: string, actionId: string) => `${typeId}\u0000${actionId}`;
-
-    /** Действие, объявленное в типе объекта и имеющее обработчик; без проверки доступности */
-    function declaredAction(object: DataObject, actionId: string) {
-        const definition = types.get(object.type)?.actions?.find((a) => a.id === actionId);
-        const entry = actionHandlers.get(actionKey(object.type, actionId));
-        return definition && entry ? { definition, entry } : undefined;
-    }
-
-    function findAction(object: DataObject, actionId: string) {
-        const declared = declaredAction(object, actionId);
-        if (!declared) return undefined;
-        const { definition, entry } = declared;
-        if (entry.options?.available && !entry.options.available(object)) return undefined;
-        return { definition, handler: entry.handler };
-    }
-
-    /** Название объекта для сообщений */
-    function objectLabel(object: DataObject): string {
-        return labelOf(
-            { getObject: (id) => objects.get(id), getType: (id) => types.get(id) },
-            object,
-        );
-    }
-
-    function actionParameters(objectId: string, action: ActionDefinition): PropertyDefinition[] {
-        const object = objects.get(objectId);
-        const providers = object
-            ? actionHandlers.get(actionKey(object.type, action.id))?.options?.parameterValues
-            : undefined;
-        const result: PropertyDefinition[] = [];
-        for (const parameter of action.parameters ?? []) {
-            const provider = providers?.[parameter.id];
-            if (!object || !provider) {
-                result.push(parameter);
-                continue;
-            }
-            const values = provider(snapshotOf(object));
-            if (values.length > 0) result.push({ ...parameter, values });
-        }
-        return result;
-    }
-
-    function getGroupActionParameters(
-        objectIds: readonly string[],
-        action: ActionDefinition,
-    ): PropertyDefinition[] | null {
-        const perObject = objectIds.map((id) => actionParameters(id, action));
-        const result: PropertyDefinition[] = [];
-        for (const parameter of action.parameters ?? []) {
-            const mine = perObject.map((list) => list.find((p) => p.id === parameter.id));
-            // Параметр убран у объекта (пустой список вариантов): общих значений нет
-            if (mine.some((p) => p === undefined)) return null;
-            const [first, ...rest] = mine as PropertyDefinition[];
-            if (parameter.kind !== 'enum') {
-                result.push(parameter);
-                continue;
-            }
-            const values = (first.values ?? []).filter((v) =>
-                rest.every((p) => (p.values ?? []).some((x) => x.value === v.value)),
-            );
-            if (values.length === 0) return null;
-            result.push({ ...first, values });
-        }
-        return result;
-    }
+    const registry = createActionRegistry({
+        reader: { getObject: (id) => objects.get(id), getType: (id) => types.get(id) },
+        execute,
+    });
 
     return {
         async load() {
@@ -930,122 +831,16 @@ export function createDataController(options: DataControllerOptions): DataContro
         canRedo: () => history.canRedo(),
         perform: (run, opts) => execute((tx) => run(tx), opts),
         registerHook,
-        registerAction(typeId, actionId, handler, options) {
-            const key = actionKey(typeId, actionId);
-            const entry = { handler, options };
-            actionHandlers.set(key, entry);
-            return () => {
-                if (actionHandlers.get(key) === entry) actionHandlers.delete(key);
-            };
-        },
-        registerCommand(id, handler, options) {
-            const entry = { handler, options };
-            commandHandlers.set(id, entry);
-            return () => {
-                if (commandHandlers.get(id) === entry) commandHandlers.delete(id);
-            };
-        },
-        isCommandAvailable(id) {
-            const entry = commandHandlers.get(id);
-            return entry !== undefined && (entry.options?.available?.() ?? true);
-        },
-        runCommand(command, params = {}, opts) {
-            const entry = commandHandlers.get(command.id);
-            if (!entry || (entry.options?.available && !entry.options.available())) {
-                return Promise.resolve({
-                    ok: false,
-                    error: `Команда "${command.id}" недоступна.`,
-                });
-            }
-            const missing = missingRequired(command.parameters, params);
-            if (missing) return Promise.resolve({ ok: false, error: missing });
-            return execute((tx) => entry.handler({ params, tx }), opts);
-        },
-        getActions(objectId, placement) {
-            const object = objects.get(objectId);
-            if (!object) return [];
-            return (types.get(object.type)?.actions ?? []).filter(
-                (a) =>
-                    findAction(object, a.id) !== undefined &&
-                    (placement === undefined || (a.placements ?? []).includes(placement)),
-            );
-        },
-        getActionParameters: actionParameters,
-        getGroupActions(objectIds, placement) {
-            const group = objectIds.map((id) => objects.get(id));
-            const [first] = group;
-            if (!first || group.some((o) => o === undefined)) return [];
-            const members = group as DataObject[];
-            const result: GroupAction[] = [];
-            for (const action of types.get(first.type)?.actions ?? []) {
-                const declared = members.map((o) => declaredAction(o, action.id));
-                if (declared.some((d) => d === undefined)) continue;
-                const inPlace = (d: (typeof declared)[number]) =>
-                    placement === undefined || (d?.definition.placements ?? []).includes(placement);
-                if (!declared.every(inPlace)) continue;
-                const blocked = members.find((o, i) => {
-                    const available = declared[i]?.entry.options?.available;
-                    return available !== undefined && !available(o);
-                });
-                if (blocked && members.length === 1) continue;
-                const unavailable = blocked
-                    ? `Недоступно для объекта «${objectLabel(blocked)}»`
-                    : members.length > 1 && getGroupActionParameters(objectIds, action) === null
-                      ? 'Нет общих значений параметров'
-                      : null;
-                result.push({ action, unavailable });
-            }
-            return result;
-        },
-        getGroupActionParameters,
-        runAction(objectId, actionId, params = {}, opts) {
-            const object = objects.get(objectId);
-            if (!object) return Promise.resolve({ ok: false, error: 'Объект не найден.' });
-            const found = findAction(object, actionId);
-            if (!found) {
-                return Promise.resolve({
-                    ok: false,
-                    error: `У объекта нет действия "${actionId}" с обработчиком.`,
-                });
-            }
-            const missing = missingRequired(found.definition.parameters, params);
-            if (missing) return Promise.resolve({ ok: false, error: missing });
-            return execute(
-                (tx) =>
-                    found.handler({
-                        object: snapshotOf(objects.get(objectId) ?? object),
-                        params,
-                        tx,
-                    }),
-                opts,
-            );
-        },
-        runActionOnMany(objectIds, actionId, params = {}, opts) {
-            const prefixed = objectIds.length > 1;
-            return execute(async (tx, scope) => {
-                for (const id of objectIds) {
-                    const object = objects.get(id);
-                    if (!object) throw new Error('Объект не найден.');
-                    const label = prefixed ? `${objectLabel(object)}: ` : '';
-                    const found = findAction(object, actionId);
-                    if (!found) {
-                        throw new Error(
-                            `${label}у объекта нет действия "${actionId}" с обработчиком.`,
-                        );
-                    }
-                    const missing = missingRequired(found.definition.parameters, params);
-                    if (missing) throw new Error(missing);
-                    try {
-                        await found.handler({ object: snapshotOf(object), params, tx });
-                    } catch (error) {
-                        throw new Error(`${label}${errorMessage(error)}`, { cause: error });
-                    }
-                    if (scope.error !== null) {
-                        scope.error = `${label}${scope.error}`;
-                        return;
-                    }
-                }
-            }, opts);
-        },
+        registerAction: registry.registerAction,
+        registerCommand: registry.registerCommand,
+        isCommandAvailable: registry.isCommandAvailable,
+        runCommand: registry.runCommand,
+        getActions: registry.getActions,
+        getActionParameters: registry.getActionParameters,
+        getGroupActions: registry.getGroupActions,
+        getGroupActionParameters: registry.getGroupActionParameters,
+        groupLaunch: registry.groupLaunch,
+        runAction: registry.runAction,
+        runActionOnMany: registry.runActionOnMany,
     };
 }

@@ -90,15 +90,12 @@ export function useActionLauncher(): ActionLauncher {
                 data.runAction(objectId, action.id, params),
             ),
         launchMany: async (objectIds, action) => {
-            const parameters =
-                objectIds.length === 1
-                    ? data.getActionParameters(objectIds[0]!, action)
-                    : data.getGroupActionParameters(objectIds, action);
-            if (parameters === null) {
-                setError(`«${action.name}»: у выделенных объектов нет общих значений параметров.`);
+            const plan = data.groupLaunch(objectIds, action);
+            if ('unavailable' in plan) {
+                setError(plan.unavailable);
                 return;
             }
-            await start({ ...action, parameters }, (params) =>
+            await start({ ...action, parameters: plan.parameters }, (params) =>
                 data.runActionOnMany(objectIds, action.id, params),
             );
         },
