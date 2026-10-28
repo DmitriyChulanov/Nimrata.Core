@@ -1,0 +1,284 @@
+{
+  "scenarios": [
+    {
+      "name": "допустимый потомок принимается",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": "00000000-0000-4000-8000-000000000001",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "недопустимый потомок отклоняется",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000002",
+          "type": "Folder",
+          "parent": "00000000-0000-4000-8000-000000000011",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "пустой allowedChildren запрещает любых потомков",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000012",
+          "type": "Item",
+          "parent": "00000000-0000-4000-8000-000000000011",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "без allowedChildren допустим любой потомок",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000019",
+          "type": "Free",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": "00000000-0000-4000-8000-000000000019",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "корень допустим для любого типа",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "несуществующий родитель отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": "00000000-0000-4000-8000-000000000031",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "перемещение под недопустимого родителя отклоняется",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000012",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "move",
+          "id": "00000000-0000-4000-8000-000000000012",
+          "parent": {
+            "old": null,
+            "new": "00000000-0000-4000-8000-000000000011"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "перемещение под допустимого родителя принимается",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "move",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "parent": {
+            "old": null,
+            "new": "00000000-0000-4000-8000-000000000001"
+          }
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "перемещение в собственного потомка отклоняется",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "type": "Folder",
+          "parent": "00000000-0000-4000-8000-000000000001",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "move",
+          "id": "00000000-0000-4000-8000-000000000001",
+          "parent": {
+            "old": null,
+            "new": "00000000-0000-4000-8000-000000000002"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "у типа платформы CustomCommand потомков быть не может",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000041",
+          "type": "CustomCommand",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": "00000000-0000-4000-8000-000000000041",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "у SettingsRoot нет allowedChildren, потомок допустим",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000051",
+          "type": "SettingsRoot",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": "00000000-0000-4000-8000-000000000051",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    }
+  ]
+}

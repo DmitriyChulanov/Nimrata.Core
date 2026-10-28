@@ -5,7 +5,16 @@ import { createFakeApi } from './fakeApi';
 
 const types = [
     { id: 'Folder', name: 'Папка', extension: 't', extensionVersion: 1 },
-    { id: 'Note', name: 'Заметка', extension: 't', extensionVersion: 1 },
+    {
+        id: 'Note',
+        name: 'Заметка',
+        extension: 't',
+        extensionVersion: 1,
+        properties: [
+            { id: 'title', name: 'Название', kind: 'string' },
+            { id: 'done', name: 'Готово', kind: 'boolean' },
+        ],
+    },
 ];
 
 const objects = [
