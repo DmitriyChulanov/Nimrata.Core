@@ -1,0 +1,26 @@
+{
+  "extension": "demo",
+  "description": "Типы расширения demo, общие для всех сценариев контракта Набора изменений. Типы платформы (SettingsRoot, CustomCommand) берутся из миграций сервера и подставного API.",
+  "types": [
+    { "id": "Folder", "name": "Папка", "allowedChildren": ["Item", "Folder", "Single"] },
+    {
+      "id": "Item", "name": "Элемент", "allowedChildren": [],
+      "properties": [
+        { "id": "title", "name": "Название", "kind": "string" },
+        { "id": "body", "name": "Текст", "kind": "text" },
+        { "id": "count", "name": "Число", "kind": "integer" },
+        { "id": "done", "name": "Готово", "kind": "boolean" },
+        { "id": "day", "name": "День", "kind": "date" },
+        { "id": "at", "name": "Время", "kind": "time" },
+        {
+          "id": "level", "name": "Уровень", "kind": "enum",
+          "values": [ { "value": "low", "name": "Низкий" }, { "value": "high", "name": "Высокий" } ]
+        },
+        { "id": "ref", "name": "Ссылка", "kind": "reference" },
+        { "id": "folderRef", "name": "Ссылка на папку", "kind": "reference", "targetTypes": ["Folder"] }
+      ]
+    },
+    { "id": "Single", "name": "Единственный", "singleton": true },
+    { "id": "Free", "name": "Свободный" }
+  ]
+}

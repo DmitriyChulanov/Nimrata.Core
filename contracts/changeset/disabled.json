@@ -1,0 +1,181 @@
+{
+  "scenarios": [
+    {
+      "name": "создание в отключённом расширении отклоняется",
+      "extensionEnabled": false,
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "code": "extension_disabled"
+      }
+    },
+    {
+      "name": "изменение объекта отключённого расширения отклоняется",
+      "extensionEnabled": false,
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "update",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "changes": {
+            "title": {
+              "old": null,
+              "new": "a"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "code": "extension_disabled"
+      }
+    },
+    {
+      "name": "удаление объекта отключённого расширения отклоняется",
+      "extensionEnabled": false,
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "delete",
+          "id": "00000000-0000-4000-8000-000000000011"
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "code": "extension_disabled"
+      }
+    },
+    {
+      "name": "перемещение объекта отключённого расширения отклоняется",
+      "extensionEnabled": false,
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "move",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "parent": {
+            "old": null,
+            "new": "00000000-0000-4000-8000-000000000001"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "code": "extension_disabled"
+      }
+    },
+    {
+      "name": "тип платформы создаётся при отключённом расширении",
+      "extensionEnabled": false,
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000041",
+          "type": "CustomCommand",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "под родителя отключённого расширения отклоняется",
+      "extensionEnabled": false,
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000041",
+          "type": "CustomCommand",
+          "parent": "00000000-0000-4000-8000-000000000001",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "code": "extension_disabled"
+      }
+    },
+    {
+      "name": "при подключённом расширении запись принимается",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "update",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "changes": {
+            "title": {
+              "old": null,
+              "new": "a"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    }
+  ]
+}

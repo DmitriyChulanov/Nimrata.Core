@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Сценарии контракта Набора изменений, общие с клиентскими тестами -->
+    <Content Include="..\contracts\changeset\*.json" Link="contracts\changeset\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Nimrata.Core.Server/Nimrata.Core.Server.csproj" />
   </ItemGroup>
 

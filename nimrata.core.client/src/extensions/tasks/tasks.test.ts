@@ -427,7 +427,11 @@ describe('Tracker: task links', () => {
         const { data } = await start({ reveal });
         await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
         const a = findTask(data, 'А');
-        await data.setProperty(a.id, 'internalLink', 'нет-такого');
+        // Сервер не принимает ссылку на несуществующий объект: ссылка повисает после удаления цели
+        await createTask(data, current(data), { title: 'Б', date: '2026-03-06' });
+        const b = findTask(data, 'Б');
+        await data.setProperty(a.id, 'internalLink', b.id);
+        await data.remove(b.id);
         reveal.mockClear();
 
         const result = await data.runAction(a.id, 'openInternalLink');

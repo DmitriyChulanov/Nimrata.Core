@@ -1,0 +1,272 @@
+{
+  "scenarios": [
+    {
+      "name": "первый объект singleton принимается",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "Single",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "второй singleton в корне отклоняется",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "Single",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000022",
+          "type": "Single",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "code": "singleton_exists",
+        "conflict": true
+      }
+    },
+    {
+      "name": "singleton у разных родителей принимается",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "Single",
+          "parent": "00000000-0000-4000-8000-000000000001",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000022",
+          "type": "Single",
+          "parent": "00000000-0000-4000-8000-000000000002",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "второй singleton у того же родителя отклоняется",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "Single",
+          "parent": "00000000-0000-4000-8000-000000000001",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000022",
+          "type": "Single",
+          "parent": "00000000-0000-4000-8000-000000000001",
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "code": "singleton_exists",
+        "conflict": true
+      }
+    },
+    {
+      "name": "второй SettingsRoot отклоняется",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000061",
+          "type": "SettingsRoot",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000051",
+          "type": "SettingsRoot",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "code": "singleton_exists",
+        "conflict": true
+      }
+    },
+    {
+      "name": "перемещение singleton к родителю с таким же отклоняется",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "Single",
+          "parent": "00000000-0000-4000-8000-000000000001",
+          "order": 1,
+          "properties": {}
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000022",
+          "type": "Single",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "move",
+          "id": "00000000-0000-4000-8000-000000000022",
+          "parent": {
+            "old": null,
+            "new": "00000000-0000-4000-8000-000000000001"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "code": "singleton_exists",
+        "conflict": true
+      }
+    },
+    {
+      "name": "перемещение singleton к свободному родителю принимается",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "Single",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "move",
+          "id": "00000000-0000-4000-8000-000000000021",
+          "parent": {
+            "old": null,
+            "new": "00000000-0000-4000-8000-000000000001"
+          }
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "смена порядка singleton принимается",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "Single",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "move",
+          "id": "00000000-0000-4000-8000-000000000021",
+          "order": {
+            "old": 1,
+            "new": 2
+          }
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "занятый идентификатор не даёт кода singleton",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "Single",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000021",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "conflict": true
+      }
+    }
+  ]
+}

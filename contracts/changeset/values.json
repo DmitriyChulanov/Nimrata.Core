@@ -1,0 +1,506 @@
+{
+  "scenarios": [
+    {
+      "name": "значения всех видов принимаются",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": "00000000-0000-4000-8000-000000000001",
+          "order": 1,
+          "properties": {
+            "title": "a",
+            "body": "b\nc",
+            "count": -2,
+            "done": true,
+            "day": "2026-02-28",
+            "at": "09:05",
+            "level": "low",
+            "ref": "00000000-0000-4000-8000-000000000001",
+            "folderRef": "00000000-0000-4000-8000-000000000001"
+          }
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "null снимает значение",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "title": null
+          }
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "недопустимое значение title=5 отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "title": 5
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "недопустимое значение body=true отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "body": true
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "недопустимое значение count=\"три\" отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "count": "три"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "недопустимое значение count=1.5 отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "count": 1.5
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "недопустимое значение done=\"да\" отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "done": "да"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "недопустимое значение day=\"2026-13-40\" отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "day": "2026-13-40"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "недопустимое значение day=\"01.02.2026\" отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "day": "01.02.2026"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "недопустимое значение at=\"25:61\" отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "at": "25:61"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "недопустимое значение level=\"medium\" отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "level": "medium"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "недопустимое значение ref=\"abc\" отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "ref": "abc"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "недопустимое значение nope=\"x\" отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "nope": "x"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "ссылка на существующий объект принимается",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "ref": "00000000-0000-4000-8000-000000000001"
+          }
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "ссылка на несуществующий объект отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "ref": "00000000-0000-4000-8000-000000000031"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "ссылка с targetTypes на объект нужного типа принимается",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "type": "Folder",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "folderRef": "00000000-0000-4000-8000-000000000001"
+          }
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "ссылка с targetTypes на объект другого типа отклоняется",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000019",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "folderRef": "00000000-0000-4000-8000-000000000019"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "значение при обновлении проверяется по виду",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "update",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "changes": {
+            "count": {
+              "old": null,
+              "new": "три"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "допустимое значение при обновлении принимается",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "update",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "changes": {
+            "count": {
+              "old": null,
+              "new": 3
+            }
+          }
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "неизвестное свойство при обновлении отклоняется",
+      "objects": [
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "type": "Item",
+          "parent": null,
+          "order": 1,
+          "properties": {}
+        }
+      ],
+      "operations": [
+        {
+          "op": "update",
+          "id": "00000000-0000-4000-8000-000000000011",
+          "changes": {
+            "nope": {
+              "old": null,
+              "new": "x"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "CustomCommand: строковые свойства принимаются",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000041",
+          "type": "CustomCommand",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "name": "Моя",
+            "command": "selectToday"
+          }
+        }
+      ],
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "name": "CustomCommand: params вида text не принимает число",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000041",
+          "type": "CustomCommand",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "params": 5
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "CustomCommand: неизвестное свойство отклоняется",
+      "objects": [],
+      "operations": [
+        {
+          "op": "create",
+          "id": "00000000-0000-4000-8000-000000000041",
+          "type": "CustomCommand",
+          "parent": null,
+          "order": 1,
+          "properties": {
+            "nope": "x"
+          }
+        }
+      ],
+      "expect": {
+        "ok": false
+      }
+    }
+  ]
+}
