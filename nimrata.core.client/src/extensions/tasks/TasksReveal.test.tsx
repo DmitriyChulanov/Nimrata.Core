@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
     DataProvider,
@@ -73,5 +73,32 @@ describe('Tasks: internal link navigation in the interface', () => {
 
         expect(screen.getByLabelText('выделено')).toHaveTextContent(archive.id);
         expect(screen.getByLabelText('показать')).toHaveTextContent(archive.id);
+    });
+});
+
+/**
+ * Показ созданной задачи в дереве
+ */
+describe('Tasks: reveal of a created task', () => {
+    /**
+     * Проверяет, что действие «Создать задачу» просит показать в дереве именно созданную задачу
+     */
+    it('createTask_action_revealsCreatedTask', async () => {
+        const reveal = vi.fn();
+        const data = createDataController({ api: createFakeApi(types, []) });
+        await data.load();
+        registerTasks(data, { reveal });
+        await ensureTasksStart(data);
+        const tasks = data.getChildren(null).find((o) => o.type === 'TasksRoot')!;
+        const current = data.getChildren(tasks.id).find((o) => o.type === 'CurrentTasksRoot')!;
+        await data.runAction(current.id, 'createTask', { title: 'А', date: '2026-03-05' });
+        const month = data.getChildren(current.id)[0];
+        const day = data.getChildren(month.id)[0];
+        reveal.mockClear();
+
+        await data.runAction(day.id, 'createTask', { title: 'Б' });
+
+        const created = data.getChildren(day.id).find((o) => o.properties.title === 'Б')!;
+        expect(reveal).toHaveBeenCalledExactlyOnceWith(created.id);
     });
 });

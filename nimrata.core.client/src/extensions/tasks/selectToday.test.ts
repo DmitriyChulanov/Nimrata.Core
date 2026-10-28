@@ -80,6 +80,7 @@ describe('Tracker: "Select today" command', () => {
             });
             const month = data.getChildren(current.id)[0];
             const day = data.getChildren(month.id).find((d) => d.properties.date === '2026-06-10')!;
+            reveal.mockClear();
 
             const result = await data.runCommand(command);
 
@@ -114,6 +115,7 @@ describe('Tracker: "Select today" command', () => {
             await data.runAction(current.id, 'createTask', { title: 'Вчера', date: '2026-06-09' });
             const sentBefore = api.changesets.length;
             const countBefore = data.getChildren(data.getChildren(current.id)[0].id).length;
+            reveal.mockClear();
 
             const result = await data.runCommand(command);
 

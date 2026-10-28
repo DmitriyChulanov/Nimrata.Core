@@ -428,6 +428,7 @@ describe('Tracker: task links', () => {
         await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
         const a = findTask(data, 'А');
         await data.setProperty(a.id, 'internalLink', 'нет-такого');
+        reveal.mockClear();
 
         const result = await data.runAction(a.id, 'openInternalLink');
 

@@ -59,12 +59,14 @@ export function registerTasks(data: DataController, options: ExtensionOptions = 
     );
 
     for (const parentType of [CURRENT_TASKS_ROOT, MONTH, CATEGORY]) {
-        disposers.push(data.registerAction(parentType, 'createTask', createTaskAction(data)));
+        disposers.push(
+            data.registerAction(parentType, 'createTask', createTaskAction(data, options.reveal)),
+        );
     }
     // У дня выбирается типовая категория; без типовых категорий параметр в диалоге скрыт
     for (const dayType of DAY_TYPES) {
         disposers.push(
-            data.registerAction(dayType, 'createTask', createTaskAction(data), {
+            data.registerAction(dayType, 'createTask', createTaskAction(data, options.reveal), {
                 parameterValues: { template: () => templateOptions(data) },
             }),
         );

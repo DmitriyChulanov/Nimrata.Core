@@ -80,9 +80,10 @@ export function allTasks(data: DataController): DataObject[] {
 /**
  * Действие «Создать задачу»: узлы месяца и дня создаются по требованию, категория — по названию.
  * Без даты берётся день, на котором запущено действие (если он в «Текущих задачах»), иначе сегодня;
- * в архив («Завершённые задачи») незавершённая задача не попадает никогда
+ * в архив («Завершённые задачи») незавершённая задача не попадает никогда.
+ * Созданная задача выделяется в дереве через `reveal`
  */
-export function createTaskAction(data: DataController) {
+export function createTaskAction(data: DataController, reveal?: (id: string) => void) {
     return ({
         object,
         params,
@@ -121,6 +122,8 @@ export function createTaskAction(data: DataController) {
             templateCategory ?? (typeof params.category === 'string' ? params.category.trim() : '');
         if (category !== '') container = ensureCategory(data, tx, container, category);
 
-        createNode(tx, container, TASK, { title });
+        // Созданную задачу показываем в дереве и выделяем, как при обычном создании узла
+        const id = createNode(tx, container, TASK, { title });
+        reveal?.(id);
     };
 }
