@@ -1,0 +1,305 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { createExtensionRegistry } from '../extensionApi/registry';
+import { fetchExtensionCatalog, putExtensionConnection } from './catalog';
+import { createExtensionLifecycle } from './extensionLifecycle';
+
+import type { ApiClient } from '../api/apiClient';
+import type { DataController } from '../data/DataController';
+import type { ExtensionDescriptor } from '../extensionApi/registry';
+import type { ExtensionInfo } from './catalog';
+
+vi.mock('./catalog', () => ({
+    fetchExtensionCatalog: vi.fn(),
+    putExtensionConnection: vi.fn(),
+}));
+
+const fetchCatalog = vi.mocked(fetchExtensionCatalog);
+const putConnection = vi.mocked(putExtensionConnection);
+
+const info = (id: string, connected: boolean): ExtensionInfo => ({
+    id,
+    name: id,
+    description: '',
+    icon: 'puzzle',
+    defaultEnabled: true,
+    connected,
+    commands: [],
+});
+
+/** Отложенный промис: завершается вручную */
+function deferred<T = void>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => (resolve = r));
+    return { promise, resolve };
+}
+
+/** Контроллер данных с управляемой загрузкой */
+function fakeController(load: () => Promise<void> = async () => {}) {
+    let snapshot = { status: 'ready', error: null as string | null };
+    return {
+        load: vi.fn(async () => {
+            await load();
+        }),
+        getSnapshot: () => snapshot,
+        setSnapshot(next: { status: string; error: string | null }) {
+            snapshot = next;
+        },
+    };
+}
+
+function setup(controller = fakeController(), startError?: string) {
+    const log: string[] = [];
+    const registry = createExtensionRegistry();
+    for (const id of ['a', 'b']) {
+        const descriptor: ExtensionDescriptor = {
+            id,
+            register: () => {
+                log.push(`register:${id}`);
+                return () => log.push(`unregister:${id}`);
+            },
+            ensureStart: async () => {
+                log.push(`start:${id}`);
+                return startError && id === 'b' ? { ok: false, error: startError } : { ok: true };
+            },
+        };
+        registry.register(descriptor);
+    }
+    const onDataReloaded = vi.fn();
+    const lifecycle = createExtensionLifecycle({
+        api: {} as ApiClient,
+        controller: controller as unknown as DataController,
+        registry,
+        onDataReloaded,
+    });
+    return { lifecycle, controller, log, onDataReloaded };
+}
+
+beforeEach(() => {
+    vi.resetAllMocks();
+});
+
+describe('initialize', () => {
+    it('регистрирует и запускает подключённые расширения, затем становится готовым', async () => {
+        fetchCatalog.mockResolvedValue([info('a', true), info('b', false)]);
+        const { lifecycle, log } = setup();
+
+        await lifecycle.initialize();
+
+        expect(log).toEqual(['register:a', 'start:a']);
+        expect(lifecycle.getState()).toMatchObject({ status: 'ready', error: null });
+        expect([...lifecycle.getState().activeIds]).toEqual(['a']);
+    });
+
+    it('при ошибке каталога переходит в error с причиной', async () => {
+        fetchCatalog.mockRejectedValue(new Error('нет сети'));
+        const { lifecycle } = setup();
+
+        await lifecycle.initialize();
+
+        expect(lifecycle.getState()).toMatchObject({ status: 'error', error: 'нет сети' });
+    });
+
+    it('при ошибке загрузки данных не запускает расширения, но становится готовым', async () => {
+        fetchCatalog.mockResolvedValue([info('a', true)]);
+        const controller = fakeController();
+        controller.setSnapshot({ status: 'error', error: 'сбой' });
+        const { lifecycle, log } = setup(controller);
+
+        await lifecycle.initialize();
+
+        expect(log).toEqual(['register:a']);
+        expect(lifecycle.getState()).toMatchObject({ status: 'ready', error: null });
+    });
+
+    it('отказ запуска попадает в error, остальные расширения запускаются', async () => {
+        fetchCatalog.mockResolvedValue([info('a', true), info('b', true)]);
+        const { lifecycle, log } = setup(undefined, 'не вышло');
+
+        await lifecycle.initialize();
+
+        expect(log).toContain('start:a');
+        expect(log).toContain('start:b');
+        expect(lifecycle.getState().error).toBe('не вышло');
+    });
+
+    it('устаревший запуск прекращается, не затирая результат нового', async () => {
+        const first = deferred<ExtensionInfo[]>();
+        fetchCatalog.mockReturnValueOnce(first.promise);
+        fetchCatalog.mockResolvedValueOnce([info('b', true)]);
+        const { lifecycle, log } = setup();
+
+        const stale = lifecycle.initialize();
+        await lifecycle.initialize();
+        first.resolve([info('a', true)]);
+        await stale;
+
+        expect(log).toEqual(['register:b', 'start:b']);
+        expect([...lifecycle.getState().activeIds]).toEqual(['b']);
+    });
+
+    it('dispose отменяет запуск и снимает регистрации', async () => {
+        const first = deferred<ExtensionInfo[]>();
+        fetchCatalog.mockReturnValueOnce(first.promise);
+        const { lifecycle, log } = setup();
+
+        const run = lifecycle.initialize();
+        lifecycle.dispose();
+        first.resolve([info('a', true)]);
+        await run;
+
+        expect(log).toEqual([]);
+        expect(lifecycle.getState().status).toBe('loading');
+    });
+});
+
+describe('setConnected', () => {
+    it('подключение сохраняет, регистрирует, перезагружает данные, сбрасывает выделение и запускает', async () => {
+        fetchCatalog.mockResolvedValue([info('a', true), info('b', false)]);
+        putConnection.mockResolvedValue(info('b', true));
+        const { lifecycle, controller, log, onDataReloaded } = setup();
+        await lifecycle.initialize();
+        log.length = 0;
+        controller.load.mockClear();
+
+        const result = await lifecycle.setConnected('b', true);
+
+        expect(result).toEqual({ ok: true });
+        expect(log).toEqual(['register:b', 'start:b']);
+        expect(controller.load).toHaveBeenCalledTimes(1);
+        expect(onDataReloaded).toHaveBeenCalledTimes(1);
+        expect(lifecycle.getState().switchingId).toBeNull();
+    });
+
+    it('отключение снимает регистрацию и не запускает расширение', async () => {
+        fetchCatalog.mockResolvedValue([info('a', true)]);
+        putConnection.mockResolvedValue(info('a', false));
+        const { lifecycle, log } = setup();
+        await lifecycle.initialize();
+        log.length = 0;
+
+        await lifecycle.setConnected('a', false);
+
+        expect(log).toEqual(['unregister:a']);
+    });
+
+    it('повторный вызов при занятости отклоняется', async () => {
+        fetchCatalog.mockResolvedValue([info('a', false), info('b', false)]);
+        const put = deferred<ExtensionInfo>();
+        putConnection.mockReturnValueOnce(put.promise);
+        const { lifecycle } = setup();
+        await lifecycle.initialize();
+
+        const first = lifecycle.setConnected('a', true);
+        const second = await lifecycle.setConnected('b', true);
+
+        expect(second).toEqual({ ok: false, error: 'Переключение уже выполняется.' });
+        expect(lifecycle.getState().switchingId).toBe('a');
+        put.resolve(info('a', true));
+        await first;
+        expect(lifecycle.getState().switchingId).toBeNull();
+    });
+
+    it('неизвестное расширение и текущее состояние ничего не делают', async () => {
+        fetchCatalog.mockResolvedValue([info('a', true)]);
+        const { lifecycle } = setup();
+        await lifecycle.initialize();
+
+        expect(await lifecycle.setConnected('zzz', true)).toEqual({
+            ok: false,
+            error: 'Расширение не найдено.',
+        });
+        expect(await lifecycle.setConnected('a', true)).toEqual({ ok: true });
+        expect(putConnection).not.toHaveBeenCalled();
+    });
+
+    it('отказ сервера возвращается как ошибка без изменения подключений', async () => {
+        fetchCatalog.mockResolvedValue([info('a', false)]);
+        putConnection.mockRejectedValue(new Error('отказ'));
+        const { lifecycle, log } = setup();
+        await lifecycle.initialize();
+
+        const result = await lifecycle.setConnected('a', true);
+
+        expect(result).toEqual({ ok: false, error: 'отказ' });
+        expect(log).toEqual([]);
+        expect(lifecycle.getState().error).toBeNull();
+    });
+
+    it('ошибка загрузки данных возвращается, выделение не сбрасывается, расширение не запускается', async () => {
+        fetchCatalog.mockResolvedValue([info('a', false)]);
+        putConnection.mockResolvedValue(info('a', true));
+        const { lifecycle, controller, log, onDataReloaded } = setup();
+        await lifecycle.initialize();
+        controller.setSnapshot({ status: 'error', error: 'сбой загрузки' });
+
+        const result = await lifecycle.setConnected('a', true);
+
+        expect(result).toEqual({ ok: false, error: 'сбой загрузки' });
+        expect(onDataReloaded).not.toHaveBeenCalled();
+        expect(log).not.toContain('start:a');
+        expect(lifecycle.getState().switchingId).toBeNull();
+    });
+
+    it('отказ запуска возвращается вызывающему и не попадает в общее error', async () => {
+        fetchCatalog.mockResolvedValue([info('b', false)]);
+        putConnection.mockResolvedValue(info('b', true));
+        const { lifecycle } = setup(undefined, 'не вышло');
+        await lifecycle.initialize();
+
+        const result = await lifecycle.setConnected('b', true);
+
+        expect(result).toEqual({ ok: false, error: 'не вышло' });
+        expect(lifecycle.getState().error).toBeNull();
+    });
+});
+
+describe('гонка initialize и setConnected', () => {
+    it('setConnected во время initialize не теряет подключение, новый initialize отменяет старый', async () => {
+        fetchCatalog.mockResolvedValue([info('a', false)]);
+        putConnection.mockResolvedValue(info('a', true));
+        const loading = deferred();
+        const controller = fakeController(() => loading.promise);
+        const { lifecycle, log } = setup(controller);
+
+        const init = lifecycle.initialize();
+        await vi.waitFor(() => expect(controller.load).toHaveBeenCalled());
+        // каталог уже получен, данные ещё грузятся
+        const toggle = lifecycle.setConnected('a', true);
+        loading.resolve();
+        await Promise.all([init, toggle]);
+
+        expect(lifecycle.getState().catalog[0].connected).toBe(true);
+        expect(log.filter((e) => e === 'register:a')).toHaveLength(1);
+    });
+});
+
+describe('подписка', () => {
+    it('уведомляет подписчиков об изменении и перестаёт после отписки', async () => {
+        fetchCatalog.mockResolvedValue([info('a', true)]);
+        const { lifecycle } = setup();
+        const listener = vi.fn();
+        const unsubscribe = lifecycle.subscribe(listener);
+
+        await lifecycle.initialize();
+        expect(listener).toHaveBeenCalled();
+
+        unsubscribe();
+        listener.mockClear();
+        await lifecycle.reload();
+        expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('reload сразу выставляет loading и сбрасывает ошибку', async () => {
+        fetchCatalog.mockRejectedValueOnce(new Error('сбой'));
+        fetchCatalog.mockResolvedValueOnce([info('a', true)]);
+        const { lifecycle } = setup();
+        await lifecycle.initialize();
+        expect(lifecycle.getState().status).toBe('error');
+
+        const run = lifecycle.reload();
+        expect(lifecycle.getState()).toMatchObject({ status: 'loading', error: null });
+        await run;
+        expect(lifecycle.getState().status).toBe('ready');
+    });
+});
