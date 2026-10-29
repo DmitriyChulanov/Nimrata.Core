@@ -190,7 +190,12 @@ export function createOfflineSync(options: OfflineSyncOptions): OfflineSync {
             const ids = new Set(controller.sync.pending().map((c) => c.id));
             try {
                 const queues = (await db?.readQueues()) ?? new Map();
-                for (const changesets of queues.values()) for (const c of changesets) ids.add(c.id);
+                // Своя сохранённая очередь может отставать от памяти (уже подтверждённые наборы ещё
+                // не стёрты отложенным сохранением): своя очередь считается только из памяти
+                for (const [owner, changesets] of queues) {
+                    if (owner === tabId) continue;
+                    for (const c of changesets) ids.add(c.id);
+                }
             } catch {
                 // база недоступна: считаем только свою очередь
             }

@@ -1,9 +1,4 @@
-/* Индикатор синхронизации в шапке: кнопка с иконкой и подписью, подсказка при наведении и фокусе. */
-.sync-indicator {
-    position: relative;
-    display: inline-flex;
-}
-
+/* Индикатор синхронизации в шапке: кнопка с иконкой и подписью; подсказка — компонент Tooltip. */
 .sync-indicator .sync-indicator__button {
     font-size: var(--text-xs);
     color: var(--text-muted);
@@ -19,28 +14,4 @@
 /* Смысл несёт подпись; цвет опасности — только у значка (контраст значка 3:1). */
 .sync-indicator.sync-indicator--error .sync-indicator__button .icon {
     color: var(--danger);
-}
-
-.sync-indicator .sync-indicator__tip {
-    position: absolute;
-    top: calc(100% + var(--space-1));
-    right: 0;
-    z-index: 20;
-    display: none;
-    width: max-content;
-    max-width: 320px;
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-xs);
-    line-height: var(--leading-normal);
-    color: var(--text);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    pointer-events: none;
-}
-
-.sync-indicator:hover .sync-indicator__tip,
-.sync-indicator:focus-within .sync-indicator__tip {
-    display: block;
 }

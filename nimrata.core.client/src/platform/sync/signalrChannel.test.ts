@@ -5,7 +5,16 @@ import { HttpError } from '@microsoft/signalr';
 import { SYNC_HUB_URL, createSignalRChannel } from './signalrChannel';
 
 import type { HubConnectionLike } from './signalrChannel';
-import type { PushHandlers } from './syncEngine';
+import type { PushChanges, PushHandlers } from './syncEngine';
+
+/** Сообщение `changes` верной формы */
+const PUSH: PushChanges = {
+    fromSeq: 0,
+    toSeq: 1,
+    changesetIds: ['cs-1'],
+    upserts: [{ id: 'a', type: 'Note', parent: null, number: 1, properties: { name: 'A' } }],
+    deletes: [],
+};
 
 /**
  * Поддельное соединение хаба: тест управляет исходом запуска и событиями сервера
@@ -154,15 +163,32 @@ describe('signalrChannel', () => {
 
         channel(handlers);
         await vi.advanceTimersByTimeAsync(0);
-        connection.emit('changes', { fromSeq: 0, toSeq: 1 });
+        connection.emit('changes', PUSH);
         connection.emit('resync');
 
         expect(urls).toEqual([SYNC_HUB_URL]);
         expect(SYNC_HUB_URL).toBe('/api/sync');
         expect(connection.tokens).toEqual(['t1']);
         expect(handlers.connected).toHaveBeenCalledTimes(1);
-        expect(handlers.changes).toHaveBeenCalledWith({ fromSeq: 0, toSeq: 1 });
+        expect(handlers.changes).toHaveBeenCalledWith(PUSH);
         expect(handlers.resync).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * Проверяет, что сообщение `changes` неверной формы не применяется, а превращается в `resync`:
+     * пропустить его — значит потерять изменения
+     */
+    it('changes_invalidPayload_treatedAsResync', async () => {
+        const { connection, channel, handlers } = setup();
+
+        channel(handlers);
+        await vi.advanceTimersByTimeAsync(0);
+        connection.emit('changes', { fromSeq: 0, toSeq: 1 });
+        connection.emit('changes', { ...PUSH, upserts: [{ id: 'x' }] });
+        connection.emit('changes', null);
+
+        expect(handlers.changes).not.toHaveBeenCalled();
+        expect(handlers.resync).toHaveBeenCalledTimes(3);
     });
 
     /**

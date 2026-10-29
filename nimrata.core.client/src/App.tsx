@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
     AuthProvider,
@@ -24,6 +24,7 @@ import {
     createDataController,
     createOfflineSync,
     deleteOfflineDb,
+    isExtensionCatalog,
     forgetRememberedUser,
     rememberedUser,
     createSignalRChannel,
@@ -44,13 +45,7 @@ import {
     useQuery,
     useTabs,
 } from '@platform';
-import type {
-    CatalogCache,
-    CurrentUser,
-    DataController,
-    ExtensionInfo,
-    OfflineSync,
-} from '@platform';
+import type { CatalogCache, CurrentUser, DataController, OfflineSync } from '@platform';
 
 import '@/extensions';
 
@@ -198,7 +193,11 @@ function Application({ userId, userData }: ApplicationProps) {
     // Каталог расширений в той же базе: без сети расширения запускаются по сохранённому
     const catalogCache = useMemo<CatalogCache>(
         () => ({
-            read: async () => (await offline.readValue('catalog')) as ExtensionInfo[] | undefined,
+            // Значение неверной формы (старая версия, порча базы) — как отсутствие кэша
+            read: async () => {
+                const value = await offline.readValue('catalog');
+                return isExtensionCatalog(value) ? value : undefined;
+            },
             write: (items) => offline.writeValue('catalog', items),
         }),
         [offline],
@@ -254,9 +253,23 @@ function UserSession({ user }: { user: CurrentUser }) {
     );
     // Число неотправленных наборов, о которых предупреждаем; `null` — предупреждения нет
     const [unsent, setUnsent] = useState<number | null>(null);
+    // Возобновление отправки очереди: пока открыто предупреждение, наборы не уходят, иначе число
+    // в предупреждении и то, что потеряется при выходе, разошлись бы
+    const resumeSync = useRef<(() => void) | null>(null);
+
+    const resume = () => {
+        resumeSync.current?.();
+        resumeSync.current = null;
+    };
+
+    const cancelLogout = () => {
+        setUnsent(null);
+        resume();
+    };
 
     const finishLogout = async () => {
         setUnsent(null);
+        resumeSync.current = null;
         if (userData) {
             userData.controller.dispose();
             await userData.offline.dispose();
@@ -267,6 +280,10 @@ function UserSession({ user }: { user: CurrentUser }) {
     };
 
     const requestLogout = async () => {
+        if (resumeSync.current) return;
+        // Заявка на выход уже идёт: повторное нажатие ничего не делает
+        resumeSync.current = () => undefined;
+        if (userData) resumeSync.current = await userData.controller.pauseSync();
         const count = userData ? await userData.offline.unsentCount() : 0;
         if (count > 0) setUnsent(count);
         else await finishLogout();
@@ -303,10 +320,10 @@ function UserSession({ user }: { user: CurrentUser }) {
                 <Dialog
                     title="Неотправленные изменения"
                     role="alertdialog"
-                    onClose={() => setUnsent(null)}
+                    onClose={cancelLogout}
                     actions={
                         <>
-                            <Button onClick={() => setUnsent(null)}>Отмена</Button>
+                            <Button onClick={cancelLogout}>Отмена</Button>
                             <Button variant="danger" onClick={() => void finishLogout()}>
                                 Выйти
                             </Button>

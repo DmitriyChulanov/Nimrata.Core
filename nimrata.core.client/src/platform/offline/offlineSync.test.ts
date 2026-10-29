@@ -192,4 +192,25 @@ describe('offlineSync', () => {
 
         expect(await mine.offline.unsentCount()).toBe(2);
     });
+
+    /**
+     * Проверяет, что своя сохранённая очередь не учитывается: подтверждённый набор, ещё лежащий
+     * в базе до следующего сохранения, не считается неотправленным
+     */
+    it('unsentCount_ownSavedQueueStale_countsOwnQueueFromMemory', async () => {
+        const env = browser();
+        const mine = openTab(env, offlineApi(), 'mine');
+        await mine.offline.start();
+        mine.data.startFromCache({ seq: 0, types: types as never, objects });
+        await mine.data.setProperty('a', 'name', 'Y');
+        await mine.offline.flush();
+        expect(await mine.offline.unsentCount()).toBe(1);
+
+        // Набор подтверждён, а база ещё хранит прежнюю очередь вкладки
+        const [pending] = mine.data.sync.pending();
+        mine.data.sync.confirm(pending!.id, 1, 0);
+
+        expect(mine.data.sync.pending()).toEqual([]);
+        expect(await mine.offline.unsentCount()).toBe(0);
+    });
 });

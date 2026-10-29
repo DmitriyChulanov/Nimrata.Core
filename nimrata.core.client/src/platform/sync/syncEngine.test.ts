@@ -236,9 +236,9 @@ describe('syncEngine', () => {
         const { api, store } = setup();
         api.post = () =>
             Promise.resolve([
-                { id: 'cs-1', status: 'applied', seq: 1 },
+                { id: 'cs-1', status: 'applied', seq: 1, prevSeq: 0 },
                 { id: 'cs-2', status: 'rejected', code: 'bad', detail: 'нельзя' },
-                { id: 'cs-3', status: 'duplicate', seq: 2 },
+                { id: 'cs-3', status: 'duplicate', seq: 2, prevSeq: 1 },
             ] satisfies ChangesetResult[] as never);
         const first = edit(store, 1, 'one');
         const second = edit(store, 1, 'two');
@@ -285,6 +285,72 @@ describe('syncEngine', () => {
 
         expect(await outcome).toMatchObject({ ok: false });
         expect(store.pending()).toEqual([]);
+    });
+
+    /**
+     * Проверяет, что приостановка ждёт идущий запрос, затем новых запросов нет даже после окна
+     * и `kick`, а возобновление отправляет очередь сразу
+     */
+    it('pause_noRequestsUntilResumed_thenSendsAtOnce', async () => {
+        const api = createFakeApi(types, structuredClone(objects));
+        const requests: unknown[] = [];
+        const post = api.post.bind(api);
+        api.post = (path, body) => {
+            requests.push(body);
+            return post(path, body);
+        };
+        const store = createDataStore({ newChangesetId: () => `cs-${requests.length + 1}` });
+        store.reset({ seq: 0, types, objects: structuredClone(objects) });
+        const link = createSyncEngine(api)(store);
+        void edit(store);
+        await vi.advanceTimersByTimeAsync(SYNC_WINDOW_MS);
+        expect(requests).toHaveLength(1);
+
+        const resume = await link.pause();
+        void edit(store, 1, 'later');
+        await vi.advanceTimersByTimeAsync(SYNC_WINDOW_MS * 5);
+        link.kick();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(requests).toHaveLength(1);
+        expect(store.pending()).toHaveLength(1);
+
+        resume();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(requests).toHaveLength(2);
+        expect(store.pending()).toEqual([]);
+        link.dispose();
+    });
+
+    /**
+     * Проверяет, что ответ неверной формы не принимается: наборы остаются в очереди и уходят
+     * повтором, как при сбое сервера
+     */
+    it('results_invalidResponse_keptInQueueAndRetried', async () => {
+        const { api, store, requests } = setup();
+        const post = api.post.bind(api);
+        const answers: unknown[] = [
+            { not: 'an array' },
+            [{ id: 'cs-1', status: 'applied' }],
+            [{ id: 'cs-1', status: 'whatever', seq: 1, prevSeq: 0 }],
+        ];
+        api.post = (path, body) => {
+            const answer = answers.shift();
+            if (answer === undefined) return post(path, body);
+            requests.push(structuredClone(body) as SentRequest);
+            return Promise.resolve(answer as never);
+        };
+        let settled = false;
+        void edit(store).then(() => (settled = true));
+
+        await vi.advanceTimersByTimeAsync(SYNC_WINDOW_MS);
+        expect(store.pending()).toHaveLength(1);
+        await vi.advanceTimersByTimeAsync(SYNC_RETRY_BASE_MS * 7);
+
+        expect(requests).toHaveLength(4);
+        expect(settled).toBe(true);
+        expect(store.pending()).toEqual([]);
+        expect(store.getSeq()).toBe(1);
     });
 
     /**

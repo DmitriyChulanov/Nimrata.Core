@@ -2,14 +2,17 @@ import { createSyncEngine } from '@platform/sync/syncEngine';
 import type { PushChannel } from '@platform/sync/syncEngine';
 
 import { createActionRegistry } from './actionRegistry';
+import { createDataLoading } from './dataLoading';
 import { createDataStore } from './dataStore';
 import { errorMessage } from './errorMessage';
+import { createLocalQueue } from './localQueue';
+import { createUndoHistory, invertOperations } from './undoHistory';
+import { createUndoReplay } from './undoReplay';
+import { uuid7 } from './uuid7';
 
 import type { GroupLaunch } from './actionRegistry';
 import type { DataStore, LocalEdit, StoreSnapshot } from './dataStore';
 import type { HistoryEntry, Operation } from './undoHistory';
-import { applyOperations, createUndoHistory, invertOperations, touchedIds } from './undoHistory';
-import { uuid7 } from './uuid7';
 
 import type { ApiClient } from '@platform/api/apiClient';
 import type {
@@ -78,6 +81,11 @@ export interface ChangesetResult {
     status: 'applied' | 'duplicate' | 'rejected';
     /** Курсор набора; у отклонённого отсутствует */
     seq?: number;
+    /**
+     * Курсор предыдущего набора того же пользователя (0 — первый); у отклонённого отсутствует;
+     * `seq` глобальный и у пользователя идёт с дырами: курсор сдвигается, только если `prevSeq` равен ему
+     */
+    prevSeq?: number;
     /** Машинный код отказа (`singleton_exists`, `extension_disabled`) */
     code?: string;
     /** Причина отказа для пользователя */
@@ -117,8 +125,8 @@ export interface MoveInput {
  */
 export interface OperationOptions {
     /**
-     * `false` — не запускать хуки (внутренние операции: повторы, Undo).
-     * По умолчанию хуки запускаются
+     * `false` — не запускать хуки (внутренние операции: повторы, Undo);
+     * по умолчанию хуки запускаются
      */
     hooks?: boolean;
     /**
@@ -252,8 +260,8 @@ export interface DataControllerOptions {
     /** Генератор идентификаторов новых объектов (по умолчанию UUIDv7) */
     newId?: () => string;
     /**
-     * Сетевая часть: отправляет наборы очереди и пишет итоги и входящие изменения в хранилище.
-     * По умолчанию — `createSyncEngine(api)` (пакеты с окном 200 мс, повтор при сбое сети)
+     * Сетевая часть: отправляет наборы очереди и пишет итоги и входящие изменения в хранилище;
+     * по умолчанию — `createSyncEngine(api)` (пакеты с окном 200 мс, повтор при сбое сети)
      */
     transport?: ChangesetTransport;
 }
@@ -293,6 +301,12 @@ export interface SyncLink {
      * `changes` применяются, `resync` — полная загрузка. Возвращает отключение канала
      */
     connect(channel: PushChannel): () => void;
+    /**
+     * Приостанавливает отправку очереди (например, пока открыто предупреждение о выходе): новых
+     * запросов `POST /api/changesets` нет, push и догон работают. Разрешается, когда завершится
+     * уже идущий запрос, — после этого очередь не меняется отправкой. Возвращает возобновление
+     */
+    pause(): Promise<() => void>;
     /** Отключает сетевую часть: таймеры, push-соединение, поздние ответы игнорируются */
     dispose(): void;
     /** Состояние связи с сервером по итогу последнего запроса или события push-соединения */
@@ -301,8 +315,8 @@ export interface SyncLink {
     subscribeState(listener: () => void): () => void;
     /**
      * Подписка на полную загрузку по сигналу сервера (`resync` push или ответ догона): вызывается
-     * после того, как снимок лёг в хранилище. Своя загрузка (`resync()`, `load`) не сообщается.
-     * Возвращает отписку
+     * после того, как снимок лёг в хранилище. Своя загрузка (`resync()`, `load`) не сообщается;
+     * возвращает отписку
      */
     onResync(listener: () => void): () => void;
 }
@@ -343,8 +357,8 @@ export interface DataController {
      */
     startFromCache(snapshot: StoreSnapshot): void;
     /**
-     * Догон изменений сервера после курсора (`GET /api/changes`); после него push применяется.
-     * Без сети отказывает исключением, модель остаётся как была
+     * Догон изменений сервера после курсора (`GET /api/changes`); после него push применяется;
+     * без сети отказывает исключением, модель остаётся как была
      */
     catchUp(): Promise<void>;
     /** Отправить неотправленные наборы сейчас (сеть вернулась), не дожидаясь задержки повтора */
@@ -382,6 +396,11 @@ export interface DataController {
     readonly sync: SyncPort;
     /** Подключает push-канал к сетевой части (SignalR в приложении); возвращает отключение */
     connectPush(channel: PushChannel): () => void;
+    /**
+     * Приостанавливает отправку очереди на сервер (`SyncLink.pause`); разрешается после
+     * завершения идущего запроса и возвращает возобновление
+     */
+    pauseSync(): Promise<() => void>;
     /** Состояние связи сетевой части с сервером (индикатор синхронизации) */
     getSyncState(): SyncState;
     /** Подписка на смену состояния связи; возвращает отписку */
@@ -404,8 +423,8 @@ export interface DataController {
     /** Удаляет объект вместе с потомками одним набором */
     remove(id: string, options?: OperationOptions): Promise<ChangeResult>;
     /**
-     * Отменяет последнее действие (обратным набором, без хуков); при отказе сервера стек не меняется.
-     * Если текущие значения уже не те, что ставило действие (их изменили в другом месте), отмена
+     * Отменяет последнее действие (обратным набором, без хуков); при отказе сервера стек не меняется;
+     * если текущие значения уже не те, что ставило действие (их изменили в другом месте), отмена
      * отклоняется с уведомлением, а запись убирается из стека
      */
     undo(): Promise<ChangeResult>;
@@ -422,8 +441,8 @@ export interface DataController {
         options?: OperationOptions,
     ): Promise<ChangeResult>;
     /**
-     * Регистрирует хук операции для объектов типа `type` (`'*'` — любой тип).
-     * Хуки одного вида вызываются в порядке регистрации. Возвращает функцию отписки
+     * Регистрирует хук операции для объектов типа `type` (`'*'` — любой тип);
+     * хуки одного вида вызываются в порядке регистрации. Возвращает функцию отписки
      */
     registerHook(
         type: string,
@@ -468,8 +487,8 @@ export interface DataController {
      */
     groupLaunch(objectIds: readonly string[], action: ActionDefinition): GroupLaunch;
     /**
-     * Привязывает обработчик к команде расширения `id` (описана в `commands` манифеста).
-     * Повторная регистрация того же `id` заменяет обработчик. Возвращает функцию отписки
+     * Привязывает обработчик к команде расширения `id` (описана в `commands` манифеста);
+     * повторная регистрация того же `id` заменяет обработчик. Возвращает функцию отписки
      */
     registerCommand(
         id: string,
@@ -559,22 +578,6 @@ function nextNumber(siblings: readonly DataObject[]): number {
 }
 
 /**
- * Совпадают ли значения свойства (значения из JSON сравниваются по содержимому)
- *
- * @param a - первое значение
- * @param b - второе значение
- * @returns `true`, если значения равны
- */
-function sameValue(a: unknown, b: unknown): boolean {
-    return a === b || JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-}
-
-/**
- * Итог шага локальной очереди: готовый результат либо ожидание итога набора на сервере
- */
-type StepResult = { result: ChangeResult } | { outcome: Promise<ChangeResult> };
-
-/**
  * Создаёт контроллер данных
  *
  * @param options - API-клиент, генератор идентификаторов и сетевая часть
@@ -607,22 +610,18 @@ export function createDataController(options: DataControllerOptions): DataContro
     const newId = options.newId ?? uuid7;
     const history = createUndoHistory();
     const link = (options.transport ?? createSyncEngine(api))(store);
-
-    // Локальная часть наборов (хуки, обработчики, применение к модели) выполняется строго по
-    // очереди; ответа сервера следующее действие не ждёт
-    let localQueue: Promise<unknown> = Promise.resolve();
-
-    /**
-     * Ставит шаг в локальную очередь и возвращает итог действия
-     *
-     * @param step - шаг: локальное применение и, если набор не пуст, ожидание его итога
-     * @returns итог действия
-     */
-    function enqueueLocal(step: () => Promise<StepResult>): Promise<ChangeResult> {
-        const done = localQueue.then(step);
-        localQueue = done.catch(() => undefined);
-        return done.then((s) => ('result' in s ? s.result : s.outcome));
-    }
+    const enqueueLocal = createLocalQueue();
+    const undoReplay = createUndoReplay({
+        store,
+        history,
+        enqueueLocal,
+        reportError(error) {
+            if (error === null) snapshot = { ...snapshot, error: null };
+            else publish({ error }, false);
+        },
+        notify: () => publish({}, false),
+    });
+    const loading = createDataLoading({ store, link, history, publish });
 
     function descendantsFirst(id: string): string[] {
         const result: string[] = [];
@@ -867,85 +866,6 @@ export function createDataController(options: DataControllerOptions): DataContro
         });
     }
 
-    /**
-     * Ищет расхождение текущей модели с тем, что ожидает набор отмены или повтора: значения
-     * «было» у свойств и положения, существование объектов
-     *
-     * @param operations - операции набора
-     * @returns `true`, если модель изменилась в другом месте
-     */
-    function hasConflict(operations: readonly Operation[]): boolean {
-        const view = new Map<string, DataObject>();
-        for (const id of touchedIds(operations)) {
-            const object = store.getObject(id);
-            if (object) view.set(id, object);
-        }
-        for (const operation of operations) {
-            const current = view.get(operation.id);
-            switch (operation.op) {
-                case 'create':
-                    if (current) return true;
-                    break;
-                case 'delete':
-                    if (!current) return true;
-                    break;
-                case 'update':
-                    if (!current) return true;
-                    for (const [name, change] of Object.entries(operation.changes)) {
-                        if (!sameValue(current.properties[name], change.old)) return true;
-                    }
-                    break;
-                case 'move':
-                    if (!current) return true;
-                    if (operation.parent && current.parent !== operation.parent.old) return true;
-                    if (operation.number && current.number !== operation.number.old) return true;
-                    break;
-            }
-            applyOperations(view, [operation]);
-        }
-        return false;
-    }
-
-    /**
-     * Отмена и повтор: применяют сохранённый набор напрямую к модели, минуя `makeScope`,
-     * поэтому хуки не вызываются; идут через ту же очередь. Перед применением текущие значения
-     * сверяются со своими. При отказе сервера стек остаётся прежним
-     */
-    function replay(kind: 'undo' | 'redo'): Promise<ChangeResult> {
-        const verb = kind === 'undo' ? 'отменить' : 'повторить';
-        return enqueueLocal(async () => {
-            const entry = kind === 'undo' ? history.peekUndo() : history.peekRedo();
-            if (!entry) {
-                return {
-                    result: {
-                        ok: false,
-                        error: kind === 'undo' ? 'Нечего отменять.' : 'Нечего повторять.',
-                    },
-                };
-            }
-            const operations = kind === 'undo' ? entry.inverse : entry.forward;
-            if (hasConflict(operations)) {
-                history.discard(entry);
-                const error = `Не удалось ${verb}: данные изменены в другом месте.`;
-                publish({ error }, false);
-                return { result: { ok: false, error } };
-            }
-            const edit = store.beginLocal();
-            for (const operation of operations) edit.apply(operation);
-            if (kind === 'undo') history.markUndone();
-            else history.markRedone();
-            snapshot = { ...snapshot, error: null };
-            const { outcome } = edit.commit(operations);
-            // Итог локальный: поздний отказ сервера возвращает запись в стек и показан уведомлением
-            void outcome.then((result) => {
-                if (result.ok) return;
-                history.revert(kind, entry);
-                publish({}, false);
-            });
-            return { result: { ok: true } };
-        });
-    }
-
     function registerHook(
         type: string,
         operation: HookOperation,
@@ -981,21 +901,8 @@ export function createDataController(options: DataControllerOptions): DataContro
     });
 
     return {
-        async load() {
-            publish({ status: 'loading', error: null }, false);
-            try {
-                await link.resync();
-                history.clear();
-                publish({ status: 'ready', error: null });
-            } catch (error) {
-                publish({ status: 'error', error: errorMessage(error) }, false);
-            }
-        },
-        startFromCache(cache) {
-            store.reset(cache);
-            history.clear();
-            publish({ status: 'ready', error: null });
-        },
+        load: loading.load,
+        startFromCache: loading.startFromCache,
         catchUp: () => link.catchUp(),
         kick: () => link.kick(),
         dispose: () => link.dispose(),
@@ -1015,6 +922,7 @@ export function createDataController(options: DataControllerOptions): DataContro
         getChildren,
         sync: store,
         connectPush: (channel) => link.connect(channel),
+        pauseSync: () => link.pause(),
         getSyncState: () => link.getState(),
         subscribeSyncState: (listener) => link.subscribeState(listener),
         onResync: (listener) => link.onResync(listener),
@@ -1029,10 +937,10 @@ export function createDataController(options: DataControllerOptions): DataContro
             execute((tx) => void tx.setProperty(id, property, value), opts),
         move: (id, to, opts) => execute((tx) => void tx.move(id, to), opts),
         remove: (id, opts) => execute((tx) => void tx.remove(id), opts),
-        undo: () => replay('undo'),
-        redo: () => replay('redo'),
-        canUndo: () => history.canUndo(),
-        canRedo: () => history.canRedo(),
+        undo: undoReplay.undo,
+        redo: undoReplay.redo,
+        canUndo: undoReplay.canUndo,
+        canRedo: undoReplay.canRedo,
         perform: (run, opts) => execute((tx) => run(tx), opts),
         registerHook,
         registerTitle,

@@ -1,6 +1,4 @@
-import { useId } from 'react';
-
-import { Button } from '@platform/ui';
+import { Button, Tooltip } from '@platform/ui';
 
 import { describeSyncStatus } from './syncStatus';
 import { useSyncStatus } from './useSyncStatus';
@@ -16,24 +14,25 @@ import './SyncIndicator.css';
  */
 export function SyncIndicator() {
     const status = useSyncStatus();
-    const tipId = useId();
     if (!status) return null;
     const view = describeSyncStatus(status);
 
     return (
-        <span className={`sync-indicator sync-indicator--${view.kind}`}>
-            <Button
-                variant="ghost"
-                icon={view.icon}
-                className="sync-indicator__button"
-                aria-describedby={tipId}
-                onClick={status.syncNow}
-            >
-                {view.label}
-            </Button>
-            <span role="tooltip" id={tipId} className="sync-indicator__tip">
-                {view.detail} Нажмите, чтобы синхронизировать сейчас.
-            </span>
-        </span>
+        <Tooltip
+            className={`sync-indicator sync-indicator--${view.kind}`}
+            content={`${view.detail} Нажмите, чтобы синхронизировать сейчас.`}
+        >
+            {(tooltipId) => (
+                <Button
+                    variant="ghost"
+                    icon={view.icon}
+                    className="sync-indicator__button"
+                    aria-describedby={tooltipId}
+                    onClick={status.syncNow}
+                >
+                    {view.label}
+                </Button>
+            )}
+        </Tooltip>
     );
 }

@@ -4,11 +4,16 @@
  */
 import { HttpError, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 
-import { SYNC_RETRY_BASE_MS, SYNC_RETRY_MAX_MS } from './syncEngine';
+import { isRemoteChanges } from '@platform/data/dataGuards';
+
+import { retryDelay } from './retryDelay';
 
 import type { PushChanges, PushChannel } from './syncEngine';
 
-/** Адрес хаба синхронизации (под общим префиксом `/api`, проксируется Vite с `ws: true`) */
+/**
+ * Адрес хаба синхронизации (под общим префиксом `/api`, проксируется Vite с `ws: true`); на сервере —
+ * `SyncHub.Path` (`Nimrata.Core.Server/Sync/SyncHub.cs`)
+ */
 export const SYNC_HUB_URL = '/api/sync';
 
 /**
@@ -42,13 +47,23 @@ export interface SignalRChannelOptions {
 }
 
 /**
- * Задержка повтора: экспоненциально от `SYNC_RETRY_BASE_MS` до `SYNC_RETRY_MAX_MS`
- *
- * @param attempt - номер попытки с нуля
- * @returns задержка, мс
+ * Имена сообщений хаба; сервер отправляет их из `ChangeDispatcher` (`ChangesMessage`, `ResyncMessage`)
  */
-function retryDelay(attempt: number): number {
-    return Math.min(SYNC_RETRY_BASE_MS * 2 ** attempt, SYNC_RETRY_MAX_MS);
+export const SYNC_HUB_MESSAGES = { changes: 'changes', resync: 'resync' } as const;
+
+/**
+ * Проверяет, что тело сообщения `changes` — формат догона с курсором `fromSeq`
+ *
+ * @param value - аргумент сообщения хаба
+ * @returns `true`, если форма подходит
+ */
+function isPushChanges(value: unknown): value is PushChanges {
+    return (
+        isRemoteChanges(value) &&
+        'fromSeq' in value &&
+        typeof value.fromSeq === 'number' &&
+        Number.isInteger(value.fromSeq)
+    );
 }
 
 /**
@@ -125,8 +140,13 @@ export function createSignalRChannel(options: SignalRChannelOptions): PushChanne
             options.url ?? SYNC_HUB_URL,
             accessTokenFactory,
         );
-        connection.on('changes', (message: PushChanges) => handlers.changes(message));
-        connection.on('resync', () => handlers.resync());
+        connection.on(SYNC_HUB_MESSAGES.changes, (message: unknown) => {
+            // Сообщение неверной формы применить нельзя, а пропустить — значит потерять изменения:
+            // клиент перечитывает данные целиком
+            if (isPushChanges(message)) handlers.changes(message);
+            else handlers.resync();
+        });
+        connection.on(SYNC_HUB_MESSAGES.resync, () => handlers.resync());
         connection.onreconnected(() => {
             attempt = 0;
             handlers.connected();

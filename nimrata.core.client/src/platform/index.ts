@@ -137,7 +137,11 @@ export { ExtensionsEditor } from './extensionCatalog/ExtensionsEditor';
 export { NoExtensionsNotice } from './extensionCatalog/NoExtensionsNotice';
 export { useExtensions } from './extensionCatalog/useExtensions';
 export type { ExtensionsStatus, ExtensionsValue } from './extensionCatalog/ExtensionsContext';
-export { fetchExtensionCatalog, putExtensionConnection } from './extensionCatalog/catalog';
+export {
+    fetchExtensionCatalog,
+    isExtensionCatalog,
+    putExtensionConnection,
+} from './extensionCatalog/catalog';
 export type { ExtensionInfo } from './extensionCatalog/catalog';
 export { RevealBinding } from './extensionApi/RevealBinding';
 export { createRevealBridge } from './extensionApi/revealBridge';
@@ -187,6 +191,7 @@ export {
     Switch,
     TextArea,
     TextField,
+    Tooltip,
 } from './ui';
 export type {
     BadgeProps,
@@ -203,6 +208,8 @@ export type {
     SwitchProps,
     TextAreaProps,
     TextFieldProps,
+    TooltipAlign,
+    TooltipProps,
 } from './ui';
 export {
     SETTINGS_ROOT,
