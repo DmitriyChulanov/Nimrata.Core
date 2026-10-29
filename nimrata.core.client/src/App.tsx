@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
     AuthProvider,
@@ -13,6 +13,8 @@ import {
     RevealBinding,
     ResetPasswordScreen,
     SelectionProvider,
+    SyncIndicator,
+    SyncStatusProvider,
     TabContainer,
     TabsProvider,
     Tree,
@@ -244,8 +246,12 @@ function Session() {
  * @returns интерфейс сессии пользователя
  */
 function UserSession({ user }: { user: CurrentUser }) {
-    const { logout } = useAuth();
+    const { logout, status } = useAuth();
     const userData = useUserData(user.id);
+    const unsentCount = useCallback(
+        () => userData?.offline.unsentCount() ?? Promise.resolve(0),
+        [userData],
+    );
     // Число неотправленных наборов, о которых предупреждаем; `null` — предупреждения нет
     const [unsent, setUnsent] = useState<number | null>(null);
 
@@ -272,6 +278,15 @@ function UserSession({ user }: { user: CurrentUser }) {
                 <header className="app-header">
                     <h1>Nimrata</h1>
                     <MainMenu registry={menuRegistry} role={user.role} />
+                    {userData && (
+                        <SyncStatusProvider
+                            controller={userData.controller}
+                            unsentCount={unsentCount}
+                            signedInOffline={status === 'offline'}
+                        >
+                            <SyncIndicator />
+                        </SyncStatusProvider>
+                    )}
                     <Button variant="ghost" icon="log-out" onClick={() => void requestLogout()}>
                         Выйти
                     </Button>

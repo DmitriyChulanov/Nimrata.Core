@@ -295,6 +295,32 @@ export interface SyncLink {
     connect(channel: PushChannel): () => void;
     /** Отключает сетевую часть: таймеры, push-соединение, поздние ответы игнорируются */
     dispose(): void;
+    /** Состояние связи с сервером по итогу последнего запроса или события push-соединения */
+    getState(): SyncState;
+    /** Подписка на смену состояния связи; возвращает отписку */
+    subscribeState(listener: () => void): () => void;
+    /**
+     * Подписка на полную загрузку по сигналу сервера (`resync` push или ответ догона): вызывается
+     * после того, как снимок лёг в хранилище. Своя загрузка (`resync()`, `load`) не сообщается.
+     * Возвращает отписку
+     */
+    onResync(listener: () => void): () => void;
+}
+
+/**
+ * Связь с сервером: `online` — последний запрос удался (или запросов ещё не было), `offline` —
+ * нет сети (запрос не дошёл, push-соединение оборвано), `error` — сервер ответил сбоем
+ */
+export type SyncConnection = 'online' | 'offline' | 'error';
+
+/**
+ * Состояние сетевой части для индикатора синхронизации
+ */
+export interface SyncState {
+    /** Связь с сервером */
+    connection: SyncConnection;
+    /** Текст последней ошибки (`offline`, `error`); `null` — ошибки нет */
+    error: string | null;
 }
 
 /**
@@ -356,6 +382,15 @@ export interface DataController {
     readonly sync: SyncPort;
     /** Подключает push-канал к сетевой части (SignalR в приложении); возвращает отключение */
     connectPush(channel: PushChannel): () => void;
+    /** Состояние связи сетевой части с сервером (индикатор синхронизации) */
+    getSyncState(): SyncState;
+    /** Подписка на смену состояния связи; возвращает отписку */
+    subscribeSyncState(listener: () => void): () => void;
+    /**
+     * Подписка на полную загрузку по сигналу сервера (например, расширение подключили в другой
+     * вкладке): вызывается после того, как новый снимок лёг в модель. Возвращает отписку
+     */
+    onResync(listener: () => void): () => void;
     /** Создаёт объект (одно действие — один набор изменений) */
     create(input: CreateInput, options?: OperationOptions): Promise<CreateResult>;
     /** Меняет свойство; `null` удаляет значение */
@@ -980,6 +1015,9 @@ export function createDataController(options: DataControllerOptions): DataContro
         getChildren,
         sync: store,
         connectPush: (channel) => link.connect(channel),
+        getSyncState: () => link.getState(),
+        subscribeSyncState: (listener) => link.subscribeState(listener),
+        onResync: (listener) => link.onResync(listener),
         async create(input, opts) {
             let created: CreateResult = { ok: false, error: 'Объект не создан.' };
             const result = await execute((tx) => {
