@@ -90,7 +90,9 @@ await app.Services.GetRequiredService<AdminSeeder>().SeedAsync();
 app.UseDefaultFiles();
 // Собранный клиент лежит в wwwroot (кладётся при публикации); раздаём его с диска, без манифеста статических ресурсов.
 // UseRouting вызывается явно после статики: иначе fallback-маршрут выбирается раньше и перекрывает файлы
-app.UseStaticFiles();
+// Заголовки кэширования: service worker и оболочка проверяются у сервера каждый раз, ассеты с хэшем — надолго
+var clientFiles = ClientCaching.CreateStaticFileOptions();
+app.UseStaticFiles(clientFiles);
 app.UseRouting();
 
 if (app.Environment.IsDevelopment())
@@ -114,7 +116,7 @@ app.MapGet("/health", async (CancellationToken cancellationToken) =>
 }).AllowAnonymous();
 
 // Неизвестные маршруты отдают клиентское приложение (клиентская маршрутизация), кроме /api: там остаётся 404
-app.MapFallbackToFile("{*path:regex(^(?!api(/|$)).*$)}", "index.html").AllowAnonymous();
+app.MapFallbackToFile("{*path:regex(^(?!api(/|$)).*$)}", "index.html", clientFiles).AllowAnonymous();
 
 app.Run();
 

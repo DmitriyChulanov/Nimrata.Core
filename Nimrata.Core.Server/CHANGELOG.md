@@ -2,6 +2,9 @@
 
 ## Не выпущено
 
+### Добавлено (синхронизация: service worker)
+- Заголовки кэширования собранного клиента (`ClientCaching`, общие настройки для `UseStaticFiles` и SPA-fallback): `sw.js`, `registerSW.js` и `index.html` (в том числе отданный на клиентский маршрут) — `Cache-Control: no-cache`, чтобы новая версия service worker и оболочки подхватывалась; ассеты `/assets/*` с хэшем в имени — `public, max-age=31536000, immutable`. Тесты в `SpaHostingTests`.
+
 ### Документация (синхронизация)
 - ADR 0006 «Синхронизация: журнал как курсор, SignalR-push, офлайн-очередь, LWW» описывает серверную часть как построено: `seq` и advisory-блокировка, идемпотентность по `id`, LWW со структурными отказами, пакет `POST /api/changesets`, `GET /api/snapshot`, догон `GET /api/changes`, хаб `/api/sync` с `fromSeq` и `resync`. Термины Синхронизация, Курсор, Подтверждённое состояние, Очередь неподтверждённых — в `GLOSSARY.md`. Код сервера не менялся.
 
