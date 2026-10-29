@@ -54,7 +54,7 @@ describe('Tasks: internal link navigation in the interface', () => {
         const tasks = data.getChildren(null).find((o) => o.type === 'TasksRoot')!;
         const archive = data.getChildren(tasks.id).find((o) => o.type === 'CompletedTasksRoot')!;
         const current = data.getChildren(tasks.id).find((o) => o.type === 'CurrentTasksRoot')!;
-        await data.runAction(current.id, 'createTask', { title: 'А', date: '2026-03-05' });
+        await data.runAction(current.id, 'createTask', { name: 'А', date: '2026-03-05' });
         const month = data.getChildren(current.id)[0];
         const task = data.getChildren(data.getChildren(month.id)[0].id)[0];
         await data.setProperty(task.id, 'internalLink', archive.id);
@@ -91,14 +91,14 @@ describe('Tasks: reveal of a created task', () => {
         await ensureTasksStart(data);
         const tasks = data.getChildren(null).find((o) => o.type === 'TasksRoot')!;
         const current = data.getChildren(tasks.id).find((o) => o.type === 'CurrentTasksRoot')!;
-        await data.runAction(current.id, 'createTask', { title: 'А', date: '2026-03-05' });
+        await data.runAction(current.id, 'createTask', { name: 'А', date: '2026-03-05' });
         const month = data.getChildren(current.id)[0];
         const day = data.getChildren(month.id)[0];
         reveal.mockClear();
 
-        await data.runAction(day.id, 'createTask', { title: 'Б' });
+        await data.runAction(day.id, 'createTask', { name: 'Б' });
 
-        const created = data.getChildren(day.id).find((o) => o.properties.title === 'Б')!;
+        const created = data.getChildren(day.id).find((o) => o.properties.name === 'Б')!;
         expect(reveal).toHaveBeenCalledExactlyOnceWith(created.id);
     });
 });

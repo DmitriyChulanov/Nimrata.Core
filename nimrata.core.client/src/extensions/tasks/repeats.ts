@@ -4,7 +4,7 @@ import { categoryChain, taskRootId } from './completion';
 import { COMPLETED, CURRENT_TASKS_ROOT, TASK } from './constants';
 import { addDays, addMonths, fromUtc, isWeekend, parseIso, toIso, todayIso } from './dates';
 import { ensureCategory, ensureDay } from './nodes';
-import { allTasks, taskDate, taskName, taskOrder } from './tasks';
+import { allTasks, taskDate, taskOrder } from './tasks';
 
 import type { ChangeResult, ChangeScope, DataController, DataObject, HookResult } from '@platform';
 import type { Ymd } from './dates';
@@ -29,9 +29,9 @@ const MONTHLY = 'monthly';
 /**
  * Свойства, правки которых распространяются на весь набор повторов (порядок — отдельно, через `move`)
  */
-const SYNCED = ['title', 'comment', 'link', 'priority', 'time'];
+const SYNCED = ['name', 'comment', 'link', 'priority', 'time'];
 /**
- * Свойства, которые копируются в новый повтор (статус и вычисляемое имя — нет)
+ * Свойства, которые копируются в новый повтор (статус — нет)
  */
 const COPIED = [...SYNCED, 'internalLink', 'notifyBefore', 'repeat', 'repeatId'];
 
@@ -104,7 +104,7 @@ function datedMembers(data: DataController, members: DataObject[]) {
 /**
  * Создаёт недостающие повторы набора: даты ряда от самой ранней задачи набора, позже самой
  * поздней из имеющихся, не раньше сегодня, до горизонта; уже занятые даты пропускаются.
- * Хуки не нужны: имя и порядок вычисляются здесь же
+ * Хуки не нужны: порядок вычисляется здесь же
  */
 function fillSet(
     data: DataController,
@@ -131,8 +131,6 @@ function fillSet(
     }
     properties.repeat = kind;
     const draft = { ...template.task, properties };
-    const name = taskName(draft);
-    if (name !== undefined) properties.name = name;
     const order = taskOrder(draft);
     const chain = categoryChain(data, template.task);
     const rootId = taskRootId(data, template.task, CURRENT_TASKS_ROOT);

@@ -27,7 +27,7 @@ import { NotificationsBinding } from './NotificationsBinding';
 import { ensureRepeats, registerRepeats } from './repeats';
 import { registerCreateSchedule } from './schedule';
 import { registerSelectToday } from './selectToday';
-import { createTaskAction, syncTask } from './tasks';
+import { createTaskAction, syncTaskOrder, taskTitle } from './tasks';
 
 import type {
     ChangeResult,
@@ -39,7 +39,7 @@ import type {
 export { taskDate } from './tasks';
 
 /**
- * Подключает логику Трекера задач к контроллеру данных: вычисление имён и порядка, действия,
+ * Подключает логику Трекера задач к контроллеру данных: название и порядок задач, действия,
  * завершение, повторы и команду «Выделить текущий день». Возвращает функцию отписки
  *
  * @param data - контроллер данных
@@ -50,11 +50,12 @@ export function registerTasks(data: DataController, options: ExtensionOptions = 
     const disposers: (() => void)[] = [];
 
     disposers.push(
-        data.registerHook(TASK, 'create', 'after', (ctx) => syncTask(data, ctx.object.id, ctx.tx)),
+        data.registerTitle(TASK, taskTitle),
+        data.registerHook(TASK, 'create', 'after', (ctx) =>
+            syncTaskOrder(data, ctx.object.id, ctx.tx),
+        ),
         data.registerHook(TASK, 'setProperty', 'after', (ctx) =>
-            ctx.property === 'title' || ctx.property === 'time'
-                ? syncTask(data, ctx.object.id, ctx.tx)
-                : undefined,
+            ctx.property === 'time' ? syncTaskOrder(data, ctx.object.id, ctx.tx) : undefined,
         ),
     );
 

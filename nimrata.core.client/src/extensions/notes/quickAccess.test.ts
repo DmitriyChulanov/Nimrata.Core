@@ -45,7 +45,7 @@ async function start(reveal?: (id: string) => void) {
 
 async function addNote(data: DataController, parent: string, title: string) {
     const before = new Set(data.getChildren(parent).map((o) => o.id));
-    const result = await data.runAction(parent, 'createNote', { title });
+    const result = await data.runAction(parent, 'createNote', { name: title });
     expect(result.ok).toBe(true);
     return data.getChildren(parent).find((o) => !before.has(o.id))!;
 }
@@ -189,7 +189,7 @@ describe('Notes: quick access commands', () => {
         const note = await addNote(data, notesRoot.id, 'Старое');
         await data.runAction(note.id, CREATE);
 
-        await data.setProperty(note.id, 'title', 'Новое');
+        await data.setProperty(note.id, 'name', 'Новое');
 
         expect(commands(data)[0].properties.name).toBe('Новое');
     });

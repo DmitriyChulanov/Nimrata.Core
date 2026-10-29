@@ -45,7 +45,7 @@ async function addTask(
     props: Record<string, unknown> = {},
 ) {
     const before = new Set(allIds(data));
-    const result = await data.runAction(current(data).id, 'createTask', { title, date });
+    const result = await data.runAction(current(data).id, 'createTask', { name: title, date });
     if (!result.ok) throw new Error(result.error);
     const id = allIds(data).find((i) => !before.has(i) && data.getObject(i)!.type === 'Task')!;
     for (const [property, value] of Object.entries(props)) {

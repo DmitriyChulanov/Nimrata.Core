@@ -44,7 +44,7 @@ async function setup(
         .getChildren(null)
         .flatMap((o) => data.getChildren(o.id))
         .find((o) => o.type === 'CurrentTasksRoot')!;
-    await data.runAction(current.id, 'createTask', { title: 'Созвон', date: '2026-03-04' });
+    await data.runAction(current.id, 'createTask', { name: 'Созвон', date: '2026-03-04' });
     const task = data
         .getChildren(null)
         .flatMap((o) => data.getChildren(o.id))

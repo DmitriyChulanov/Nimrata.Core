@@ -1,6 +1,5 @@
 import {
     ancestors,
-    cancelIfFailed,
     createNode,
     ensureCreated,
     orThrow,
@@ -18,24 +17,7 @@ import type {
     DataObject,
     ExtensionDescriptor,
     ExtensionOptions,
-    HookResult,
 } from '@platform';
-
-/**
- * Приводит `name` заметки к названию в том же наборе изменений
- *
- * @param data - контроллер данных
- * @param id - идентификатор заметки
- * @param tx - область изменений текущего набора
- * @returns результат хука: отмена набора, если имя не удалось записать
- */
-function syncNoteName(data: DataController, id: string, tx: ChangeScope): HookResult {
-    const note = data.getObject(id);
-    if (!note) return;
-    const title = note.properties.title;
-    if (typeof title !== 'string' || title === '' || note.properties.name === title) return;
-    return cancelIfFailed(tx.setProperty(id, 'name', title));
-}
 
 /**
  * Проверяет, что значение — непустая строка
@@ -96,7 +78,7 @@ function completeNote(data: DataController, note: DataObject, tx: ChangeScope): 
 }
 
 /**
- * Подключает логику Трекера заметок к контроллеру данных: вычисление имён, действия создания
+ * Подключает логику Трекера заметок к контроллеру данных: действия создания
  * (только в «Активных»), «Завершить», внешняя и внутренняя ссылки и быстрый доступ. Возвращает функцию отписки
  *
  * @param data - контроллер данных
@@ -105,15 +87,6 @@ function completeNote(data: DataController, note: DataObject, tx: ChangeScope): 
 export function registerNotes(data: DataController, options: ExtensionOptions = {}): () => void {
     const disposers: (() => void)[] = [];
 
-    disposers.push(
-        data.registerHook(NOTE, 'create', 'after', (ctx) =>
-            syncNoteName(data, ctx.object.id, ctx.tx),
-        ),
-        data.registerHook(NOTE, 'setProperty', 'after', (ctx) =>
-            ctx.property === 'title' ? syncNoteName(data, ctx.object.id, ctx.tx) : undefined,
-        ),
-    );
-
     const inActive = (object: DataObject) => isInActive(data, object);
     for (const parentType of [ACTIVE_NOTES_ROOT, NOTE_GROUP]) {
         disposers.push(
@@ -121,8 +94,8 @@ export function registerNotes(data: DataController, options: ExtensionOptions = 
                 parentType,
                 'createNote',
                 ({ object, params, tx }) => {
-                    const title = requireText(params.title, 'Укажите название заметки.');
-                    createNode(tx, object.id, NOTE, { title });
+                    const name = requireText(params.name, 'Укажите имя заметки.');
+                    createNode(tx, object.id, NOTE, { name });
                 },
                 { available: inActive },
             ),
@@ -130,7 +103,7 @@ export function registerNotes(data: DataController, options: ExtensionOptions = 
                 parentType,
                 'createNoteGroup',
                 ({ object, params, tx }) => {
-                    const name = requireText(params.name, 'Укажите название группы.');
+                    const name = requireText(params.name, 'Укажите имя группы.');
                     createNode(tx, object.id, NOTE_GROUP, { name });
                 },
                 { available: inActive },

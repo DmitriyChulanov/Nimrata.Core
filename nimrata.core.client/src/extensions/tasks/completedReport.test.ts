@@ -45,11 +45,11 @@ function currentRoot(data: DataController): DataObject {
  * Создаёт задачу на дату и сразу завершает её (она переезжает в день «Завершённых задач»)
  */
 async function completed(data: DataController, title: string, date: string) {
-    const created = await data.runAction(currentRoot(data).id, 'createTask', { title, date });
+    const created = await data.runAction(currentRoot(data).id, 'createTask', { name: title, date });
     if (!created.ok) throw new Error(created.error);
     const find = (parent: string | null): DataObject | undefined => {
         for (const o of data.getChildren(parent)) {
-            if (o.type === 'Task' && o.properties.title === title) return o;
+            if (o.type === 'Task' && o.properties.name === title) return o;
             const found = find(o.id);
             if (found) return found;
         }
@@ -115,7 +115,7 @@ describe('Tasks: completed report command', () => {
     it('collectCompleted_currentTask_isIgnored', async () => {
         const { data } = await start();
         await data.runAction(currentRoot(data).id, 'createTask', {
-            title: 'В работе',
+            name: 'В работе',
             date: '2026-03-03',
         });
 

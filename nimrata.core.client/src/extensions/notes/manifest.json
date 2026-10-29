@@ -1,6 +1,6 @@
 {
     "extension": "notes",
-    "version": 18,
+    "version": 19,
     "name": "Трекер заметок",
     "description": "Заметки и группы заметок, команды быстрого доступа.",
     "icon": "notebook",
@@ -47,8 +47,8 @@
                     "placements": ["contextMenu"],
                     "parameters": [
                         {
-                            "id": "title",
-                            "name": "Название",
+                            "id": "name",
+                            "name": "Имя",
                             "kind": "string",
                             "required": true
                         }
@@ -62,7 +62,7 @@
                     "parameters": [
                         {
                             "id": "name",
-                            "name": "Название",
+                            "name": "Имя",
                             "kind": "string",
                             "required": true
                         }
@@ -88,7 +88,7 @@
             "properties": [
                 {
                     "id": "name",
-                    "name": "Название",
+                    "name": "Имя",
                     "kind": "string",
                     "category": "Основное"
                 }
@@ -101,8 +101,8 @@
                     "placements": ["contextMenu"],
                     "parameters": [
                         {
-                            "id": "title",
-                            "name": "Название",
+                            "id": "name",
+                            "name": "Имя",
                             "kind": "string",
                             "required": true
                         }
@@ -116,7 +116,7 @@
                     "parameters": [
                         {
                             "id": "name",
-                            "name": "Название",
+                            "name": "Имя",
                             "kind": "string",
                             "required": true
                         }
@@ -147,19 +147,11 @@
             "allowedChildren": [],
             "properties": [
                 {
-                    "id": "title",
-                    "name": "Название",
-                    "kind": "string",
-                    "category": "Основное",
-                    "order": 1
-                },
-                {
                     "id": "name",
                     "name": "Имя",
                     "kind": "string",
                     "category": "Основное",
-                    "readOnly": true,
-                    "order": 2
+                    "order": 1
                 },
                 {
                     "id": "comment",

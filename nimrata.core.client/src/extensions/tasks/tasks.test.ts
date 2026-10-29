@@ -60,7 +60,7 @@ describe('Tracker: task creation', () => {
         const { data } = await start();
         const root = current(data);
 
-        await createTask(data, root, { title: 'Позвонить', date: '2026-03-05' });
+        await createTask(data, root, { name: 'Позвонить', date: '2026-03-05' });
 
         const month = byName(data, root.id, 'март, 2026')!;
         expect(month.type).toBe('Month');
@@ -69,7 +69,7 @@ describe('Tracker: task creation', () => {
         const tasks = data.getChildren(day.id);
         expect(tasks).toHaveLength(1);
         expect(tasks[0].type).toBe('Task');
-        expect(tasks[0].properties.title).toBe('Позвонить');
+        expect(tasks[0].properties.name).toBe('Позвонить');
         expect(tasks[0].properties.name).toBe('Позвонить');
     });
 
@@ -80,7 +80,7 @@ describe('Tracker: task creation', () => {
         const { data } = await start();
         const root = current(data);
 
-        await createTask(data, root, { title: 'Сегодняшняя' });
+        await createTask(data, root, { name: 'Сегодняшняя' });
 
         const month = byName(data, root.id, 'март, 2026')!;
         expect(byName(data, month.id, '04.03.2026, среда')).toBeDefined();
@@ -93,7 +93,7 @@ describe('Tracker: task creation', () => {
         const { api, data } = await start();
         const before = api.changesets.length;
 
-        await createTask(data, current(data), { title: 'А', date: '2026-04-01' });
+        await createTask(data, current(data), { name: 'А', date: '2026-04-01' });
 
         expect(api.changesets.length - before).toBe(1);
     });
@@ -105,9 +105,9 @@ describe('Tracker: task creation', () => {
         const { data } = await start();
         const root = current(data);
 
-        await createTask(data, root, { title: 'Раз', date: '2026-03-05' });
-        await createTask(data, root, { title: 'Два', date: '2026-03-05' });
-        await createTask(data, root, { title: 'Три', date: '2026-03-06' });
+        await createTask(data, root, { name: 'Раз', date: '2026-03-05' });
+        await createTask(data, root, { name: 'Два', date: '2026-03-05' });
+        await createTask(data, root, { name: 'Три', date: '2026-03-06' });
 
         expect(data.getChildren(root.id)).toHaveLength(1);
         const month = data.getChildren(root.id)[0];
@@ -121,7 +121,7 @@ describe('Tracker: task creation', () => {
     it('createTask_emptyName_isNotAllowed', async () => {
         const { data } = await start();
 
-        const result = await data.runAction(current(data).id, 'createTask', { title: '  ' });
+        const result = await data.runAction(current(data).id, 'createTask', { name: '  ' });
 
         expect(result.ok).toBe(false);
     });
@@ -131,17 +131,17 @@ describe('Tracker: task creation', () => {
      */
     it('taskName_withTime_isTimeDashTitleAndRecomputedOnEdit', async () => {
         const { data } = await start();
-        await createTask(data, current(data), { title: 'Позвонить', date: '2026-03-05' });
+        await createTask(data, current(data), { name: 'Позвонить', date: '2026-03-05' });
         const task = findTask(data, 'Позвонить');
 
         await data.setProperty(task.id, 'time', '09:30');
-        expect(data.getObject(task.id)!.properties.name).toBe('09:30 — Позвонить');
+        expect(data.getTitle(data.getObject(task.id)!)).toBe('09:30 — Позвонить');
 
-        await data.setProperty(task.id, 'title', 'Написать');
-        expect(data.getObject(task.id)!.properties.name).toBe('09:30 — Написать');
+        await data.setProperty(task.id, 'name', 'Написать');
+        expect(data.getTitle(data.getObject(task.id)!)).toBe('09:30 — Написать');
 
         await data.setProperty(task.id, 'time', null);
-        expect(data.getObject(task.id)!.properties.name).toBe('Написать');
+        expect(data.getTitle(data.getObject(task.id)!)).toBe('Написать');
     });
 
     /**
@@ -149,7 +149,7 @@ describe('Tracker: task creation', () => {
      */
     it('taskDate_isDerivedFromParentDayAndStoredNowhere', async () => {
         const { data } = await start();
-        await createTask(data, current(data), { title: 'Д', date: '2026-03-05' });
+        await createTask(data, current(data), { name: 'Д', date: '2026-03-05' });
         const task = findTask(data, 'Д');
 
         expect(taskDate(data, task)).toBe('2026-03-05');
@@ -174,9 +174,9 @@ describe('Tracker: categories', () => {
         const { data } = await start();
         const root = current(data);
 
-        await createTask(data, root, { title: 'А', date: '2026-03-05', category: 'Работа' });
-        await createTask(data, root, { title: 'Б', date: '2026-03-05', category: 'Работа' });
-        await createTask(data, root, { title: 'В', date: '2026-03-05', category: 'Личное' });
+        await createTask(data, root, { name: 'А', date: '2026-03-05', category: 'Работа' });
+        await createTask(data, root, { name: 'Б', date: '2026-03-05', category: 'Работа' });
+        await createTask(data, root, { name: 'В', date: '2026-03-05', category: 'Личное' });
 
         const month = data.getChildren(root.id)[0];
         const day = data.getChildren(month.id)[0];
@@ -192,10 +192,10 @@ describe('Tracker: categories', () => {
     it('category_actionOnCategory_createsNestedCategoryInsideIt', async () => {
         const { data } = await start();
         const root = current(data);
-        await createTask(data, root, { title: 'А', date: '2026-03-05', category: 'Работа' });
+        await createTask(data, root, { name: 'А', date: '2026-03-05', category: 'Работа' });
         const work = findCategory(data, 'Работа');
 
-        await createTask(data, work, { title: 'Б', category: 'Проект' });
+        await createTask(data, work, { name: 'Б', category: 'Проект' });
         // Без даты на категории задача создаётся в день категории, а не на сегодня
         const nested = data.getChildren(work.id).find((o) => o.type === 'Category')!;
         expect(nested.properties.name).toBe('Проект');
@@ -208,13 +208,13 @@ describe('Tracker: categories', () => {
     it('category_actionOnCategoryWithoutCategory_putsTaskInIt', async () => {
         const { data } = await start();
         await createTask(data, current(data), {
-            title: 'А',
+            name: 'А',
             date: '2026-03-05',
             category: 'Работа',
         });
         const work = findCategory(data, 'Работа');
 
-        await createTask(data, work, { title: 'Б' });
+        await createTask(data, work, { name: 'Б' });
 
         expect(data.getChildren(work.id)).toHaveLength(2);
     });
@@ -224,11 +224,11 @@ describe('Tracker: categories', () => {
      */
     it('category_actionOnDayWithOtherDate_createsTaskInThatDay', async () => {
         const { data } = await start();
-        await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
+        await createTask(data, current(data), { name: 'А', date: '2026-03-05' });
         const month = data.getChildren(current(data).id)[0];
         const day = data.getChildren(month.id)[0];
 
-        await createTask(data, day, { title: 'Б', date: '2026-03-09' });
+        await createTask(data, day, { name: 'Б', date: '2026-03-09' });
 
         expect(taskDate(data, findTask(data, 'Б'))).toBe('2026-03-09');
         expect(data.getChildren(month.id)).toHaveLength(2);
@@ -240,7 +240,7 @@ describe('Tracker: categories', () => {
     it('category_inArchiveWithoutDate_createsTaskForTodayInCurrentTasksNotArchive', async () => {
         const { data } = await start();
         await createTask(data, current(data), {
-            title: 'Старая',
+            name: 'Старая',
             date: '2026-03-02',
             category: 'Работа',
         });
@@ -249,7 +249,7 @@ describe('Tracker: categories', () => {
         const archived = data.getObject(findTask(data, 'Старая').parent!)!;
         expect(archived.type).toBe('Category');
 
-        await createTask(data, archived, { title: 'Новая' });
+        await createTask(data, archived, { name: 'Новая' });
 
         const created = findTask(data, 'Новая');
         expect(created.properties.status).toBeUndefined();
@@ -276,7 +276,7 @@ describe('Tracker: days, order, weekends', () => {
         const root = current(data);
 
         for (const date of ['2026-03-06', '2026-03-07', '2026-03-08', '2026-03-09']) {
-            await createTask(data, root, { title: date, date });
+            await createTask(data, root, { name: date, date });
         }
 
         const month = data.getChildren(root.id)[0];
@@ -298,9 +298,9 @@ describe('Tracker: days, order, weekends', () => {
         const { data } = await start();
         const root = current(data);
 
-        await createTask(data, root, { title: 'a', date: '2026-12-10' });
-        await createTask(data, root, { title: 'b', date: '2026-02-20' });
-        await createTask(data, root, { title: 'c', date: '2026-02-03' });
+        await createTask(data, root, { name: 'a', date: '2026-12-10' });
+        await createTask(data, root, { name: 'b', date: '2026-02-20' });
+        await createTask(data, root, { name: 'c', date: '2026-02-03' });
 
         const months = [...data.getChildren(root.id)].sort((x, y) => x.order - y.order);
         expect(months.map((m) => m.properties.date)).toEqual(['2026-02-01', '2026-12-01']);
@@ -315,8 +315,8 @@ describe('Tracker: days, order, weekends', () => {
         const { data } = await start();
         const root = current(data);
 
-        await createTask(data, root, { title: 'a', date: '2027-01-10' });
-        await createTask(data, root, { title: 'b', date: '2026-12-10' });
+        await createTask(data, root, { name: 'a', date: '2027-01-10' });
+        await createTask(data, root, { name: 'b', date: '2026-12-10' });
 
         const months = [...data.getChildren(root.id)].sort((x, y) => x.order - y.order);
         expect(months.map((m) => m.properties.date)).toEqual(['2026-12-01', '2027-01-01']);
@@ -329,7 +329,7 @@ describe('Tracker: days, order, weekends', () => {
         const { data } = await start();
 
         const result = await data.runAction(current(data).id, 'createTask', {
-            title: 'x',
+            name: 'x',
             date: '2026-02-31',
         });
 
@@ -348,14 +348,14 @@ describe('Tracker: task order in a day', () => {
         const { data } = await start();
         const root = current(data);
         for (const title of ['Поздняя', 'Ранняя', 'Без времени']) {
-            await createTask(data, root, { title, date: '2026-03-05' });
+            await createTask(data, root, { name: title, date: '2026-03-05' });
         }
         await data.setProperty(findTask(data, 'Поздняя').id, 'time', '18:00');
         await data.setProperty(findTask(data, 'Ранняя').id, 'time', '09:00');
 
         const day = data.getChildren(data.getChildren(root.id)[0].id)[0];
         const ordered = [...data.getChildren(day.id)].sort((a, b) => a.order - b.order);
-        expect(ordered.map((t) => t.properties.title)).toEqual([
+        expect(ordered.map((t) => t.properties.name)).toEqual([
             'Без времени',
             'Ранняя',
             'Поздняя',
@@ -372,7 +372,7 @@ describe('Tracker: task links', () => {
      */
     it('taskLinks_openExternalLink_opensHttpInNewTab', async () => {
         const { data } = await start();
-        await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
+        await createTask(data, current(data), { name: 'А', date: '2026-03-05' });
         const task = findTask(data, 'А');
         const open = vi.spyOn(window, 'open').mockReturnValue(null);
         await data.setProperty(task.id, 'link', 'https://example.com/x');
@@ -389,7 +389,7 @@ describe('Tracker: task links', () => {
      */
     it('taskLinks_externalLinkNotHttp_isRejected', async () => {
         const { data } = await start();
-        await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
+        await createTask(data, current(data), { name: 'А', date: '2026-03-05' });
         const task = findTask(data, 'А');
         const open = vi.spyOn(window, 'open').mockReturnValue(null);
         await data.setProperty(task.id, 'link', 'javascript:alert(1)');
@@ -407,8 +407,8 @@ describe('Tracker: task links', () => {
     it('taskLinks_openInternalLink_showsTargetObjectInTree', async () => {
         const reveal = vi.fn();
         const { data } = await start({ reveal });
-        await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
-        await createTask(data, current(data), { title: 'Б', date: '2026-03-06' });
+        await createTask(data, current(data), { name: 'А', date: '2026-03-05' });
+        await createTask(data, current(data), { name: 'Б', date: '2026-03-06' });
         const a = findTask(data, 'А');
         const b = findTask(data, 'Б');
         await data.setProperty(a.id, 'internalLink', b.id);
@@ -425,10 +425,10 @@ describe('Tracker: task links', () => {
     it('taskLinks_internalLinkToDeletedObject_givesClearError', async () => {
         const reveal = vi.fn();
         const { data } = await start({ reveal });
-        await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
+        await createTask(data, current(data), { name: 'А', date: '2026-03-05' });
         const a = findTask(data, 'А');
         // Сервер не принимает ссылку на несуществующий объект: ссылка повисает после удаления цели
-        await createTask(data, current(data), { title: 'Б', date: '2026-03-06' });
+        await createTask(data, current(data), { name: 'Б', date: '2026-03-06' });
         const b = findTask(data, 'Б');
         await data.setProperty(a.id, 'internalLink', b.id);
         await data.remove(b.id);
@@ -445,7 +445,7 @@ describe('Tracker: task links', () => {
      */
     it('taskLinks_linkActions_unavailableUntilLinkIsSet', async () => {
         const { data } = await start();
-        await createTask(data, current(data), { title: 'А', date: '2026-03-05' });
+        await createTask(data, current(data), { name: 'А', date: '2026-03-05' });
         const task = findTask(data, 'А');
 
         const ids = data.getActions(task.id, 'contextMenu').map((a) => a.id);
@@ -502,7 +502,7 @@ function findCategory(data: DataController, name: string): DataObject {
 function findTask(data: DataController, title: string): DataObject {
     const walk = (parent: string | null): DataObject | undefined => {
         for (const child of data.getChildren(parent)) {
-            if (child.type === 'Task' && child.properties.title === title) return child;
+            if (child.type === 'Task' && child.properties.name === title) return child;
             const found = walk(child.id);
             if (found) return found;
         }

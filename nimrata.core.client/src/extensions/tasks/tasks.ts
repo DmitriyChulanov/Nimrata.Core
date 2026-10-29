@@ -13,13 +13,13 @@ import type { ChangeScope, DataController, DataObject, HookResult } from '@platf
 const TIME = /^\d{2}:\d{2}$/;
 
 /**
- * Имя задачи: «HH:mm — Название» при наличии времени
+ * Название задачи: «HH:mm — Имя» при наличии времени; без имени `undefined` (подпись по умолчанию)
  */
-export function taskName(task: DataObject): string | undefined {
-    const title = task.properties.title;
-    if (typeof title !== 'string' || title === '') return undefined;
+export function taskTitle(task: DataObject): string | undefined {
+    const name = task.properties.name;
+    if (typeof name !== 'string' || name === '') return undefined;
     const time = task.properties.time;
-    return typeof time === 'string' && TIME.test(time) ? `${time} — ${title}` : title;
+    return typeof time === 'string' && TIME.test(time) ? `${time} — ${name}` : name;
 }
 
 /**
@@ -32,16 +32,11 @@ export function taskOrder(task: DataObject): number {
 }
 
 /**
- * Приводит имя и порядок задачи (по времени) к вычисленным значениям в том же наборе изменений
+ * Приводит порядок задачи (по времени) к вычисленному значению в том же наборе изменений
  */
-export function syncTask(data: DataController, id: string, tx: ChangeScope): HookResult {
+export function syncTaskOrder(data: DataController, id: string, tx: ChangeScope): HookResult {
     const task = data.getObject(id);
     if (!task) return;
-    const name = taskName(task);
-    if (name !== undefined && task.properties.name !== name) {
-        const failed = cancelIfFailed(tx.setProperty(id, 'name', name));
-        if (failed) return failed;
-    }
     const order = taskOrder(task);
     if (task.order !== order) return cancelIfFailed(tx.move(id, { order }));
 }
@@ -86,8 +81,8 @@ export function createTaskAction(data: DataController, reveal?: (id: string) => 
         params: Record<string, unknown>;
         tx: ChangeScope;
     }) => {
-        const title = typeof params.title === 'string' ? params.title.trim() : '';
-        if (title === '') throw new Error('Укажите название задачи.');
+        const name = typeof params.name === 'string' ? params.name.trim() : '';
+        if (name === '') throw new Error('Укажите имя задачи.');
 
         const chain = [object, ...ancestors(data, object)];
         const day = chain.find((o) => DAY_TYPES.includes(o.type));
@@ -116,7 +111,7 @@ export function createTaskAction(data: DataController, reveal?: (id: string) => 
         if (category !== '') container = ensureCategory(data, tx, container, category);
 
         // Созданную задачу показываем в дереве и выделяем, как при обычном создании узла
-        const id = createNode(tx, container, TASK, { title });
+        const id = createNode(tx, container, TASK, { name });
         reveal?.(id);
     };
 }

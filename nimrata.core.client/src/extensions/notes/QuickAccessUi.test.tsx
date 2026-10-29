@@ -26,7 +26,7 @@ const types = [
         name: 'Пользовательская команда',
         hiddenInTree: true,
         properties: [
-            { id: 'name', name: 'Название', kind: 'string' },
+            { id: 'name', name: 'Имя', kind: 'string' },
             { id: 'extension', name: 'Расширение', kind: 'string' },
             { id: 'command', name: 'Команда', kind: 'string' },
             { id: 'params', name: 'Параметры', kind: 'text' },
@@ -58,8 +58,8 @@ async function mount(titles: string[]) {
     const notes = data.getChildren(null).find((o) => o.type === 'NotesRoot')!;
     const active = data.getChildren(notes.id).find((o) => o.type === 'ActiveNotesRoot')!;
     for (const title of titles) {
-        await data.runAction(active.id, 'createNote', { title });
-        const note = data.getChildren(active.id).find((o) => o.properties.title === title)!;
+        await data.runAction(active.id, 'createNote', { name: title });
+        const note = data.getChildren(active.id).find((o) => o.properties.name === title)!;
         await data.runAction(note.id, 'createQuickAccessCommand');
     }
     render(

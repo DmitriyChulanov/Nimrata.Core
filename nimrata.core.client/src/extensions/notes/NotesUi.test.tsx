@@ -119,7 +119,7 @@ describe('Notes: interface', () => {
             ),
         );
         const dialog = screen.getByRole('dialog', { name: 'Создать заметку' });
-        await userEvent.type(within(dialog).getByLabelText(/Название/), 'Идея');
+        await userEvent.type(within(dialog).getByLabelText(/Имя/), 'Идея');
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
 
         await userEvent.click(
@@ -140,12 +140,12 @@ describe('Notes: interface', () => {
         const withLink = await data.create({
             type: 'Note',
             parent: notes.id,
-            properties: { title: 'Со ссылкой', link: 'https://example.test/' },
+            properties: { name: 'Со ссылкой', link: 'https://example.test/' },
         });
         const without = await data.create({
             type: 'Note',
             parent: notes.id,
-            properties: { title: 'Без ссылки' },
+            properties: { name: 'Без ссылки' },
         });
         const ids = { a: (withLink as { id: string }).id, b: (without as { id: string }).id };
         render(
@@ -177,7 +177,7 @@ describe('Notes: interface', () => {
         await data.create({
             type: 'Note',
             parent: activeRoot(data).id,
-            properties: { title: 'Идея' },
+            properties: { name: 'Идея' },
         });
         mount(data);
 
@@ -194,7 +194,7 @@ describe('Notes: interface', () => {
         await data.create({
             type: 'Note',
             parent: activeRoot(data).id,
-            properties: { title: 'Идея' },
+            properties: { name: 'Идея' },
         });
         mount(data);
         await expandActive();

@@ -73,9 +73,9 @@ describe('Tracker: "Select today" command', () => {
     it('selectToday_command_selectsDayWithTodaysDate', async () => {
         await atDate(2026, 6, 10, async () => {
             const { data, reveal, current } = await start();
-            await data.runAction(current.id, 'createTask', { title: 'Вчера', date: '2026-06-09' });
+            await data.runAction(current.id, 'createTask', { name: 'Вчера', date: '2026-06-09' });
             await data.runAction(current.id, 'createTask', {
-                title: 'Сегодня',
+                name: 'Сегодня',
                 date: '2026-06-10',
             });
             const month = data.getChildren(current.id)[0];
@@ -96,7 +96,7 @@ describe('Tracker: "Select today" command', () => {
     it('selectToday_command_selectsWeekendDayToo', async () => {
         await atDate(2026, 6, 13, async () => {
             const { data, reveal, current } = await start();
-            await data.runAction(current.id, 'createTask', { title: 'Т', date: '2026-06-13' });
+            await data.runAction(current.id, 'createTask', { name: 'Т', date: '2026-06-13' });
             const day = data.getChildren(data.getChildren(current.id)[0].id)[0];
             expect(day.type).toBe('DayOff');
 
@@ -112,7 +112,7 @@ describe('Tracker: "Select today" command', () => {
     it('selectToday_noDayForToday_returnsMessageCreatesNoObjectsSelectsNothing', async () => {
         await atDate(2026, 6, 10, async () => {
             const { api, data, reveal, current } = await start();
-            await data.runAction(current.id, 'createTask', { title: 'Вчера', date: '2026-06-09' });
+            await data.runAction(current.id, 'createTask', { name: 'Вчера', date: '2026-06-09' });
             const sentBefore = api.changesets.length;
             const countBefore = data.getChildren(data.getChildren(current.id)[0].id).length;
             reveal.mockClear();

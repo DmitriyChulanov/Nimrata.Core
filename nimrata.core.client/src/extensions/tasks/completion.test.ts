@@ -51,7 +51,7 @@ function task(data: DataController, title: string) {
     const all: DataObject[] = [];
     const walk = (parent: string | null) =>
         data.getChildren(parent).forEach((o) => {
-            if (o.type === 'Task' && o.properties.title === title) all.push(o);
+            if (o.type === 'Task' && o.properties.name === title) all.push(o);
             walk(o.id);
         });
     walk(null);
@@ -102,7 +102,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('complete_task_setsStatusAndMovesToArchiveOnSameDateCreatingYearMonthDay', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Позвонить', date: '2026-03-05' });
+            await createTask(data, { name: 'Позвонить', date: '2026-03-05' });
 
             const result = await run(data, task(data, 'Позвонить'), 'complete');
 
@@ -130,8 +130,8 @@ describe('Tracker: complete and postpone', () => {
          */
         it('complete_task_reusesExistingArchiveNodesWithoutDuplicates', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Раз', date: '2026-03-05' });
-            await createTask(data, { title: 'Два', date: '2026-03-05' });
+            await createTask(data, { name: 'Раз', date: '2026-03-05' });
+            await createTask(data, { name: 'Два', date: '2026-03-05' });
 
             await run(data, task(data, 'Раз'), 'complete');
             await run(data, task(data, 'Два'), 'complete');
@@ -145,7 +145,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('complete_weekendTask_archiveDayGetsWeekendType', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Отдых', date: '2026-03-07' }); // суббота
+            await createTask(data, { name: 'Отдых', date: '2026-03-07' }); // суббота
 
             await run(data, task(data, 'Отдых'), 'complete');
 
@@ -157,7 +157,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('complete_task_recreatesCategoryChainByNamesAndRemovesEmptiedCurrentOnes', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Купить', date: '2026-03-05', category: 'Дом' });
+            await createTask(data, { name: 'Купить', date: '2026-03-05', category: 'Дом' });
             await moveIntoNewCategory(data, 'Купить', 'Кухня');
             const dayBefore = data.getObject(task(data, 'Купить').parent!)!.parent!;
             const dayId = data.getObject(dayBefore)!.parent!;
@@ -174,8 +174,8 @@ describe('Tracker: complete and postpone', () => {
          */
         it('complete_task_keepsCategoryWhenOtherTasksRemain', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'А', date: '2026-03-05', category: 'Дом' });
-            await createTask(data, { title: 'Б', date: '2026-03-05', category: 'Дом' });
+            await createTask(data, { name: 'А', date: '2026-03-05', category: 'Дом' });
+            await createTask(data, { name: 'Б', date: '2026-03-05', category: 'Дом' });
 
             await run(data, task(data, 'А'), 'complete');
 
@@ -188,7 +188,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('complete_task_runsInSingleChangeset', async () => {
             const { api, data } = await start();
-            await createTask(data, { title: 'Одна', date: '2026-03-05', category: 'Дом' });
+            await createTask(data, { name: 'Одна', date: '2026-03-05', category: 'Дом' });
             const before = api.changesets.length;
 
             await run(data, task(data, 'Одна'), 'complete');
@@ -201,7 +201,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('complete_undo_restoresTaskCategoryAndStatus', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Одна', date: '2026-03-05', category: 'Дом' });
+            await createTask(data, { name: 'Одна', date: '2026-03-05', category: 'Дом' });
             const before = path(data, task(data, 'Одна'));
 
             await run(data, task(data, 'Одна'), 'complete');
@@ -219,7 +219,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('complete_alreadyCompletedTask_isUnavailable', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Одна' });
+            await createTask(data, { name: 'Одна' });
             await run(data, task(data, 'Одна'), 'complete');
 
             const ids = data.getActions(task(data, 'Одна').id, 'contextMenu').map((a) => a.id);
@@ -233,7 +233,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('complete_currentTask_availableInContextMenuAndPropertyGrid', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Одна' });
+            await createTask(data, { name: 'Одна' });
 
             for (const placement of ['contextMenu', 'propertyGrid'] as const) {
                 const ids = data.getActions(task(data, 'Одна').id, placement).map((a) => a.id);
@@ -252,7 +252,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_task_movesToDayOfChosenDateCreatingMonthAndDay', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Позже' });
+            await createTask(data, { name: 'Позже' });
 
             const result = await run(data, task(data, 'Позже'), 'postpone', { date: '2026-04-10' });
 
@@ -271,7 +271,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_task_movesWithCategoryChainAndRemovesEmptied', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Дело', category: 'Работа' });
+            await createTask(data, { name: 'Дело', category: 'Работа' });
             const oldDay = data.getObject(task(data, 'Дело').parent!)!.parent!;
 
             await run(data, task(data, 'Дело'), 'postpone', { date: '2026-03-06' });
@@ -289,8 +289,8 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_task_reusesExistingCategoryOfTargetDay', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Уже', date: '2026-03-06', category: 'Работа' });
-            await createTask(data, { title: 'Дело', category: 'Работа' });
+            await createTask(data, { name: 'Уже', date: '2026-03-06', category: 'Работа' });
+            await createTask(data, { name: 'Дело', category: 'Работа' });
 
             await run(data, task(data, 'Дело'), 'postpone', { date: '2026-03-06' });
 
@@ -302,7 +302,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_task_orderInNewDayMatchesTime', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Дело' });
+            await createTask(data, { name: 'Дело' });
             await data.setProperty(task(data, 'Дело').id, 'time', '09:30');
 
             await run(data, task(data, 'Дело'), 'postpone', { date: '2026-03-06' });
@@ -315,7 +315,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_task_runsInSingleChangesetAndUndoRestoresTaskAndCategories', async () => {
             const { api, data } = await start();
-            await createTask(data, { title: 'Дело', category: 'Работа' });
+            await createTask(data, { name: 'Дело', category: 'Работа' });
             const before = path(data, task(data, 'Дело'));
             const count = api.changesets.length;
 
@@ -335,7 +335,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_sameDate_changesNothing', async () => {
             const { api, data } = await start();
-            await createTask(data, { title: 'Дело', category: 'Работа' });
+            await createTask(data, { name: 'Дело', category: 'Работа' });
             const count = api.changesets.length;
             const before = path(data, task(data, 'Дело'));
 
@@ -353,7 +353,7 @@ describe('Tracker: complete and postpone', () => {
             'postpone_invalidDate_isRejected_%s',
             async (date) => {
                 const { data } = await start();
-                await createTask(data, { title: 'Дело' });
+                await createTask(data, { name: 'Дело' });
                 const before = path(data, task(data, 'Дело'));
 
                 const result = await run(data, task(data, 'Дело'), 'postpone', { date });
@@ -373,8 +373,8 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_category_movesAllTasksToChosenDayKeepingCategory', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'А', category: 'Работа' });
-            await createTask(data, { title: 'Б', category: 'Работа' });
+            await createTask(data, { name: 'А', category: 'Работа' });
+            await createTask(data, { name: 'Б', category: 'Работа' });
             const category = task(data, 'А').parent!;
             const oldDay = data.getObject(category)!.parent!;
 
@@ -401,8 +401,8 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_category_nestedCategoryMovesWholeAndEmptiedAreRemoved', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Дело', category: 'Работа' });
-            await createTask(data, { title: 'Рядом', category: 'Работа' });
+            await createTask(data, { name: 'Дело', category: 'Работа' });
+            await createTask(data, { name: 'Рядом', category: 'Работа' });
             await moveIntoNewCategory(data, 'Дело', 'Проект');
             const outer = task(data, 'Рядом').parent!;
             const oldDay = data.getObject(outer)!.parent!;
@@ -428,8 +428,8 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_innerCategory_keepsOuterChainAndKeepsOuterWithOtherTasks', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Дело', category: 'Работа' });
-            await createTask(data, { title: 'Рядом', category: 'Работа' });
+            await createTask(data, { name: 'Дело', category: 'Работа' });
+            await createTask(data, { name: 'Рядом', category: 'Работа' });
             const inner = await moveIntoNewCategory(data, 'Дело', 'Проект');
             const outer = task(data, 'Рядом').parent!;
 
@@ -450,13 +450,13 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_category_repeatingTaskMovesOthersOfSetStay', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Повтор', date: '2026-03-04', category: 'Работа' });
+            await createTask(data, { name: 'Повтор', date: '2026-03-04', category: 'Работа' });
             await data.setProperty(task(data, 'Повтор').id, 'repeat', 'weekly');
             const all = () => {
                 const found: DataObject[] = [];
                 const walk = (parent: string | null) =>
                     data.getChildren(parent).forEach((o) => {
-                        if (o.type === 'Task' && o.properties.title === 'Повтор') found.push(o);
+                        if (o.type === 'Task' && o.properties.name === 'Повтор') found.push(o);
                         walk(o.id);
                     });
                 walk(null);
@@ -486,7 +486,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_emptyCategory_changesNothing', async () => {
             const { api, data } = await start();
-            await createTask(data, { title: 'Дело', category: 'Работа' });
+            await createTask(data, { name: 'Дело', category: 'Работа' });
             const day = data.getObject(task(data, 'Дело').parent!)!.parent!;
             const created = await data.create({
                 type: 'Category',
@@ -510,8 +510,8 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_category_runsInSingleChangesetAndUndoRestoresAll', async () => {
             const { api, data } = await start();
-            await createTask(data, { title: 'А', category: 'Работа' });
-            await createTask(data, { title: 'Б', category: 'Работа' });
+            await createTask(data, { name: 'А', category: 'Работа' });
+            await createTask(data, { name: 'Б', category: 'Работа' });
             const before = [path(data, task(data, 'А')), path(data, task(data, 'Б'))];
             const category = task(data, 'А').parent!;
             const count = api.changesets.length;
@@ -528,7 +528,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_category_availableAndRejectsInvalidDate', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Дело', category: 'Работа' });
+            await createTask(data, { name: 'Дело', category: 'Работа' });
             const category = data.getObject(task(data, 'Дело').parent!)!;
             const before = path(data, task(data, 'Дело'));
 
@@ -548,8 +548,8 @@ describe('Tracker: complete and postpone', () => {
          */
         it('postpone_category_doesNotMoveCompletedTasks', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Готово', category: 'Работа' });
-            await createTask(data, { title: 'Ждёт', category: 'Работа' });
+            await createTask(data, { name: 'Готово', category: 'Работа' });
+            await createTask(data, { name: 'Ждёт', category: 'Работа' });
             await run(data, task(data, 'Готово'), 'complete');
             const category = task(data, 'Ждёт').parent!;
 
@@ -569,7 +569,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('delete_task_removesWholeEmptiedCategoryChainUpToDay', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Дело', category: 'Работа' });
+            await createTask(data, { name: 'Дело', category: 'Работа' });
             const inner = await moveIntoNewCategory(data, 'Дело', 'Проект');
             const day = data.getObject(data.getObject(inner)!.parent!)!.parent!;
 
@@ -585,8 +585,8 @@ describe('Tracker: complete and postpone', () => {
          */
         it('delete_task_keepsCategoryWithOtherObjects', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'А', category: 'Работа' });
-            await createTask(data, { title: 'Б', category: 'Работа' });
+            await createTask(data, { name: 'А', category: 'Работа' });
+            await createTask(data, { name: 'Б', category: 'Работа' });
             const category = task(data, 'А').parent!;
 
             await data.remove(task(data, 'А').id);
@@ -599,7 +599,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('delete_task_deletionAndCleanupAreOneChangesetAndUndoRestoresAll', async () => {
             const { api, data } = await start();
-            await createTask(data, { title: 'Дело', category: 'Работа' });
+            await createTask(data, { name: 'Дело', category: 'Работа' });
             const before = path(data, task(data, 'Дело'));
             const count = api.changesets.length;
 
@@ -615,7 +615,7 @@ describe('Tracker: complete and postpone', () => {
          */
         it('delete_taskDirectlyInDay_keepsDay', async () => {
             const { data } = await start();
-            await createTask(data, { title: 'Дело' });
+            await createTask(data, { name: 'Дело' });
             const day = task(data, 'Дело').parent!;
 
             await data.remove(task(data, 'Дело').id);

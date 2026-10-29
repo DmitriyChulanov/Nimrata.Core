@@ -3,6 +3,7 @@ import {
     cancelIfFailed,
     createCustomCommand,
     customCommandsOf,
+    objectLabel,
     orThrow,
     readCustomParams,
 } from '@platform';
@@ -42,17 +43,6 @@ function targetOf(command: DataObject): unknown {
  */
 function commandsOf(data: DataController, targetId: string): DataObject[] {
     return quickAccessCommands(data).filter((o) => targetOf(o) === targetId);
-}
-
-/**
- * Название цели для команды: вычисляемое имя, а при его отсутствии — название
- */
-function targetName(target: DataObject): string {
-    for (const key of ['name', 'title']) {
-        const value = target.properties[key];
-        if (typeof value === 'string' && value !== '') return value;
-    }
-    return '';
 }
 
 /**
@@ -125,7 +115,7 @@ export function registerQuickAccess(
                     // Повторное создание дубля не даёт
                     if (commandsOf(data, object.id).length > 0) return;
                     createCustomCommand(tx, {
-                        name: targetName(object),
+                        name: objectLabel(data, object),
                         extension: EXTENSION_ID,
                         command: OPEN_IN_TREE_COMMAND,
                         params: { target: object.id },

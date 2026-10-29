@@ -45,7 +45,7 @@ async function mount(withToday: boolean) {
     const tasksRoot = data.getChildren(null).find((o) => o.type === 'TasksRoot')!;
     const current = data.getChildren(tasksRoot.id).find((o) => o.type === 'CurrentTasksRoot')!;
     await data.runAction(current.id, 'createTask', {
-        title: 'Дело',
+        name: 'Дело',
         date: withToday ? '2026-06-10' : '2026-06-09',
     });
     render(

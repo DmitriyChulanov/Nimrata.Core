@@ -210,7 +210,7 @@ const PLATFORM_TYPES: (TypeLike & Record<string, unknown>)[] = [
         hiddenInTree: true,
         allowedChildren: [],
         properties: [
-            { id: 'name', name: 'Название', kind: 'string', category: 'Основное' },
+            { id: 'name', name: 'Имя', kind: 'string', category: 'Основное' },
             {
                 id: 'extension',
                 name: 'Расширение',

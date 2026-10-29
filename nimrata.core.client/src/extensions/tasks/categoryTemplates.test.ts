@@ -48,7 +48,7 @@ function current(data: DataController) {
  * Создаёт день `2026-03-05` и возвращает его
  */
 async function seedDay(data: DataController) {
-    await data.runAction(current(data).id, 'createTask', { title: 'Первая', date: '2026-03-05' });
+    await data.runAction(current(data).id, 'createTask', { name: 'Первая', date: '2026-03-05' });
     const month = data.getChildren(current(data).id)[0];
     return data.getChildren(month.id)[0];
 }
@@ -124,7 +124,7 @@ describe('Tracker: category templates', () => {
         const day = await seedDay(data);
 
         for (const title of ['А', 'Б']) {
-            const result = await data.runAction(day.id, 'createTask', { title, template });
+            const result = await data.runAction(day.id, 'createTask', { name: title, template });
             expect(result.ok).toBe(true);
         }
 
@@ -133,7 +133,7 @@ describe('Tracker: category templates', () => {
         expect(
             data
                 .getChildren(categories[0].id)
-                .map((t) => t.properties.title)
+                .map((t) => t.properties.name)
                 .sort(),
         ).toEqual(['А', 'Б']);
     });
@@ -146,12 +146,12 @@ describe('Tracker: category templates', () => {
         const template = await addTemplate(data, 'Работа');
         const day = await seedDay(data);
 
-        const none = await data.runAction(day.id, 'createTask', { title: 'Без', template: 'none' });
+        const none = await data.runAction(day.id, 'createTask', { name: 'Без', template: 'none' });
         await data.remove(template);
-        const gone = await data.runAction(day.id, 'createTask', { title: 'Нет', template });
+        const gone = await data.runAction(day.id, 'createTask', { name: 'Нет', template });
 
         expect(none.ok).toBe(true);
-        expect(data.getChildren(day.id).some((o) => o.properties.title === 'Без')).toBe(true);
+        expect(data.getChildren(day.id).some((o) => o.properties.name === 'Без')).toBe(true);
         expect(gone).toMatchObject({ ok: false, error: 'Типовая категория не найдена.' });
     });
 });

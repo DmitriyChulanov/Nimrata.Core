@@ -1,10 +1,10 @@
-import { collatorBase, downloadBlob } from '@platform';
+import { collatorBase, downloadBlob, objectLabel } from '@platform';
 
 import { COMPLETED_REPORT_COMMAND, COMPLETED_TASKS_ROOT, TASK } from './constants';
 import { parseIso } from './dates';
 import { findRoot, forEachDay } from './nodes';
 
-import type { DataController, DataObject } from '@platform';
+import type { DataController } from '@platform';
 
 /**
  * Сохранение файла: подменяется в тестах
@@ -59,16 +59,6 @@ export function reportTitle(start: string, end: string): string {
 }
 
 /**
- * Название задачи для отчёта: вычисленное имя, иначе заголовок
- */
-function taskLabel(task: DataObject): string {
-    const name = task.properties.name;
-    if (typeof name === 'string' && name !== '') return name;
-    const title = task.properties.title;
-    return typeof title === 'string' ? title : '';
-}
-
-/**
  * Собирает завершённые задачи из дней `CompletedTasksRoot` в периоде (границы включительно)
  * и группирует их по дням
  *
@@ -84,7 +74,9 @@ export function collectCompleted(data: DataController, start: string, end: strin
     const tasksIn = (parent: string): string[] =>
         data
             .getChildren(parent)
-            .flatMap((child) => (child.type === TASK ? [taskLabel(child)] : tasksIn(child.id)));
+            .flatMap((child) =>
+                child.type === TASK ? [objectLabel(data, child)] : tasksIn(child.id),
+            );
     if (root) {
         forEachDay(data, root.id, (day) => {
             const date = day.properties.date;

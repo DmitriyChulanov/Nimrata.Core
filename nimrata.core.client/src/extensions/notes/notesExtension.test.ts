@@ -163,12 +163,12 @@ describe('Notes: behavior', () => {
      * Проверяет, что действие создаёт заметку с введённым названием в «Активных»
      */
     it('createNote_action_createsNoteWithEnteredTitleUnderActive', async () => {
-        const result = await data.runAction(notesId, 'createNote', { title: 'Идея' });
+        const result = await data.runAction(notesId, 'createNote', { name: 'Идея' });
 
         expect(result.ok).toBe(true);
         const note = childByName(notesId, 'Идея')!;
         expect(note.type).toBe('Note');
-        expect(note.properties.title).toBe('Идея');
+        expect(note.properties.name).toBe('Идея');
     });
 
     /**
@@ -213,7 +213,7 @@ describe('Notes: behavior', () => {
 
         await data.runAction(group.id, 'createNoteGroup', { name: 'Проект' });
         const inner = childByName(group.id, 'Проект')!;
-        await data.runAction(inner.id, 'createNote', { title: 'Заметка' });
+        await data.runAction(inner.id, 'createNote', { name: 'Заметка' });
 
         expect(inner.type).toBe('NoteGroup');
         expect(childByName(inner.id, 'Заметка')?.type).toBe('Note');
@@ -223,7 +223,7 @@ describe('Notes: behavior', () => {
      * Проверяет, что заметка без названия отклоняется
      */
     it('createNote_withoutTitle_isRejected', async () => {
-        const result = await data.runAction(notesId, 'createNote', { title: '' });
+        const result = await data.runAction(notesId, 'createNote', { name: '' });
 
         expect(result.ok).toBe(false);
         expect(data.getChildren(notesId)).toEqual([]);
@@ -233,11 +233,11 @@ describe('Notes: behavior', () => {
      * Проверяет, что имя заметки равно названию и следует за его изменением
      */
     it('noteName_equalsTitleAndFollowsRename', async () => {
-        await data.runAction(notesId, 'createNote', { title: 'Идея' });
+        await data.runAction(notesId, 'createNote', { name: 'Идея' });
         const id = data.getChildren(notesId)[0].id;
         expect(data.getObject(id)?.properties.name).toBe('Идея');
 
-        await data.setProperty(id, 'title', 'Мысль');
+        await data.setProperty(id, 'name', 'Мысль');
 
         expect(data.getObject(id)?.properties.name).toBe('Мысль');
     });
@@ -249,7 +249,7 @@ describe('Notes: behavior', () => {
         const created = await data.create({
             type: 'Note',
             parent: notesId,
-            properties: { title: 'Из дерева' },
+            properties: { name: 'Из дерева' },
         });
 
         expect(created.ok).toBe(true);
@@ -283,7 +283,7 @@ describe('Notes: behavior', () => {
          * Проверяет, что заметка прямо в «Активных» переносится прямо в «Завершённые»
          */
         it('complete_noteDirectlyUnderActive_movesDirectlyUnderCompleted', async () => {
-            await data.runAction(notesId, 'createNote', { title: 'Идея' });
+            await data.runAction(notesId, 'createNote', { name: 'Идея' });
             const note = childByName(notesId, 'Идея')!;
 
             const result = await data.runAction(note.id, 'complete');
@@ -299,7 +299,7 @@ describe('Notes: behavior', () => {
         it('complete_noteInNestedGroups_recreatesChainAndLeavesEmptyGroupsInActive', async () => {
             const work = await group(notesId, 'Работа');
             const project = await group(work.id, 'Проект');
-            await data.runAction(project.id, 'createNote', { title: 'Идея' });
+            await data.runAction(project.id, 'createNote', { name: 'Идея' });
             const note = childByName(project.id, 'Идея')!;
 
             const result = await data.runAction(note.id, 'complete');
@@ -320,8 +320,8 @@ describe('Notes: behavior', () => {
         it('complete_existingGroupInCompleted_isReusedAndMissingIsCreated', async () => {
             const work = await group(notesId, 'Работа');
             const project = await group(work.id, 'Проект');
-            await data.runAction(work.id, 'createNote', { title: 'Первая' });
-            await data.runAction(project.id, 'createNote', { title: 'Вторая' });
+            await data.runAction(work.id, 'createNote', { name: 'Первая' });
+            await data.runAction(project.id, 'createNote', { name: 'Вторая' });
             await data.runAction(childByName(work.id, 'Первая')!.id, 'complete');
             const archivedWork = childByName(completedId, 'Работа')!;
 
@@ -341,7 +341,7 @@ describe('Notes: behavior', () => {
          */
         it('complete_isOneChangesetAndUndoRestoresNoteAndRemovesCreatedGroups', async () => {
             const work = await group(notesId, 'Работа');
-            await data.runAction(work.id, 'createNote', { title: 'Идея' });
+            await data.runAction(work.id, 'createNote', { name: 'Идея' });
             const note = childByName(work.id, 'Идея')!;
             const before = api.changesets.length;
 
@@ -357,7 +357,7 @@ describe('Notes: behavior', () => {
          * Проверяет, что «Завершить» доступно только у заметки в «Активных»
          */
         it('complete_available_onlyForNoteInActive', async () => {
-            await data.runAction(notesId, 'createNote', { title: 'Идея' });
+            await data.runAction(notesId, 'createNote', { name: 'Идея' });
             const note = childByName(notesId, 'Идея')!;
             expect(actionIds(note.id)).toContain('complete');
 
@@ -375,8 +375,8 @@ describe('Notes: behavior', () => {
          * Проверяет, что действие доступно только при заданной ссылке
          */
         it('openExternalLink_available_onlyWhenLinkIsSet', async () => {
-            await data.runAction(notesId, 'createNote', { title: 'Без ссылки' });
-            await data.runAction(notesId, 'createNote', { title: 'Со ссылкой' });
+            await data.runAction(notesId, 'createNote', { name: 'Без ссылки' });
+            await data.runAction(notesId, 'createNote', { name: 'Со ссылкой' });
             const without = childByName(notesId, 'Без ссылки')!;
             const withLink = childByName(notesId, 'Со ссылкой')!;
             await data.setProperty(withLink.id, 'link', 'https://example.test/a');
@@ -391,7 +391,7 @@ describe('Notes: behavior', () => {
          */
         it('openExternalLink_opensLinkInNewTabWithoutOpener', async () => {
             const open = vi.spyOn(window, 'open').mockReturnValue(null);
-            await data.runAction(notesId, 'createNote', { title: 'Со ссылкой' });
+            await data.runAction(notesId, 'createNote', { name: 'Со ссылкой' });
             const id = data.getChildren(notesId)[0].id;
             await data.setProperty(id, 'link', 'https://example.test/a');
 
@@ -411,7 +411,7 @@ describe('Notes: behavior', () => {
          */
         it('openExternalLink_unsafeSchemes_javascriptAreNotOpened', async () => {
             const open = vi.spyOn(window, 'open').mockReturnValue(null);
-            await data.runAction(notesId, 'createNote', { title: 'Плохая' });
+            await data.runAction(notesId, 'createNote', { name: 'Плохая' });
             const id = data.getChildren(notesId)[0].id;
             await data.setProperty(id, 'link', 'javascript:alert(1)');
 
@@ -431,8 +431,8 @@ describe('Notes: behavior', () => {
          * Проверяет, что действие доступно только при заданной внутренней ссылке
          */
         it('openInternalLink_available_onlyWhenInternalLinkIsSet', async () => {
-            await data.runAction(notesId, 'createNote', { title: 'Без ссылки' });
-            await data.runAction(notesId, 'createNote', { title: 'Со ссылкой' });
+            await data.runAction(notesId, 'createNote', { name: 'Без ссылки' });
+            await data.runAction(notesId, 'createNote', { name: 'Со ссылкой' });
             const without = childByName(notesId, 'Без ссылки')!;
             const withLink = childByName(notesId, 'Со ссылкой')!;
             await data.setProperty(withLink.id, 'internalLink', without.id);
@@ -456,8 +456,8 @@ describe('Notes: behavior', () => {
             const activeId = controller
                 .getChildren(active.id)
                 .find((o) => o.type === 'ActiveNotesRoot')!.id;
-            await controller.runAction(activeId, 'createNote', { title: 'А' });
-            await controller.runAction(activeId, 'createNote', { title: 'Б' });
+            await controller.runAction(activeId, 'createNote', { name: 'А' });
+            await controller.runAction(activeId, 'createNote', { name: 'Б' });
             const [a, b] = controller.getChildren(activeId);
             await controller.setProperty(a.id, 'internalLink', b.id);
 

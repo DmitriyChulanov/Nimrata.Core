@@ -49,7 +49,7 @@ function allTasks(data: DataController): DataObject[] {
  */
 function series(data: DataController, title: string) {
     return allTasks(data)
-        .filter((t) => t.properties.title === title)
+        .filter((t) => t.properties.name === title)
         .sort((a, b) => taskDate(data, a)!.localeCompare(taskDate(data, b)!));
 }
 
@@ -57,7 +57,7 @@ const dates = (data: DataController, title: string) =>
     series(data, title).map((t) => taskDate(data, t));
 
 async function addTask(data: DataController, title: string, date: string, category?: string) {
-    const params: Record<string, unknown> = { title, date };
+    const params: Record<string, unknown> = { name: title, date };
     if (category) params.category = category;
     const result = await data.runAction(root(data, 'CurrentTasksRoot').id, 'createTask', params);
     if (!result.ok) throw new Error(result.error);
@@ -224,7 +224,7 @@ describe('Tracker: repeats', () => {
             await setRepeat(data, fresh(data, task), 'monthly');
 
             const copy = series(data, 'Созвон')[1];
-            expect(copy.properties.name).toBe('09:30 — Созвон');
+            expect(data.getTitle(copy)).toBe('09:30 — Созвон');
             expect(copy.properties.comment).toBe('Заметка');
             expect(copy.properties.link).toBe('https://example.com');
             expect(copy.properties.priority).toBe('high');
@@ -401,7 +401,7 @@ describe('Tracker: repeats', () => {
          * Проверяет, что правка свойства одного повтора распространяется на весь набор
          */
         it.each([
-            ['title', 'Новая планёрка'],
+            ['name', 'Новая планёрка'],
             ['comment', 'Принести отчёт'],
             ['link', 'https://example.com/a'],
             ['priority', 'high'],
@@ -428,12 +428,12 @@ describe('Tracker: repeats', () => {
             const first = series(data, 'Планёрка')[0];
 
             await data.setProperty(first.id, 'time', '08:00');
-            await data.setProperty(first.id, 'title', 'Встреча');
+            await data.setProperty(first.id, 'name', 'Встреча');
 
             const members = series(data, 'Встреча');
             expect(members).toHaveLength(9);
             for (const m of members) {
-                expect(m.properties.name).toBe('08:00 — Встреча');
+                expect(data.getTitle(m)).toBe('08:00 — Встреча');
                 expect(m.order).toBe(1 + 8 * 60);
             }
         });
@@ -820,7 +820,7 @@ describe('Tracker: repeats', () => {
             const last = series(data, 'Планёрка').at(-1)!;
             expect(taskDate(data, last)).toBe('2026-05-27');
             expect(categoryNames(data, last)).toEqual(['Работа']);
-            expect(last.properties.name).toBe('10:00 — Планёрка');
+            expect(data.getTitle(last)).toBe('10:00 — Планёрка');
             expect(last.order).toBe(1 + 10 * 60);
         });
     });

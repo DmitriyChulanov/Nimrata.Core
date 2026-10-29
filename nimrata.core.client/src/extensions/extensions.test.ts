@@ -94,8 +94,8 @@ describe('built-in extensions', () => {
 
         unregisters[0](); // tasks
 
-        expect((await data.runAction(current.id, 'createTask', { title: 'А' })).ok).toBe(false);
-        expect((await data.runAction(notesRoot.id, 'createNote', { title: 'Б' })).ok).toBe(true);
+        expect((await data.runAction(current.id, 'createTask', { name: 'А' })).ok).toBe(false);
+        expect((await data.runAction(notesRoot.id, 'createNote', { name: 'Б' })).ok).toBe(true);
     });
 });
 
@@ -120,7 +120,7 @@ describe('hidden extension data', () => {
                     type: 'Task',
                     parent: 'c',
                     order: 0,
-                    properties: { title: 'А', internalLink: 'n' },
+                    properties: { name: 'А', internalLink: 'n' },
                 },
             ],
             {

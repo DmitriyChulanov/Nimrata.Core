@@ -1,6 +1,6 @@
 {
     "extension": "tasks",
-    "version": 19,
+    "version": 20,
     "name": "Трекер задач",
     "description": "Задачи по годам, месяцам и дням: категории, повторы, выбор текущего дня и уведомления.",
     "icon": "list-checks",
@@ -74,8 +74,8 @@
                     "icon": "plus",
                     "parameters": [
                         {
-                            "id": "title",
-                            "name": "Название",
+                            "id": "name",
+                            "name": "Имя",
                             "kind": "string",
                             "required": true
                         },
@@ -181,8 +181,8 @@
                     "placements": ["propertyGrid", "contextMenu"],
                     "parameters": [
                         {
-                            "id": "title",
-                            "name": "Название",
+                            "id": "name",
+                            "name": "Имя",
                             "kind": "string",
                             "required": true
                         },
@@ -234,8 +234,8 @@
                     "placements": ["propertyGrid", "contextMenu"],
                     "parameters": [
                         {
-                            "id": "title",
-                            "name": "Название",
+                            "id": "name",
+                            "name": "Имя",
                             "kind": "string",
                             "required": true
                         },
@@ -266,7 +266,7 @@
             "properties": [
                 {
                     "id": "name",
-                    "name": "Название",
+                    "name": "Имя",
                     "kind": "string",
                     "category": "Основное"
                 }
@@ -279,8 +279,8 @@
                     "placements": ["propertyGrid", "contextMenu"],
                     "parameters": [
                         {
-                            "id": "title",
-                            "name": "Название",
+                            "id": "name",
+                            "name": "Имя",
                             "kind": "string",
                             "required": true
                         }
@@ -313,19 +313,11 @@
             "allowedChildren": [],
             "properties": [
                 {
-                    "id": "title",
-                    "name": "Название",
-                    "kind": "string",
-                    "category": "Основное",
-                    "order": 1
-                },
-                {
                     "id": "name",
                     "name": "Имя",
                     "kind": "string",
                     "category": "Основное",
-                    "readOnly": true,
-                    "order": 2
+                    "order": 1
                 },
                 {
                     "id": "time",
@@ -519,7 +511,7 @@
             "properties": [
                 {
                     "id": "name",
-                    "name": "Название",
+                    "name": "Имя",
                     "kind": "string",
                     "category": "Основное"
                 }

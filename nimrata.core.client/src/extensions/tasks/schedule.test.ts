@@ -57,7 +57,7 @@ function tasks(data: DataController, title: string): string[] {
     const list: DataObject[] = [];
     const walk = (parent: string | null) =>
         data.getChildren(parent).forEach((o) => {
-            if (o.type === 'Task' && o.properties.title === title) list.push(o);
+            if (o.type === 'Task' && o.properties.name === title) list.push(o);
             walk(o.id);
         });
     walk(null);
@@ -220,7 +220,7 @@ describe('Tracker: "Create schedule" command', () => {
     it('createSchedule_existingDayWithTask_isKeptAndNotDuplicated', async () => {
         const { data } = await start();
         await data.runAction(root(data, 'CurrentTasksRoot').id, 'createTask', {
-            title: 'Раньше',
+            name: 'Раньше',
             date: '2026-03-20',
         });
 
@@ -256,7 +256,7 @@ describe('Tracker: "Create schedule" command', () => {
     describe('repeats', () => {
         async function withRepeat(data: DataController, kind: string, date = '2026-03-04') {
             await data.runAction(root(data, 'CurrentTasksRoot').id, 'createTask', {
-                title: 'Повтор',
+                name: 'Повтор',
                 date,
             });
             const object = findTask(data, 'Повтор');
@@ -267,7 +267,7 @@ describe('Tracker: "Create schedule" command', () => {
             let found: DataObject | undefined;
             const walk = (parent: string | null) =>
                 data.getChildren(parent).forEach((o) => {
-                    if (o.type === 'Task' && o.properties.title === title && !found) found = o;
+                    if (o.type === 'Task' && o.properties.name === title && !found) found = o;
                     walk(o.id);
                 });
             walk(null);
@@ -348,7 +348,7 @@ describe('Tracker: "Create schedule" command', () => {
             const { data } = await start();
             await withRepeat(data, 'weekly');
             await data.runAction(root(data, 'CurrentTasksRoot').id, 'createTask', {
-                title: 'Далеко',
+                name: 'Далеко',
                 date: '2026-06-20',
             });
 

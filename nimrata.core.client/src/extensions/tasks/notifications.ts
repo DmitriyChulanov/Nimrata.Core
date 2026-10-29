@@ -92,7 +92,7 @@ export function checkNotifications(
         due.push({
             taskId: task.id,
             title: `${pad(Math.floor(time / 60))}:${pad(time % 60)}`,
-            body: typeof task.properties.title === 'string' ? task.properties.title : '',
+            body: typeof task.properties.name === 'string' ? task.properties.name : '',
         });
     }
     return { due, state: { date: today, shown } };

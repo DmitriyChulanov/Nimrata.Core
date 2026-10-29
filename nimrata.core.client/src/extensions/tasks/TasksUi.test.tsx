@@ -87,7 +87,7 @@ describe('Tasks: interface', () => {
      */
     async function seedDay(data: Awaited<ReturnType<typeof setup>>['data']) {
         await data.runAction(currentRoot(data).id, 'createTask', {
-            title: 'Старая',
+            name: 'Старая',
             date: '2026-03-05',
             category: 'Работа',
         });
@@ -120,7 +120,7 @@ describe('Tasks: interface', () => {
         const dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
         expect(within(dialog).queryByLabelText(/Дата/)).not.toBeInTheDocument();
         expect(within(dialog).queryByLabelText(/Категория/)).not.toBeInTheDocument();
-        await userEvent.type(within(dialog).getByLabelText(/Название/), 'Позвонить');
+        await userEvent.type(within(dialog).getByLabelText(/Имя/), 'Позвонить');
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
 
         await expandRow(/05\.03\.2026, четверг/);
@@ -142,12 +142,12 @@ describe('Tasks: interface', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'Создать задачу' }));
         const dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
-        await userEvent.type(within(dialog).getByLabelText(/Название/), 'Ужин');
+        await userEvent.type(within(dialog).getByLabelText(/Имя/), 'Ужин');
         await userEvent.selectOptions(within(dialog).getByLabelText(/Типовая категория/), 'Семья');
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
 
         const family = data.getChildren(day.id).find((o) => o.properties.name === 'Семья')!;
-        expect(data.getChildren(family.id).map((t) => t.properties.title)).toEqual(['Ужин']);
+        expect(data.getChildren(family.id).map((t) => t.properties.name)).toEqual(['Ужин']);
     });
 
     /**
@@ -201,15 +201,15 @@ describe('Tasks: interface', () => {
         const { data } = await setup();
         const root = currentRoot(data);
         for (const date of ['2026-03-10', '2026-03-02']) {
-            await data.runAction(root.id, 'createTask', { title: date, date });
+            await data.runAction(root.id, 'createTask', { name: date, date });
         }
         const dayId = data
             .getChildren(data.getChildren(root.id)[0].id)
             .find((d) => d.properties.date === '2026-03-02')!.id;
         const late = data.getChildren(dayId)[0];
         await data.setProperty(late.id, 'time', '18:00');
-        await data.runAction(dayId, 'createTask', { title: 'Утренняя' });
-        const early = data.getChildren(dayId).find((o) => o.properties.title === 'Утренняя')!;
+        await data.runAction(dayId, 'createTask', { name: 'Утренняя' });
+        const early = data.getChildren(dayId).find((o) => o.properties.name === 'Утренняя')!;
         await data.setProperty(early.id, 'time', '09:00');
         mount(data);
 
@@ -230,7 +230,7 @@ describe('Tasks: interface', () => {
     it('tasksUi_propertyGrid_showsTaskPropertiesButHidesRepeatId', async () => {
         const { data } = await setup();
         await data.runAction(currentRoot(data).id, 'createTask', {
-            title: 'Дело',
+            name: 'Дело',
             date: '2026-03-05',
         });
         const month = data.getChildren(currentRoot(data).id)[0];
@@ -250,7 +250,7 @@ describe('Tasks: interface', () => {
     it('tasksUi_highPriorityTask_isTintedRed', async () => {
         const { data } = await setup();
         await data.runAction(currentRoot(data).id, 'createTask', {
-            title: 'Срочно',
+            name: 'Срочно',
             date: '2026-03-05',
         });
         const month = data.getChildren(currentRoot(data).id)[0];
