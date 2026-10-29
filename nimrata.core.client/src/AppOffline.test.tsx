@@ -159,6 +159,32 @@ it('app_logoutWithUnsentChanges_warnsThenDeletesDatabase', async () => {
 });
 
 /**
+ * Проверяет индикатор синхронизации в шапке: «Синхронизировано», без сети — «Офлайн» с числом
+ * неотправленных в подсказке, после возврата сети и нажатия — снова «Синхронизировано»
+ */
+it('app_syncIndicator_showsSyncedOfflineAndRecovers', async () => {
+    const server = stubServer();
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole('treeitem', { name: 'Идея' });
+    const header = within(screen.getByRole('banner'));
+    expect(await header.findByRole('button', { name: /Синхронизировано/ })).toBeVisible();
+
+    server.offline = true;
+    await rename(user, 'Идея', 'Офлайн');
+    const offline = await header.findByRole('button', { name: /Офлайн/ }, { timeout: 3000 });
+    expect(offline).toHaveAccessibleDescription(/Неотправленных изменений: 1/);
+
+    server.offline = false;
+    await user.click(offline);
+
+    expect(
+        await header.findByRole('button', { name: /Синхронизировано/ }, { timeout: 3000 }),
+    ).toBeVisible();
+    expect(server.posted).toHaveLength(1);
+});
+
+/**
  * Проверяет, что отмена предупреждения оставляет пользователя в приложении
  */
 it('app_logoutWarningCancelled_staysInApplication', async () => {

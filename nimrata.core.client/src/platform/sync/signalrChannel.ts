@@ -19,6 +19,7 @@ export interface HubConnectionLike {
     readonly state: string;
     on(name: string, handler: (...args: never[]) => void): void;
     onreconnected(handler: () => void): void;
+    onreconnecting(handler: (error?: Error) => void): void;
     onclose(handler: (error?: Error) => void): void;
     start(): Promise<void>;
     stop(): Promise<void>;
@@ -130,8 +131,13 @@ export function createSignalRChannel(options: SignalRChannelOptions): PushChanne
             attempt = 0;
             handlers.connected();
         });
+        connection.onreconnecting(() => {
+            if (!disposed) handlers.disconnected();
+        });
         connection.onclose(() => {
-            if (!disposed && !stopping) scheduleStart();
+            if (disposed || stopping) return;
+            handlers.disconnected();
+            scheduleStart();
         });
 
         const serial = (step: () => Promise<void>) => {
@@ -150,6 +156,9 @@ export function createSignalRChannel(options: SignalRChannelOptions): PushChanne
                     if (error instanceof HttpError && error.statusCode === 401) {
                         await options.refreshToken?.();
                     }
+                    // Неудачный запуск не сообщается как потеря связи: SignalR не отличает в
+                    // нём отсутствие сети от ответа сервера; без сети это покажут запросы
+                    // догона и отправки
                     scheduleStart();
                     return;
                 }

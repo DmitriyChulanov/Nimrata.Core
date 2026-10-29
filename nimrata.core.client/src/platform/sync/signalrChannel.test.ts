@@ -13,6 +13,7 @@ import type { PushHandlers } from './syncEngine';
 function fakeConnection() {
     const on = new Map<string, (...args: unknown[]) => void>();
     let reconnected: () => void = () => {};
+    let reconnectingHandler: () => void = () => {};
     let closed: (error?: Error) => void = () => {};
     const connection = {
         state: 'Disconnected',
@@ -27,6 +28,9 @@ function fakeConnection() {
         },
         onreconnected(handler: () => void) {
             reconnected = handler;
+        },
+        onreconnecting(handler: () => void) {
+            reconnectingHandler = handler;
         },
         onclose(handler: (error?: Error) => void) {
             closed = handler;
@@ -48,6 +52,11 @@ function fakeConnection() {
         /** Сервер вызывает метод клиента */
         emit(name: string, ...args: unknown[]) {
             on.get(name)?.(...args);
+        },
+        /** Соединение оборвалось, началось автоматическое переподключение */
+        reconnecting() {
+            connection.state = 'Reconnecting';
+            reconnectingHandler();
         },
         /** Автоматическое переподключение удалось */
         reconnect() {
@@ -110,6 +119,7 @@ function setup(token: string | null = 't1') {
         connected: vi.fn(),
         changes: vi.fn(),
         resync: vi.fn(),
+        disconnected: vi.fn(),
     } satisfies PushHandlers;
     return { connection, session, urls, channel, handlers };
 }
@@ -187,6 +197,31 @@ describe('signalrChannel', () => {
 
         expect(connection.starts).toBe(3);
         expect(handlers.connected).toHaveBeenCalledTimes(2);
+    });
+
+    /**
+     * Проверяет, что переподключение и обрыв открытого соединения сообщаются как потеря связи,
+     * а неудачный запуск (SignalR не отличает в нём сеть от ответа сервера) и намеренная
+     * остановка (смена токена) — нет
+     */
+    it('reconnectingOrDrop_reportsDisconnected_startFailureAndStopDoNot', async () => {
+        const { connection, session, channel, handlers } = setup();
+        connection.failNext = new Error('нет сети');
+
+        channel(handlers);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(handlers.disconnected).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1000);
+        connection.reconnecting();
+        expect(handlers.disconnected).toHaveBeenCalledTimes(1);
+        connection.drop();
+        expect(handlers.disconnected).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(1000);
+
+        session.setToken('t2');
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(handlers.disconnected).toHaveBeenCalledTimes(2);
     });
 
     /**

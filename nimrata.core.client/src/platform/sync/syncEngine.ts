@@ -11,7 +11,12 @@ import { ApiError } from '@platform/api/apiClient';
 import { errorMessage } from '@platform/data/errorMessage';
 
 import type { ApiClient } from '@platform/api/apiClient';
-import type { ChangesetResult, ChangesetTransport, SyncPort } from '@platform/data/DataController';
+import type {
+    ChangesetResult,
+    ChangesetTransport,
+    SyncPort,
+    SyncState,
+} from '@platform/data/DataController';
 import type {
     ChangesetFailure,
     PendingChangeset,
@@ -43,6 +48,23 @@ export const SYNC_CATCHUP_DELAY_MS = 1000;
 function isRetryable(error: unknown): boolean {
     if (!(error instanceof ApiError)) return true;
     return error.status >= 500 || [401, 408, 429].includes(error.status);
+}
+
+/** Текст состояния «офлайн»: запрос не дошёл до сервера или push-соединение оборвано */
+export const SYNC_OFFLINE_MESSAGE = 'Нет связи с сервером.';
+
+const ONLINE: SyncState = { connection: 'online', error: null };
+
+/**
+ * Состояние связи по исключению запроса: ответ сервера — «ошибка», иначе — «офлайн»
+ *
+ * @param error - исключение запроса
+ * @returns состояние для индикатора
+ */
+function stateOf(error: unknown): SyncState {
+    return error instanceof ApiError
+        ? { connection: 'error', error: error.message }
+        : { connection: 'offline', error: SYNC_OFFLINE_MESSAGE };
 }
 
 /**
@@ -120,6 +142,8 @@ export interface PushHandlers {
     changes(message: PushChanges): void;
     /** Сервер просит перечитать данные целиком */
     resync(): void;
+    /** Соединение потеряно (обрыв, неудачный запуск); канал сам переподключается */
+    disconnected(): void;
 }
 
 /**
@@ -187,6 +211,37 @@ export function createSyncEngine(
         // Догон по разрыву курсора после подтверждения: таймер и курсор, до которого ждём
         let gapTimer: ReturnType<typeof setTimeout> | null = null;
         let gapSeq = 0;
+        // Полную загрузку запросил сервер: после неё — сигнал `onResync`
+        let notifyResync = false;
+        const resyncListeners = new Set<() => void>();
+        // Состояние связи для индикатора
+        let state: SyncState = ONLINE;
+        const stateListeners = new Set<() => void>();
+
+        const setState = (next: SyncState) => {
+            if (disposed || (next.connection === state.connection && next.error === state.error)) {
+                return;
+            }
+            state = next;
+            for (const listener of [...stateListeners]) listener();
+        };
+
+        /**
+         * Запрос с учётом состояния связи: удача — «онлайн», исключение — «офлайн» или «ошибка»
+         *
+         * @param run - запрос
+         * @returns ответ запроса; исключение пробрасывается
+         */
+        const tracked = async <T>(run: Promise<T>): Promise<T> => {
+            try {
+                const result = await run;
+                setState(ONLINE);
+                return result;
+            } catch (error) {
+                setState(stateOf(error));
+                throw error;
+            }
+        };
 
         const unsent = () =>
             port.pending().filter((c) => !inFlight?.has(c.id) && !settled.has(c.id));
@@ -240,9 +295,11 @@ export function createSyncEngine(
         const request = async (batch: readonly PendingChangeset[]): Promise<boolean> => {
             let results: unknown;
             try {
-                results = await api.post<ChangesetResult[]>('changesets', {
-                    changesets: batch.map((c) => ({ id: c.id, operations: c.operations })),
-                });
+                results = await tracked(
+                    api.post<ChangesetResult[]>('changesets', {
+                        changesets: batch.map((c) => ({ id: c.id, operations: c.operations })),
+                    }),
+                );
             } catch (error) {
                 inFlight = null;
                 if (disposed) return false;
@@ -312,23 +369,27 @@ export function createSyncEngine(
                 return resyncing;
             }
             const run = async () => {
+                let notify: boolean;
                 try {
                     do {
                         resyncAgain = false;
                         // Снимок уже содержит отправленное: переналагаем только то, чего на
                         // сервере ещё нет, иначе применённое повторилось бы поверх снимка
                         await drain();
-                        const snapshot = await api.get<StoreSnapshot>('snapshot');
+                        const snapshot = await tracked(api.get<StoreSnapshot>('snapshot'));
                         if (disposed) return;
                         port.reset(snapshot);
                         ready = true;
                         resyncAttempt = 0;
                     } while (resyncAgain && !disposed);
+                    notify = notifyResync;
+                    notifyResync = false;
                 } finally {
                     resyncing = null;
                     flush();
                     startWindow();
                 }
+                if (notify && !disposed) for (const listener of [...resyncListeners]) listener();
                 if (catchUpAfterResync && !disposed) {
                     catchUpAfterResync = false;
                     void catchUp().catch(() => undefined);
@@ -366,12 +427,13 @@ export function createSyncEngine(
                 try {
                     do {
                         catchUpAgain = false;
-                        const answer = await api.get<CatchUpAnswer>(
-                            `changes?since=${port.getSeq()}`,
+                        const answer = await tracked(
+                            api.get<CatchUpAnswer>(`changes?since=${port.getSeq()}`),
                         );
                         if (disposed) return;
                         if ('resync' in answer) {
                             catchingUp = null;
+                            notifyResync = true;
                             await resync();
                             return;
                         }
@@ -396,7 +458,9 @@ export function createSyncEngine(
 
         const handlers: PushHandlers = {
             connected() {
-                if (disposed || !ready) return;
+                if (disposed) return;
+                setState(ONLINE);
+                if (!ready) return;
                 void catchUp().catch(() => undefined);
                 kick();
             },
@@ -414,9 +478,13 @@ export function createSyncEngine(
                 }
             },
             resync() {
-                if (disposed) return;
+                if (disposed || (!resyncing && !ready)) return;
+                notifyResync = true;
                 if (resyncing) resyncAgain = true;
-                else if (ready) requestResync();
+                else requestResync();
+            },
+            disconnected() {
+                setState({ connection: 'offline', error: SYNC_OFFLINE_MESSAGE });
             },
         };
 
@@ -442,6 +510,15 @@ export function createSyncEngine(
             catchUp,
             kick,
             connect,
+            getState: () => state,
+            subscribeState(listener) {
+                stateListeners.add(listener);
+                return () => void stateListeners.delete(listener);
+            },
+            onResync(listener) {
+                resyncListeners.add(listener);
+                return () => void resyncListeners.delete(listener);
+            },
             dispose() {
                 disposed = true;
                 unsubscribe();
