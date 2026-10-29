@@ -59,9 +59,11 @@ export default defineConfig(({ command }) => ({
     server: {
         proxy: {
             // Единый префикс API платформы: все серверные маршруты живут под /api.
+            // ws: true — WebSocket хаба синхронизации /api/sync идёт через то же правило.
             '^/api': {
                 target,
-                secure: false
+                secure: false,
+                ws: true
             }
         },
         port: parseInt(env.DEV_SERVER_PORT || '61625'),

@@ -355,3 +355,70 @@ describe('dataStore: addressed notifications', () => {
         expect(store.getChildren('root')).not.toBe(inRoot);
     });
 });
+
+/**
+ * Полная загрузка поверх очереди и подписка на курсор
+ */
+describe('dataStore: reset and cursor', () => {
+    /**
+     * Проверяет, что полная загрузка сохраняет очередь и накладывает её на новый снимок
+     */
+    it('reset_withQueue_keepsQueueAndRebasesItOnSnapshot', async () => {
+        const store = loaded();
+        const { outcome } = edit(store, [rename('a', 'A', 'X')]);
+
+        store.reset({
+            seq: 20,
+            types,
+            objects: [
+                { id: 'root', type: 'Folder', parent: null, number: 1, properties: {} },
+                note('a', 'root', 'A2', 1),
+                note('c', 'root', 'C', 3),
+            ],
+        });
+
+        expect(store.getSeq()).toBe(20);
+        expect(store.pending().map((c) => c.id)).toEqual(['cs1']);
+        expect(store.getObject('a')?.properties.name).toBe('X');
+        expect(store.getConfirmedObject('a')?.properties.name).toBe('A2');
+        expect(store.getObject('b')).toBeUndefined();
+        expect(store.getChildren('root').map((o) => o.id)).toEqual(['a', 'c']);
+        store.confirm('cs1', 21);
+        await expect(outcome).resolves.toEqual({ ok: true });
+    });
+
+    /**
+     * Проверяет, что набор, ставший невалидным после полной загрузки, убирается с уведомлением
+     */
+    it('reset_queuedChangesetBecomesInvalid_isDroppedWithNotice', async () => {
+        const store = loaded();
+        const notices: string[] = [];
+        store.onNotice((message) => notices.push(message));
+        const { outcome } = edit(store, [rename('b', 'B', 'X')]);
+
+        store.reset({ seq: 20, types, objects: [note('a', null, 'A', 1)] });
+
+        expect(store.pending()).toEqual([]);
+        expect(store.getObject('b')).toBeUndefined();
+        await expect(outcome).resolves.toMatchObject({ ok: false });
+        expect(notices).toHaveLength(1);
+        expect(notices[0]).toMatch(/^Изменение отменено после обновления данных/);
+    });
+
+    /**
+     * Проверяет, что подписчики курсора узнают о каждом его сдвиге и только о нём
+     */
+    it('subscribeSeq_notifiedWhenCursorMoves', () => {
+        const store = loaded();
+        const seen: number[] = [];
+        store.subscribeSeq(() => seen.push(store.getSeq()));
+        edit(store, [rename('a', 'A', 'X')]);
+
+        store.confirm('cs1', 11);
+        store.applyRemote({ toSeq: 11, changesetIds: [], upserts: [], deletes: [] });
+        store.applyRemote({ toSeq: 15, changesetIds: ['x'], upserts: [], deletes: [] });
+        store.reset({ seq: 30, types, objects: [] });
+
+        expect(seen).toEqual([11, 15, 30]);
+    });
+});

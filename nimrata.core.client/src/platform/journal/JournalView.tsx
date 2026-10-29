@@ -18,6 +18,8 @@ export interface JournalViewProps {
     selectedId: string | null;
     /** Сведения об окружении для понятных названий */
     resolver: JournalResolver;
+    /** Курсор синхронизации: при его сдвиге первая страница перечитывается */
+    cursor?: number;
 }
 
 /**
@@ -37,7 +39,7 @@ interface Loaded {
 /**
  * Просмотр журнала: записи выбранного объекта или все изменения пользователя. Только чтение
  */
-export function JournalView({ api, selectedId, resolver }: JournalViewProps) {
+export function JournalView({ api, selectedId, resolver, cursor = 0 }: JournalViewProps) {
     const [all, setAll] = useState(false);
     const [loaded, setLoaded] = useState<Loaded | null>(null);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -68,7 +70,7 @@ export function JournalView({ api, selectedId, resolver }: JournalViewProps) {
         return () => {
             cancelled = true;
         };
-    }, [api, idle, objectId, key]);
+    }, [api, idle, objectId, key, cursor]);
 
     const current = loaded && loaded.key === key ? loaded : null;
 

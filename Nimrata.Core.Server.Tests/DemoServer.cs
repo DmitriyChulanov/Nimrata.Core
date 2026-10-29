@@ -1,6 +1,8 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Nimrata.Core.Server.Auth;
@@ -53,6 +55,16 @@ public sealed class DemoServer(ServerFactory factory, IReadOnlyDictionary<string
     public HttpClient Other { get; private set; } = null!;
 
     /// <summary>
+    /// Access-токен администратора
+    /// </summary>
+    public string MeToken { get; private set; } = null!;
+
+    /// <summary>
+    /// Access-токен второго пользователя
+    /// </summary>
+    public string OtherToken { get; private set; } = null!;
+
+    /// <summary>
     /// Поднимает сервер, создаёт второго пользователя и входит обоими
     /// </summary>
     /// <returns>Задача подготовки</returns>
@@ -73,9 +85,9 @@ public sealed class DemoServer(ServerFactory factory, IReadOnlyDictionary<string
             configuration[key] = value;
         }
         _server = factory.WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(configuration)));
-        Me = await LoginAsync(ServerFactory.AdminEmail, ServerFactory.AdminPassword);
+        (Me, MeToken) = await LoginAsync(ServerFactory.AdminEmail, ServerFactory.AdminPassword);
         await _server.Services.GetRequiredService<AuthService>().CreateUserAsync(OtherEmail, OtherPassword, false);
-        Other = await LoginAsync(OtherEmail, OtherPassword);
+        (Other, OtherToken) = await LoginAsync(OtherEmail, OtherPassword);
     }
 
     /// <summary>
@@ -83,6 +95,30 @@ public sealed class DemoServer(ServerFactory factory, IReadOnlyDictionary<string
     /// </summary>
     /// <returns>Новый анонимный клиент</returns>
     public HttpClient CreateAnonymous() => _server.CreateClient();
+
+    /// <summary>
+    /// Соединение с хабом синхронизации по WebSocket; токен передаётся в query <c>access_token</c>, как из браузера
+    /// </summary>
+    /// <param name="token">Access-токен; <c>null</c> — без токена</param>
+    /// <returns>Соединение, ещё не запущенное</returns>
+    public HubConnection CreateHubConnection(string? token)
+    {
+        var url = new Uri(_server.Server.BaseAddress, token is null ? "api/sync" : $"api/sync?access_token={Uri.EscapeDataString(token)}");
+        return new HubConnectionBuilder()
+            .WithUrl(url, o =>
+            {
+                o.Transports = HttpTransportType.WebSockets;
+                o.SkipNegotiation = true;
+                o.WebSocketFactory = async (context, cancellationToken) =>
+                    await _server.Server.CreateWebSocketClient().ConnectAsync(context.Uri, cancellationToken);
+            })
+            .Build();
+    }
+
+    /// <summary>
+    /// Сервисы сервера теста
+    /// </summary>
+    public IServiceProvider Services => _server.Services;
 
     /// <summary>
     /// Освобождает клиентов, сервер и каталог манифестов
@@ -113,13 +149,13 @@ public sealed class DemoServer(ServerFactory factory, IReadOnlyDictionary<string
     /// </summary>
     /// <param name="email">Адрес пользователя</param>
     /// <param name="password">Пароль пользователя</param>
-    /// <returns>Клиент с access-токеном</returns>
-    private async Task<HttpClient> LoginAsync(string email, string password)
+    /// <returns>Клиент с access-токеном и сам токен</returns>
+    private async Task<(HttpClient Client, string Token)> LoginAsync(string email, string password)
     {
         var client = _server.CreateClient();
         var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password });
         var token = (await login.Content.ReadFromJsonAsync<TokenResponse>())!.AccessToken;
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return client;
+        return (client, token);
     }
 }

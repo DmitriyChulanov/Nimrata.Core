@@ -2,6 +2,12 @@
 
 ## Не выпущено
 
+### Добавлено (синхронизация: push по SignalR)
+- SignalR-хаб `/api/sync` (`Sync/SyncHub.cs`): соединение входит в группу `user:{id}`; клиент получает `changes` — формат догона с добавленным `fromSeq` (`ChangesPush`: `{ fromSeq, toSeq, changesetIds, upserts, deletes }`) — и `resync`. JWT из query `access_token` принимается только на пути хаба (`JwtBearerEvents.OnMessageReceived`); остальное API его из query не берёт.
+- `IChangeNotifier` и диспетчер `ChangeDispatcher` (внутри процесса): `ChangesetService.ApplyAsync` помечает автора «грязным» сразу после фиксации набора (повтор `duplicate` и отказ — нет). Первое уведомление открывает окно `Sync:PushWindow`, по его истечении журнал читается из БД после последнего отправленного `seq` через `SyncService.ReadChangesAsync` и рассылается группе одним сообщением. Наборов больше `Sync:ResyncThreshold` (в том числе когда рассылка отстала из-за медленного клиента) — вместо потока `resync`; ошибка рассылки — `resync` в следующем окне. Пользователи без соединений не учитываются.
+- `PUT /api/extensions/{id}/connection` рассылает вкладкам пользователя `resync`.
+- Тесты `SyncHubTests` (`Microsoft.AspNetCore.SignalR.Client`, WebSocket через `TestServer`): две вкладки пользователя, чужой пользователь ничего не получает, группировка в окне, продолжение с последнего отправленного `seq`, `duplicate` без рассылки, `resync` по порогу и по смене подключения расширения, хаб без токена, `access_token` вне хаба. `DemoServer`: токены пользователей и `CreateHubConnection`.
+
 ### Изменено (синхронизация: курсор, пакетная запись, LWW, догон)
 - Миграция `0026_changesets_seq.sql`: `changesets.seq bigint generated always as identity` с уникальным индексом и индексом `(user_id, seq)`. Идентификатор набора теперь присылает клиент.
 - `POST /api/changesets` принимает пакет `{ changesets: [{ id, operations }] }` и всегда отвечает 200 списком `[{ id, status: applied | duplicate | rejected, seq?, code?, detail? }]` в порядке пакета. Каждый набор — своя транзакция, отказ одного не откатывает остальные. Повтор известного `id` того же пользователя — `duplicate` с прежним `seq`, без повторного применения; `id` чужого набора — `rejected`. 400 — только ошибка формата пакета (нет `changesets`, у набора нет `id`-GUID или непустого `operations`), 401 — без токена. Прежних ответов 409/422 на набор больше нет.

@@ -1,11 +1,12 @@
 import { createSyncEngine } from '@platform/sync/syncEngine';
+import type { PushChannel } from '@platform/sync/syncEngine';
 
 import { createActionRegistry } from './actionRegistry';
 import { createDataStore } from './dataStore';
 import { errorMessage } from './errorMessage';
 
 import type { GroupLaunch } from './actionRegistry';
-import type { DataStore, LocalEdit, StoreSnapshot } from './dataStore';
+import type { DataStore, LocalEdit } from './dataStore';
 import type { HistoryEntry, Operation } from './undoHistory';
 import { applyOperations, createUndoHistory, invertOperations, touchedIds } from './undoHistory';
 import { uuid7 } from './uuid7';
@@ -256,19 +257,51 @@ export interface DataControllerOptions {
  */
 export type SyncPort = Pick<
     DataStore,
-    'getSeq' | 'pending' | 'subscribePending' | 'confirm' | 'reject' | 'applyRemote' | 'reset'
+    | 'getSeq'
+    | 'pending'
+    | 'subscribePending'
+    | 'subscribeSeq'
+    | 'confirm'
+    | 'reject'
+    | 'applyRemote'
+    | 'reset'
 >;
 
 /**
- * Сетевая часть контроллера: подключается к хранилищу и возвращает функцию отключения
+ * Подключённая к хранилищу сетевая часть
  */
-export type ChangesetTransport = (port: SyncPort) => () => void;
+export interface SyncLink {
+    /**
+     * Полная загрузка (`GET /api/snapshot`) с переналожением очереди: неотправленные наборы
+     * сначала уходят на сервер, снимок кладётся в хранилище через `SyncPort.reset`. Отказ — исключением
+     */
+    resync(): Promise<void>;
+    /** Догон `GET /api/changes?since=<курсор>`; при ответе `resync` — полная загрузка */
+    catchUp(): Promise<void>;
+    /** Отправить неотправленные наборы сейчас, не дожидаясь окна и задержки повтора */
+    kick(): void;
+    /**
+     * Подключает push-канал: после каждого соединения — догон и отправка очереди, сообщения
+     * `changes` применяются, `resync` — полная загрузка. Возвращает отключение канала
+     */
+    connect(channel: PushChannel): () => void;
+    /** Отключает сетевую часть: таймеры, push-соединение, поздние ответы игнорируются */
+    dispose(): void;
+}
+
+/**
+ * Сетевая часть контроллера: подключается к хранилищу
+ */
+export type ChangesetTransport = (port: SyncPort) => SyncLink;
 
 /**
  * Контроллер данных: модель типов и объектов, изменения, хуки, действия и отмена
  */
 export interface DataController {
-    /** Загружает снимок сервера (`GET /api/snapshot`: курсор, типы, объекты), заменяя модель */
+    /**
+     * Загружает снимок сервера (`GET /api/snapshot`: курсор, типы, объекты) через сетевую часть:
+     * подтверждённый слой заменяется, очередь неотправленных накладывается сверху
+     */
     load(): Promise<void>;
     /** Текущий снимок состояния модели */
     getSnapshot(): DataSnapshot;
@@ -290,6 +323,8 @@ export interface DataController {
     getChildren(parent: string | null): readonly DataObject[];
     /** Вход хранилища для сетевой части: очередь, итоги наборов и входящие изменения */
     readonly sync: SyncPort;
+    /** Подключает push-канал к сетевой части (SignalR в приложении); возвращает отключение */
+    connectPush(channel: PushChannel): () => void;
     /** Создаёт объект (одно действие — один набор изменений) */
     create(input: CreateInput, options?: OperationOptions): Promise<CreateResult>;
     /** Меняет свойство; `null` удаляет значение */
@@ -505,7 +540,7 @@ export function createDataController(options: DataControllerOptions): DataContro
 
     const newId = options.newId ?? uuid7;
     const history = createUndoHistory();
-    (options.transport ?? createSyncEngine(api))(store);
+    const link = (options.transport ?? createSyncEngine(api))(store);
 
     // Локальная часть наборов (хуки, обработчики, применение к модели) выполняется строго по
     // очереди; ответа сервера следующее действие не ждёт
@@ -885,9 +920,8 @@ export function createDataController(options: DataControllerOptions): DataContro
         async load() {
             publish({ status: 'loading', error: null }, false);
             try {
-                const loaded = await api.get<StoreSnapshot>('snapshot');
+                await link.resync();
                 history.clear();
-                store.reset(loaded);
                 publish({ status: 'ready', error: null });
             } catch (error) {
                 publish({ status: 'error', error: errorMessage(error) }, false);
@@ -907,6 +941,7 @@ export function createDataController(options: DataControllerOptions): DataContro
         getObject: (id) => store.getObject(id),
         getChildren,
         sync: store,
+        connectPush: (channel) => link.connect(channel),
         async create(input, opts) {
             let created: CreateResult = { ok: false, error: 'Объект не создан.' };
             const result = await execute((tx) => {
