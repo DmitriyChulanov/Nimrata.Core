@@ -103,11 +103,11 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
     /// <param name="id">Идентификатор</param>
     /// <param name="type">Тип</param>
     /// <param name="parent">Родитель</param>
-    /// <param name="order">Порядок</param>
+    /// <param name="number">Номер</param>
     /// <param name="properties">Свойства</param>
     /// <returns>Операция для набора изменений</returns>
-    private static object Create(Guid id, string type, Guid? parent = null, double order = 1, object? properties = null) =>
-        new { op = "create", id, type = type, parent = parent, order = order, properties = properties ?? new { } };
+    private static object Create(Guid id, string type, Guid? parent = null, int number = 1, object? properties = null) =>
+        new { op = "create", id, type = type, parent = parent, number, properties = properties ?? new { } };
 
     /// <summary>
     /// Читает страницу журнала

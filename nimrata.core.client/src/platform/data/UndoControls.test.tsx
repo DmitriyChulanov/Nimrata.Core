@@ -20,7 +20,7 @@ const types = [
         properties: [{ id: 'title', name: 'Название', kind: 'string' }],
     },
 ];
-const objects = [{ id: 'a', type: 'Note', parent: null, order: 1, properties: { title: 'A' } }];
+const objects = [{ id: 'a', type: 'Note', parent: null, number: 1, properties: { title: 'A' } }];
 
 async function setup() {
     const api = createFakeApi(types, objects);

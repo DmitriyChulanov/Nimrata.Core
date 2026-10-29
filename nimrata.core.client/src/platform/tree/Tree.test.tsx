@@ -24,8 +24,8 @@ const types = [
     { id: 'Hidden', name: 'Механизм', extension: 't', extensionVersion: 1, hiddenInTree: true },
 ];
 
-function obj(id: string, type: string, parent: string | null, order: number, name?: string) {
-    return { id, type, parent, order, properties: name === undefined ? {} : { name } };
+function obj(id: string, type: string, parent: string | null, number: number, name?: string) {
+    return { id, type, parent, number, properties: name === undefined ? {} : { name } };
 }
 
 function SelectionProbe() {
@@ -169,8 +169,36 @@ describe('Tree: context menu', () => {
             'Создать: Папка',
             'Копировать',
             'Вставить',
+            'Свернуть',
+            'Развернуть',
             'Удалить',
         ]);
+    });
+
+    /**
+     * Проверяет, что «Развернуть» раскрывает всю иерархию выбранного узла, а «Свернуть» закрывает её
+     */
+    it('tree_expandAndCollapse_openAndCloseWholeHierarchyOfSelectedNode', async () => {
+        const user = userEvent.setup();
+        await renderTree([
+            obj('r', 'Folder', null, 1, 'Корень'),
+            obj('m', 'Folder', 'r', 1, 'Средняя'),
+            obj('d', 'Note', 'm', 1, 'Глубокая'),
+        ]);
+
+        await user.pointer({
+            keys: '[MouseRight]',
+            target: screen.getByRole('treeitem', { name: 'Корень' }),
+        });
+        await user.click(screen.getByRole('menuitem', { name: 'Развернуть' }));
+        expect(screen.getByRole('treeitem', { name: 'Глубокая' })).toBeInTheDocument();
+
+        await user.pointer({
+            keys: '[MouseRight]',
+            target: screen.getByRole('treeitem', { name: 'Корень' }),
+        });
+        await user.click(screen.getByRole('menuitem', { name: 'Свернуть' }));
+        expect(screen.queryByRole('treeitem', { name: 'Средняя' })).not.toBeInTheDocument();
     });
 
     /**
@@ -185,7 +213,13 @@ describe('Tree: context menu', () => {
             target: screen.getByRole('treeitem', { name: 'Лист' }),
         });
 
-        expect(menuItems()).toEqual(['Копировать', 'Вставить', 'Удалить']);
+        expect(menuItems()).toEqual([
+            'Копировать',
+            'Вставить',
+            'Свернуть',
+            'Развернуть',
+            'Удалить',
+        ]);
     });
 
     /**

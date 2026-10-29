@@ -46,7 +46,7 @@ const types = new Map<string, TypeDefinition>([
 ]);
 
 function obj(id: string, type: string, name?: string): DataObject {
-    return { id, type, parent: null, order: 0, properties: name ? { name } : {} };
+    return { id, type, parent: null, number: 0, properties: name ? { name } : {} };
 }
 
 const objects = new Map<string, DataObject>(

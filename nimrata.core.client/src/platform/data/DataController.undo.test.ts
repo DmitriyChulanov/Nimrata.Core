@@ -18,10 +18,10 @@ const types = [
 ];
 
 const objects = [
-    { id: 'root', type: 'Folder', parent: null, order: 0, properties: {} },
-    { id: 'a', type: 'Note', parent: 'root', order: 1, properties: { title: 'A' } },
-    { id: 'b', type: 'Note', parent: 'root', order: 2, properties: { title: 'B' } },
-    { id: 'c', type: 'Note', parent: 'a', order: 1, properties: { title: 'C', done: true } },
+    { id: 'root', type: 'Folder', parent: null, number: 0, properties: {} },
+    { id: 'a', type: 'Note', parent: 'root', number: 1, properties: { title: 'A' } },
+    { id: 'b', type: 'Note', parent: 'root', number: 2, properties: { title: 'B' } },
+    { id: 'c', type: 'Note', parent: 'a', number: 1, properties: { title: 'C', done: true } },
 ];
 
 async function loaded() {
@@ -98,17 +98,17 @@ describe('DataController: Undo/Redo', () => {
      */
     it('undo_move_restoresParentAndOrder', async () => {
         const { data, api } = await loaded();
-        await data.move('b', { parent: 'a', order: 7 });
+        await data.move('b', { parent: 'a', number: 7 });
 
         await data.undo();
 
-        expect(data.getObject('b')).toMatchObject({ parent: 'root', order: 2 });
+        expect(data.getObject('b')).toMatchObject({ parent: 'root', number: 2 });
         expect(api.changesets[1].operations).toEqual([
             {
                 op: 'move',
                 id: 'b',
                 parent: { old: 'a', new: 'root' },
-                order: { old: 7, new: 2 },
+                number: { old: 7, new: 2 },
             },
         ]);
     });
@@ -158,7 +158,7 @@ describe('DataController: Undo/Redo', () => {
             id: 'a',
             type: 'Note',
             parent: 'root',
-            order: 1,
+            number: 1,
             properties: { title: 'A' },
         });
     });

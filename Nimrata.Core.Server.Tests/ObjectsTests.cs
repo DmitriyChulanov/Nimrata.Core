@@ -105,11 +105,11 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     /// <param name="id">Идентификатор</param>
     /// <param name="type">Тип</param>
     /// <param name="parent">Родитель</param>
-    /// <param name="order">Порядок</param>
+    /// <param name="number">Номер</param>
     /// <param name="properties">Свойства</param>
     /// <returns>Операция набора</returns>
-    private static object Create(Guid id, string type, Guid? parent = null, double order = 1, object? properties = null) =>
-        new { op = "create", id, type = type, parent = parent, order = order, properties = properties ?? new { } };
+    private static object Create(Guid id, string type, Guid? parent = null, int number = 1, object? properties = null) =>
+        new { op = "create", id, type = type, parent = parent, number, properties = properties ?? new { } };
 
     /// <summary>
     /// Отправляет набор изменений
@@ -347,10 +347,10 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     /// </summary>
     /// <param name="id">Идентификатор объекта</param>
     /// <param name="parent">Описание смены родителя</param>
-    /// <param name="order">Описание смены порядка</param>
+    /// <param name="number">Описание смены номера</param>
     /// <returns>Операция набора</returns>
-    private static object Move(Guid id, object? parent = null, object? order = null) =>
-        new { op = "move", id, parent = parent, order = order };
+    private static object Move(Guid id, object? parent = null, object? number = null) =>
+        new { op = "move", id, parent = parent, number = number };
 
     /// <summary>
     /// Описывает операцию удаления
@@ -479,7 +479,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     /// Проверяет, что перемещение меняет родителя и порядок
     /// </summary>
     [Fact]
-    public async Task Changeset_Move_ChangesParentAndOrder()
+    public async Task Changeset_Move_ChangesParentAndNumber()
     {
         var first = Guid.CreateVersion7();
         var second = Guid.CreateVersion7();
@@ -487,12 +487,12 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await Apply(_me, Create(first, "Folder", null, 1), Create(second, "Folder", null, 2), Create(item, "Item", first, 5));
 
         var response = await Apply(_me, Move(item,
-            parent: new { old = first, @new = second }, order: new { old = 5, @new = 1.5 }));
+            parent: new { old = first, @new = second }, number: new { old = 5, @new = 3 }));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var after = Find(await Load(_me), item);
         Assert.Equal(second, after.GetProperty("parent").GetGuid());
-        Assert.Equal(1.5, after.GetProperty("order").GetDouble());
+        Assert.Equal(3, after.GetProperty("number").GetInt32());
     }
 
     /// <summary>
@@ -512,6 +512,39 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     }
 
     /// <summary>
+    /// Проверяет, что номер должен быть целым числом не меньше 1: при создании и при перемещении
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-3)]
+    [InlineData(1.5)]
+    public async Task Changeset_NumberNotPositiveInteger_Rejected(double number)
+    {
+        var folder = Guid.CreateVersion7();
+
+        var create = await Apply(_me, new { op = "create", id = folder, type = "Folder", parent = (Guid?)null, number, properties = new { } });
+        await AssertRejected(create, HttpStatusCode.UnprocessableEntity, "number");
+
+        await Apply(_me, Create(folder, "Folder", null, 2));
+        var move = await Apply(_me, Move(folder, number: new { old = 2, @new = number }));
+        await AssertRejected(move, HttpStatusCode.UnprocessableEntity, "number");
+    }
+
+    /// <summary>
+    /// Проверяет, что создание без номера даёт номер 1
+    /// </summary>
+    [Fact]
+    public async Task Changeset_CreateWithoutNumber_DefaultsToOne()
+    {
+        var folder = Guid.CreateVersion7();
+
+        var response = await Apply(_me, new { op = "create", id = folder, type = "Folder", parent = (Guid?)null, properties = new { } });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, Find(await Load(_me), folder).GetProperty("number").GetInt32());
+    }
+
+    /// <summary>
     /// Проверяет, что перемещение с неверным прежним положением даёт конфликт
     /// </summary>
     [Fact]
@@ -523,10 +556,10 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await Apply(_me, Create(first, "Folder"), Create(second, "Folder"), Create(folder, "Folder", first, 3));
 
         var wrongParent = await Apply(_me, Move(folder, parent: new { old = second, @new = (Guid?)null }));
-        var wrongOrder = await Apply(_me, Move(folder, order: new { old = 99, @new = 1 }));
+        var wrongNumber = await Apply(_me, Move(folder, number: new { old = 99, @new = 1 }));
 
         await AssertRejected(wrongParent, HttpStatusCode.Conflict, "parent");
-        await AssertRejected(wrongOrder, HttpStatusCode.Conflict, "order");
+        await AssertRejected(wrongNumber, HttpStatusCode.Conflict, "number");
     }
 
     /// <summary>
@@ -560,7 +593,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         await Apply(_other, Create(foreignFolder, "Folder"));
         await Apply(_me, Create(my, "Folder"));
 
-        var foreignObject = await Apply(_me, Move(foreignFolder, order: new { old = 1, @new = 2 }));
+        var foreignObject = await Apply(_me, Move(foreignFolder, number: new { old = 1, @new = 2 }));
         var underForeign = await Apply(_me, Move(my, parent: new { old = (Guid?)null, @new = foreignFolder }));
 
         await AssertRejected(foreignObject, HttpStatusCode.UnprocessableEntity, "не найден");
@@ -685,7 +718,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         var snapshot = entry.Snapshot!.Value;
         Assert.Equal("Item", snapshot.GetProperty("type").GetString());
         Assert.Equal(folder, snapshot.GetProperty("parent").GetGuid());
-        Assert.Equal(4, snapshot.GetProperty("order").GetDouble());
+        Assert.Equal(4, snapshot.GetProperty("number").GetInt32());
         Assert.Equal("Память", snapshot.GetProperty("properties").GetProperty("title").GetString());
         Assert.Equal(7, snapshot.GetProperty("properties").GetProperty("count").GetInt32());
     }
@@ -768,7 +801,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me,
             Create(folder, "Folder", null, 1),
-            Create(item, "Item", folder, 2.5, new { title = "Первый", count = 3, done = false, level = "high" }));
+            Create(item, "Item", folder, 3, new { title = "Первый", count = 3, done = false, level = "high" }));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var objects = await Load(_me);
@@ -776,7 +809,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         var loaded = objects.Single(element => element.GetProperty("id").GetGuid() == item);
         Assert.Equal("Item", loaded.GetProperty("type").GetString());
         Assert.Equal(folder, loaded.GetProperty("parent").GetGuid());
-        Assert.Equal(2.5, loaded.GetProperty("order").GetDouble());
+        Assert.Equal(3, loaded.GetProperty("number").GetInt32());
         Assert.Equal("Первый", loaded.GetProperty("properties").GetProperty("title").GetString());
         Assert.Equal(3, loaded.GetProperty("properties").GetProperty("count").GetInt32());
         var root = objects.Single(element => element.GetProperty("id").GetGuid() == folder);

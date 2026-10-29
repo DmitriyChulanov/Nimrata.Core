@@ -60,17 +60,17 @@ const objects = [
         id: 'a',
         type: 'Task',
         parent: null,
-        order: 0,
+        number: 0,
         properties: { title: 'Одна', done: true, prio: 'low' },
     },
     {
         id: 'b',
         type: 'Task',
         parent: null,
-        order: 1,
+        number: 1,
         properties: { title: 'Одна', done: false, prio: 'low' },
     },
-    { id: 'n', type: 'Note', parent: null, order: 2, properties: { title: 'Одна' } },
+    { id: 'n', type: 'Note', parent: null, number: 2, properties: { title: 'Одна' } },
 ];
 
 function Pick({ ids }: { ids: string[] }) {
@@ -201,6 +201,7 @@ describe('PropertyGrid: group selection', () => {
             'Отложить',
             'Приоритет',
             'Только задача',
+            'Номер',
         ]);
     });
 });

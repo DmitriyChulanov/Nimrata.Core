@@ -26,7 +26,9 @@ export function categoryTemplates(data: DataController): DataObject[] {
     return data
         .getChildren(group.id)
         .filter((o) => o.type === CATEGORY_TEMPLATE && templateName(o) !== '')
-        .sort((a, b) => a.order - b.order || templateName(a).localeCompare(templateName(b), 'ru'));
+        .sort(
+            (a, b) => a.number - b.number || templateName(a).localeCompare(templateName(b), 'ru'),
+        );
 }
 
 /**

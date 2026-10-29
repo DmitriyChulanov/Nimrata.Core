@@ -95,11 +95,11 @@ describe('Notes: quick access commands panel', () => {
         await mount(['Яблоко', 'Арбуз', 'Груша']);
 
         const block = screen.getByRole('group', { name: 'Трекер заметок' });
-        expect(within(block).getAllByRole('button').map((b) => b.textContent)).toEqual([
-            'Арбуз',
-            'Груша',
-            'Яблоко',
-        ]);
+        expect(
+            within(block)
+                .getAllByRole('button')
+                .map((b) => b.textContent),
+        ).toEqual(['Арбуз', 'Груша', 'Яблоко']);
         expect(screen.queryByRole('button', { name: 'Открыть в дереве' })).toBeNull();
     });
 

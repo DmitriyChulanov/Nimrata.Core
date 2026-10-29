@@ -38,7 +38,7 @@ const object = (id: string, type: string, properties: Record<string, unknown>) =
     id,
     type,
     parent: null,
-    order: 0,
+    number: 1,
     properties,
 });
 

@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import { childrenInOrder, expandToReveal, flatten, hasChildren, visibleChildren } from './treeModel';
+import {
+    branchesOf,
+    childrenInOrder,
+    collapseSubtrees,
+    expandSubtrees,
+    expandToReveal,
+    flatten,
+    hasChildren,
+    visibleChildren,
+} from './treeModel';
+import { planNumberEdit } from './numbering';
 import { planMove } from './planMove';
 
-import type { DataController, DataObject } from '@platform/data/DataController';
+import type { DataObject } from '@platform/data/DataController';
 import type { TypeDefinition } from '@platform/types/types';
 import type { TreeReader } from './treeModel';
 
@@ -12,18 +22,18 @@ const types: Partial<TypeDefinition>[] = [
     { id: 'Hidden', name: 'Механизм', hiddenInTree: true },
 ];
 
-function obj(id: string, parent: string | null, order = 0, name?: string, type = 'Folder') {
+function obj(id: string, parent: string | null, number = 0, name?: string, type = 'Folder') {
     return {
         id,
         type,
         parent,
-        order,
+        number,
         properties: name === undefined ? {} : { name },
     } as DataObject;
 }
 
 /**
- * Читатель на литерале: потомки в порядке `order`, затем id, как отдаёт контроллер
+ * Читатель на литерале: потомки в порядке `number`, затем id, как отдаёт контроллер
  */
 function readerOf(objects: DataObject[]): TreeReader {
     const o = new Map(objects.map((x) => [x.id, x]));
@@ -34,7 +44,7 @@ function readerOf(objects: DataObject[]): TreeReader {
         getChildren: (parent) =>
             objects
                 .filter((x) => x.parent === parent)
-                .sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : 1)),
+                .sort((a, b) => a.number - b.number || (a.id < b.id ? -1 : 1)),
     };
 }
 
@@ -121,51 +131,160 @@ describe('treeModel: expandToReveal', () => {
 
 describe('planMove на литерале читателя', () => {
     const reader = readerOf([
-        obj('a', null, 0, 'А'),
-        obj('b', null, 1, 'Б'),
-        obj('c', null, 2, 'В'),
+        obj('a', null, 1, 'А'),
+        obj('b', null, 2, 'Б'),
+        obj('c', null, 3, 'В'),
     ]);
-    const data = reader as unknown as DataController;
-    const siblings = (parent: string | null) =>
-        visibleChildren(reader, parent).map((n) => n.object);
 
-    it('before_putsBetweenNeighbours', () => {
-        const plan = planMove(data, siblings, 'c', 'b', 'before');
+    it('before_renumbersCollectionDensely', () => {
+        const plan = planMove(reader, 'c', 'b', 'before');
 
-        expect(plan).toEqual({ ok: true, parent: null, order: 0.5 });
+        expect(plan).toEqual({
+            ok: true,
+            parent: null,
+            changes: [
+                { id: 'c', number: 2 },
+                { id: 'b', number: 3 },
+            ],
+        });
     });
 
-    it('afterLast_takesNextOrder', () => {
-        const plan = planMove(data, siblings, 'a', 'c', 'after');
+    it('afterLast_takesLastNumber', () => {
+        const plan = planMove(reader, 'a', 'c', 'after');
 
-        expect(plan).toEqual({ ok: true, parent: null, order: 3 });
+        expect(plan).toEqual({
+            ok: true,
+            parent: null,
+            changes: [
+                { id: 'b', number: 1 },
+                { id: 'c', number: 2 },
+                { id: 'a', number: 3 },
+            ],
+        });
+    });
+
+    it('afterNodeWithEqualNumbers_staysDirectlyAfterIt', () => {
+        const ties = readerOf([
+            obj('x', null, 1, 'А'),
+            obj('y', null, 1, 'Б'),
+            obj('z', null, 1, 'В'),
+            obj('m', null, 9, 'Я'),
+        ]);
+
+        const plan = planMove(ties, 'm', 'x', 'after');
+
+        expect(plan).toEqual({
+            ok: true,
+            parent: null,
+            changes: [
+                { id: 'm', number: 2 },
+                { id: 'y', number: 3 },
+                { id: 'z', number: 4 },
+            ],
+        });
+    });
+
+    it('toAnotherParent_numbersTargetCollectionAndSetsParent', () => {
+        const two = readerOf([
+            obj('p', null, 1, 'П'),
+            obj('q', 'p', 1, 'Ку'),
+            obj('r', 'p', 2, 'Эр'),
+            obj('m', null, 2, 'М'),
+        ]);
+
+        const plan = planMove(two, 'm', 'r', 'before');
+
+        expect(plan).toEqual({
+            ok: true,
+            parent: 'p',
+            changes: [
+                { id: 'm', parent: 'p', number: 2 },
+                { id: 'r', number: 3 },
+            ],
+        });
+    });
+
+    it('inside_putsLastWithMaxPlusOne', () => {
+        const two = readerOf([
+            obj('p', null, 1, 'П'),
+            obj('q', 'p', 4, 'Ку'),
+            obj('m', null, 2, 'М'),
+        ]);
+
+        const plan = planMove(two, 'm', 'p', 'inside');
+
+        expect(plan).toEqual({
+            ok: true,
+            parent: 'p',
+            changes: [{ id: 'm', parent: 'p', number: 5 }],
+        });
+    });
+
+    it('sameSpot_rejected', () => {
+        expect(planMove(reader, 'b', 'a', 'after')).toEqual({ ok: false });
     });
 
     it('intoSelfDescendant_rejected', () => {
         const nested = readerOf([obj('r', null), obj('k', 'r')]);
 
-        const plan = planMove(
-            nested as unknown as DataController,
-            (p) => visibleChildren(nested, p).map((n) => n.object),
-            'r',
-            'k',
-            'inside',
-        );
-
-        expect(plan).toEqual({ ok: false });
+        expect(planMove(nested, 'r', 'k', 'inside')).toEqual({ ok: false });
     });
 
     it('insideDisallowedType_rejected', () => {
-        const flat = readerOf([obj('h', null, 0, undefined, 'Hidden'), obj('x', null, 1)]);
+        const flat = readerOf([obj('h', null, 1, undefined, 'Hidden'), obj('x', null, 2)]);
 
-        const plan = planMove(
-            flat as unknown as DataController,
-            (p) => visibleChildren(flat, p).map((n) => n.object),
-            'x',
-            'h',
-            'inside',
-        );
+        expect(planMove(flat, 'x', 'h', 'inside')).toEqual({ ok: false });
+    });
+});
 
-        expect(plan).toEqual({ ok: false });
+describe('planNumberEdit', () => {
+    const reader = readerOf([
+        obj('a', null, 1, 'А'),
+        obj('b', null, 2, 'Б'),
+        obj('c', null, 3, 'В'),
+    ]);
+
+    it('occupiedNumber_shiftsNeighboursFromIt', () => {
+        const changes = planNumberEdit(reader, reader.getObject('c')!, 2);
+
+        expect(changes).toEqual([
+            { id: 'c', number: 2 },
+            { id: 'b', number: 3 },
+        ]);
+    });
+
+    it('freeNumber_justSetsIt', () => {
+        const changes = planNumberEdit(reader, reader.getObject('a')!, 10);
+
+        expect(changes).toEqual([{ id: 'a', number: 10 }]);
+    });
+
+    it('sameNumber_nothingToDo', () => {
+        expect(planNumberEdit(reader, reader.getObject('a')!, 1)).toEqual([]);
+    });
+});
+
+describe('свернуть и развернуть', () => {
+    const reader = readerOf([
+        obj('r', null, 1, 'Р'),
+        obj('a', 'r', 1, 'А'),
+        obj('aa', 'a', 1, 'АА'),
+        obj('b', 'r', 2, 'Б'),
+    ]);
+
+    it('expandSubtrees_opensWholeHierarchyOfSelected', () => {
+        const next = expandSubtrees(reader, new Set(), ['r']);
+
+        expect([...next].sort()).toEqual(['a', 'r']);
+    });
+
+    it('collapseSubtrees_closesSelectedAndDescendantsOnly', () => {
+        const next = collapseSubtrees(reader, new Set(['r', 'a', 'other']), ['a']);
+
+        expect([...next].sort()).toEqual(['other', 'r']);
+    });
+
+    it('leaf_hasNoBranches', () => {
+        expect(branchesOf(reader, ['b'])).toEqual([]);
     });
 });

@@ -13,7 +13,7 @@ const create = (id: string, type: string, parent: string | null) => ({
     id,
     type,
     parent,
-    order: 0,
+    number: 1,
     properties: {},
 });
 
@@ -66,7 +66,7 @@ describe('fakeApi: parent allowance like on the server', () => {
      */
     it('fakeApi_move_isCheckedToo_takingObjectsFromEarlierChangesetsIntoAccount', async () => {
         const api = createFakeApi(types, [
-            { id: 'l', type: 'Leaf', parent: null, order: 0, properties: {} },
+            { id: 'l', type: 'Leaf', parent: null, number: 1, properties: {} },
         ]);
         await api.post('changesets', { operations: [create('f', 'Free', null)] });
         await expect(

@@ -131,7 +131,7 @@ function fillSet(
     }
     properties.repeat = kind;
     const draft = { ...template.task, properties };
-    const order = taskOrder(draft);
+    const number = taskOrder(draft);
     const chain = categoryChain(data, template.task);
     const rootId = taskRootId(data, template.task, CURRENT_TASKS_ROOT);
 
@@ -140,7 +140,7 @@ function fillSet(
         const ymd = parseIso(iso)!;
         let container = ensureDay(data, tx, rootId, ymd);
         for (const category of chain) container = ensureCategory(data, tx, container, category);
-        createNode(tx, container, TASK, { ...properties }, order);
+        createNode(tx, container, TASK, { ...properties }, number);
         taken.add(iso);
     }
 }
@@ -285,14 +285,14 @@ export function registerRepeats(data: DataController): () => void {
             );
         }),
         data.registerHook(TASK, 'move', 'after', (ctx) => {
-            if (silent || !ctx.from || !ctx.to || ctx.from.order === ctx.to.order) return;
+            if (silent || !ctx.from || !ctx.to || ctx.from.number === ctx.to.number) return;
             const task = data.getObject(ctx.object.id);
             if (!task) return;
             return quietly(() =>
                 spread(task, (other) =>
-                    other.order === task.order
+                    other.number === task.number
                         ? { ok: true }
-                        : ctx.tx.move(other.id, { order: task.order }),
+                        : ctx.tx.move(other.id, { number: task.number }),
                 ),
             );
         }),

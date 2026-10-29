@@ -122,7 +122,7 @@ it('app_afterLogin_showsThreePanelsAndSelectedObjectInProperties', async () => {
         },
     ];
     const objects = [
-        { id: 'n1', type: 'Note', parent: null, order: 0, properties: { name: 'Идея' } },
+        { id: 'n1', type: 'Note', parent: null, number: 0, properties: { name: 'Идея' } },
     ];
     vi.stubGlobal(
         'fetch',

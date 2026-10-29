@@ -146,8 +146,8 @@ public sealed class ChangesetContractTests(ServerFactory factory) : IClassFixtur
             {
                 await connection.ExecuteAsync(
                     """
-                    insert into objects (id, type_id, parent_id, owner_id, sort_order, properties)
-                    values (@id, @type, @parent, @owner, @order, cast(@properties as jsonb))
+                    insert into objects (id, type_id, parent_id, owner_id, number, properties)
+                    values (@id, @type, @parent, @owner, @number, cast(@properties as jsonb))
                     """,
                     new
                     {
@@ -155,7 +155,7 @@ public sealed class ChangesetContractTests(ServerFactory factory) : IClassFixtur
                         type = seed["type"]!.GetValue<string>(),
                         parent = seed["parent"]?.GetValue<Guid>(),
                         owner = _ownerId,
-                        order = seed["order"]!.GetValue<double>(),
+                        number = seed["number"]!.GetValue<int>(),
                         properties = seed["properties"]!.ToJsonString(),
                     });
             }

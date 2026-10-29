@@ -64,8 +64,8 @@ const types = [
 ];
 
 const objects = [
-    { id: 'f', type: 'Folder', parent: null, order: 0, properties: { name: 'Входящие' } },
-    { id: 'j', type: 'Job', parent: 'f', order: 0, properties: { name: 'Дело', status: 'new' } },
+    { id: 'f', type: 'Folder', parent: null, number: 0, properties: { name: 'Входящие' } },
+    { id: 'j', type: 'Job', parent: 'f', number: 0, properties: { name: 'Дело', status: 'new' } },
 ];
 
 function Select({ id }: { id: string }) {

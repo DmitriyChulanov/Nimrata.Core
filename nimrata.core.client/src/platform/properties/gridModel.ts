@@ -144,6 +144,36 @@ export function titleProperty(
 }
 
 /**
+ * Идентификатор виртуального свойства «Номер»: он хранится в самом объекте, а не в свойствах
+ */
+export const NUMBER_PROPERTY_ID = 'number';
+
+/**
+ * Виртуальное свойство «Номер» (место объекта среди соседей, целое ≥ 1): есть у каждого объекта,
+ * стоит после «Имени» и «Названия». Правка идёт через перенумерацию соседей, а не как свойство
+ *
+ * @param primary - основной объект: у него берётся положение строки
+ * @param getType - поиск типа по идентификатору
+ * @returns строка «Номер»
+ */
+export function numberProperty(
+    primary: DataObject,
+    getType: (id: string) => TypeDefinition | undefined,
+): CommonProperty {
+    const name = getType(primary.type)?.properties?.find((p) => p.id === 'name');
+    return {
+        property: {
+            id: NUMBER_PROPERTY_ID,
+            name: 'Номер',
+            kind: 'integer',
+            category: name?.category,
+            order: name?.order === undefined ? undefined : name.order + 0.7,
+        },
+        value: { mixed: false, value: primary.number },
+    };
+}
+
+/**
  * Сквозной порядок: сначала строки с `order` по возрастанию (при равенстве — в порядке описания),
  * затем остальные в порядке описания
  *

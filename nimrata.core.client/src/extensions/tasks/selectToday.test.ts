@@ -61,10 +61,7 @@ describe('Tracker: "Select today" command', () => {
         const { data } = await start();
 
         expect(data.isCommandAvailable('selectToday')).toBe(true);
-        expect(data.getChildren(null).map((o) => o.type)).toEqual([
-            'TasksRoot',
-            'SettingsRoot',
-        ]);
+        expect(data.getChildren(null).map((o) => o.type)).toEqual(['TasksRoot', 'SettingsRoot']);
     });
 
     /**

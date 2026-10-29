@@ -18,9 +18,10 @@ const types = [
 ];
 
 const objects = [
-    { id: 'b', type: 'Note', parent: 'root', order: 2, properties: { title: 'B' } },
-    { id: 'root', type: 'Folder', parent: null, order: 0, properties: {} },
-    { id: 'a', type: 'Note', parent: 'root', order: 1, properties: { title: 'A' } },
+    { id: 'b', type: 'Note', parent: 'root', number: 2, properties: { title: 'B' } },
+    { id: 'root', type: 'Folder', parent: null, number: 1, properties: {} },
+    { id: 'empty', type: 'Folder', parent: null, number: 2, properties: {} },
+    { id: 'a', type: 'Note', parent: 'root', number: 1, properties: { title: 'A' } },
 ];
 
 async function loaded() {
@@ -35,6 +36,19 @@ async function loaded() {
  */
 describe('DataController: changes through a changeset', () => {
     /**
+     * Проверяет, что номер нового объекта — максимум среди соседей плюс 1, а в пустом узле — 1
+     */
+    it('create_withoutNumber_takesMaxSiblingNumberPlusOne', async () => {
+        const { data } = await loaded();
+
+        const inRoot = await data.create({ type: 'Note', parent: 'root' });
+        const inEmpty = await data.create({ type: 'Note', parent: 'empty' });
+
+        expect(inRoot.ok && data.getObject(inRoot.id)?.number).toBe(3);
+        expect(inEmpty.ok && data.getObject(inEmpty.id)?.number).toBe(1);
+    });
+
+    /**
      * Проверяет, что создание объекта — один набор с клиентским идентификатором, а объект появляется в модели
      */
     it('create_object_oneChangesetWithClientIdAndObjectAppearsInModel', async () => {
@@ -42,7 +56,7 @@ describe('DataController: changes through a changeset', () => {
         const result = await data.create({
             type: 'Note',
             parent: 'root',
-            order: 5,
+            number: 5,
             properties: { title: 'Новая' },
         });
         expect(result.ok).toBe(true);
@@ -52,7 +66,7 @@ describe('DataController: changes through a changeset', () => {
             id,
             type: 'Note',
             parent: 'root',
-            order: 5,
+            number: 5,
             properties: { title: 'Новая' },
         });
         expect(api.changesets).toEqual([
@@ -63,7 +77,7 @@ describe('DataController: changes through a changeset', () => {
                         id,
                         type: 'Note',
                         parent: 'root',
-                        order: 5,
+                        number: 5,
                         properties: { title: 'Новая' },
                     },
                 ],
@@ -78,7 +92,7 @@ describe('DataController: changes through a changeset', () => {
         const { data } = await loaded();
         const result = await data.create({ type: 'Note', parent: 'root' });
         const id = result.ok ? result.id : '';
-        expect(data.getObject(id)?.order).toBe(3);
+        expect(data.getObject(id)?.number).toBe(3);
         expect(
             data
                 .getChildren('root')
@@ -107,10 +121,10 @@ describe('DataController: changes through a changeset', () => {
      */
     it('move_changesParentAndOrder_inOneChangeset', async () => {
         const { api, data } = await loaded();
-        await data.move('a', { parent: null, order: 7 });
-        expect(data.getObject('a')).toMatchObject({ parent: null, order: 7 });
+        await data.move('a', { parent: null, number: 7 });
+        expect(data.getObject('a')).toMatchObject({ parent: null, number: 7 });
         expect(api.changesets[0].operations).toEqual([
-            { op: 'move', id: 'a', parent: { old: 'root', new: null }, order: { old: 1, new: 7 } },
+            { op: 'move', id: 'a', parent: { old: 'root', new: null }, number: { old: 1, new: 7 } },
         ]);
     });
 
@@ -119,9 +133,9 @@ describe('DataController: changes through a changeset', () => {
      */
     it('move_orderOnly_doesNotTouchParent', async () => {
         const { api, data } = await loaded();
-        await data.move('a', { order: 9 });
+        await data.move('a', { number: 9 });
         expect(api.changesets[0].operations).toEqual([
-            { op: 'move', id: 'a', order: { old: 1, new: 9 } },
+            { op: 'move', id: 'a', number: { old: 1, new: 9 } },
         ]);
     });
 
@@ -193,8 +207,8 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         expect(data.getChildren('root')).toHaveLength(2);
 
         api.rejectNext(422, 'нет');
-        await data.move('a', { parent: null, order: 5 });
-        expect(data.getObject('a')).toMatchObject({ parent: 'root', order: 1 });
+        await data.move('a', { parent: null, number: 5 });
+        expect(data.getObject('a')).toMatchObject({ parent: 'root', number: 1 });
 
         api.rejectNext(422, 'нет');
         await data.remove('root');
@@ -259,7 +273,7 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         api.rejectNext(409, 'расхождение');
         await data.setProperty('a', 'title', 'X');
         api.objects = [
-            { id: 'z', type: 'Note', parent: null, order: 0, properties: { title: 'Z' } },
+            { id: 'z', type: 'Note', parent: null, number: 0, properties: { title: 'Z' } },
         ];
         await data.load();
         expect(data.getSnapshot()).toMatchObject({
@@ -321,7 +335,7 @@ describe('DataController: loading and reading', () => {
     it('getChildren_returnsChildrenInOrderAndRootsForNullParent', async () => {
         const { data } = await loaded();
         expect(data.getChildren('root').map((o) => o.id)).toEqual(['a', 'b']);
-        expect(data.getChildren(null).map((o) => o.id)).toEqual(['root']);
+        expect(data.getChildren(null).map((o) => o.id)).toEqual(['root', 'empty']);
     });
 
     /**
@@ -334,19 +348,6 @@ describe('DataController: loading and reading', () => {
         await data.load();
         expect(data.getSnapshot().status).toBe('error');
         expect(data.getSnapshot().error).toBe('сеть недоступна');
-    });
-
-    /**
-     * Проверяет, что порядок вычисляется среди соседей
-     */
-    it('orderAt_computesOrderAmongSiblings', async () => {
-        const { data } = await loaded();
-        expect(data.orderAt('root', 0)).toBe(0); // перед первым
-        expect(data.orderAt('root', 1)).toBe(1.5); // между a и b
-        expect(data.orderAt('root', 2)).toBe(3); // в конец
-        expect(data.orderAt('empty', 0)).toBe(0); // нет соседей
-        // перемещаемый объект исключается из соседей: a между началом и b -> перед b
-        expect(data.orderAt('root', 1, 'a')).toBe(3);
     });
 });
 

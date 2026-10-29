@@ -135,9 +135,9 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
             await EnsureSingletonAsync(context, type, parent);
         }
 
-        var order = operation.TryGetProperty("order", out var orderElement) && orderElement.ValueKind == JsonValueKind.Number
-            ? orderElement.GetDouble()
-            : 0;
+        var number = operation.TryGetProperty("number", out var numberElement)
+            ? ReadNumber(numberElement, "number")
+            : 1;
         var properties = new JsonObject();
         if (operation.TryGetProperty("properties", out var propertiesElement))
         {
@@ -157,16 +157,16 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
 
         await context.ExecuteAsync(
             """
-            insert into objects (id, type_id, parent_id, owner_id, sort_order, properties)
-            values (@id, @typeName, @parent, @userId, @order, @properties)
+            insert into objects (id, type_id, parent_id, owner_id, number, properties)
+            values (@id, @typeName, @parent, @userId, @number, @properties)
             """,
-            new { id, typeName, parent, context.UserId, order, properties = ToJsonElement(properties) });
+            new { id, typeName, parent, context.UserId, number, properties = ToJsonElement(properties) });
 
         var created = new JsonObject
         {
             ["type"] = typeName,
             ["parent"] = parent,
-            ["order"] = order,
+            ["number"] = number,
             ["properties"] = properties.DeepClone(),
         };
         await WriteJournalAsync(context, id, typeName, "create", property: null, old: null, @new: created, snapshot: null);
@@ -230,15 +230,15 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         var target = await ReadTargetAsync(context, operation);
         var changesParent = operation.TryGetProperty("parent", out var parentChange)
             && parentChange.ValueKind == JsonValueKind.Object;
-        var changesOrder = operation.TryGetProperty("order", out var orderChange)
-            && orderChange.ValueKind == JsonValueKind.Object;
-        if (!changesParent && !changesOrder)
+        var changesNumber = operation.TryGetProperty("number", out var numberChange)
+            && numberChange.ValueKind == JsonValueKind.Object;
+        if (!changesParent && !changesNumber)
         {
-            throw new ChangesetRejectedException("перемещение должно менять parent или order.");
+            throw new ChangesetRejectedException("перемещение должно менять parent или number.");
         }
 
         var parent = target.Parent;
-        var order = target.Order;
+        var number = target.Number;
         if (changesParent)
         {
             parent = await ReadNewParentAsync(context, target, parentChange);
@@ -247,18 +247,18 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
                 await EnsureSingletonAsync(context, context.Types[target.Type], parent, target.Id);
             }
         }
-        if (changesOrder)
+        if (changesNumber)
         {
-            order = ReadNewOrder(target, orderChange);
+            number = ReadNewNumber(target, numberChange);
         }
 
         await context.ExecuteAsync(
-            "update objects set parent_id = @parent, sort_order = @order where id = @id",
-            new { id = target.Id, parent, order });
+            "update objects set parent_id = @parent, number = @number where id = @id",
+            new { id = target.Id, parent, number });
         await WriteJournalAsync(
             context, target.Id, target.Type, "move", property: null,
-            old: new JsonObject { ["parent"] = target.Parent, ["order"] = target.Order },
-            @new: new JsonObject { ["parent"] = parent, ["order"] = order },
+            old: new JsonObject { ["parent"] = target.Parent, ["number"] = target.Number },
+            @new: new JsonObject { ["parent"] = parent, ["number"] = number },
             snapshot: null);
     }
 
@@ -297,23 +297,36 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
     }
 
     /// <summary>
-    /// Проверяет «было» для order и возвращает новый порядок
+    /// Проверяет «было» для number и возвращает новый номер
     /// </summary>
-    private static double ReadNewOrder(ObjectRecord target, JsonElement change)
+    private static int ReadNewNumber(ObjectRecord target, JsonElement change)
     {
-        if (!change.TryGetProperty("old", out var expectedOld)
-            || !change.TryGetProperty("new", out var newValue)
-            || newValue.ValueKind != JsonValueKind.Number)
+        if (!change.TryGetProperty("old", out var expectedOld) || !change.TryGetProperty("new", out var newValue))
         {
-            throw new ChangesetRejectedException("для order нужны значения old (было) и new (стало, число).");
+            throw new ChangesetRejectedException("для number нужны значения old (было) и new (стало, целое ≥ 1).");
         }
-        if (expectedOld.ValueKind != JsonValueKind.Number || expectedOld.GetDouble() != target.Order)
+        var number = ReadNumber(newValue, "number.new");
+        if (expectedOld.ValueKind != JsonValueKind.Number
+            || !expectedOld.TryGetInt32(out var currentNumber)
+            || currentNumber != target.Number)
         {
             throw new ChangesetRejectedException(
-                "порядок (order) изменился с момента загрузки (значение «было» не совпало с текущим). Обновите данные.",
+                "номер (number) изменился с момента загрузки (значение «было» не совпало с текущим). Обновите данные.",
                 conflict: true);
         }
-        return newValue.GetDouble();
+        return number;
+    }
+
+    /// <summary>
+    /// «Номер» — целое число не меньше 1
+    /// </summary>
+    private static int ReadNumber(JsonElement element, string name)
+    {
+        if (element.ValueKind != JsonValueKind.Number || !element.TryGetInt32(out var number) || number < 1)
+        {
+            throw new ChangesetRejectedException($"{name} должен быть целым числом не меньше 1.");
+        }
+        return number;
     }
 
     private static async Task DeleteAsync(ChangesetContext context, JsonElement operation)
@@ -331,7 +344,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         {
             ["type"] = target.Type,
             ["parent"] = target.Parent,
-            ["order"] = target.Order,
+            ["number"] = target.Number,
             ["properties"] = JsonNode.Parse(target.Properties.GetRawText()),
         };
         await context.ExecuteAsync("delete from objects where id = @id", new { id = target.Id });
@@ -400,7 +413,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
     private static Task<ObjectRecord?> ReadOwnObjectAsync(ChangesetContext context, Guid id) =>
         context.QueryOneAsync<ObjectRecord>(
             """
-            select id as Id, type_id as Type, parent_id as Parent, sort_order as "Order", properties as Properties
+            select id as Id, type_id as Type, parent_id as Parent, number as "Number", properties as Properties
             from objects where id = @id and owner_id = @userId for update
             """,
             new { id, context.UserId });

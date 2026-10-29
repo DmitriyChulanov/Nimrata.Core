@@ -9,7 +9,7 @@
           "id": "00000000-0000-4000-8000-000000000021",
           "type": "Single",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -24,7 +24,7 @@
           "id": "00000000-0000-4000-8000-000000000021",
           "type": "Single",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -34,7 +34,7 @@
           "id": "00000000-0000-4000-8000-000000000022",
           "type": "Single",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -51,21 +51,21 @@
           "id": "00000000-0000-4000-8000-000000000001",
           "type": "Folder",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         },
         {
           "id": "00000000-0000-4000-8000-000000000002",
           "type": "Folder",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         },
         {
           "id": "00000000-0000-4000-8000-000000000021",
           "type": "Single",
           "parent": "00000000-0000-4000-8000-000000000001",
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -75,7 +75,7 @@
           "id": "00000000-0000-4000-8000-000000000022",
           "type": "Single",
           "parent": "00000000-0000-4000-8000-000000000002",
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -90,14 +90,14 @@
           "id": "00000000-0000-4000-8000-000000000001",
           "type": "Folder",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         },
         {
           "id": "00000000-0000-4000-8000-000000000021",
           "type": "Single",
           "parent": "00000000-0000-4000-8000-000000000001",
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -107,7 +107,7 @@
           "id": "00000000-0000-4000-8000-000000000022",
           "type": "Single",
           "parent": "00000000-0000-4000-8000-000000000001",
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -124,7 +124,7 @@
           "id": "00000000-0000-4000-8000-000000000061",
           "type": "SettingsRoot",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -134,7 +134,7 @@
           "id": "00000000-0000-4000-8000-000000000051",
           "type": "SettingsRoot",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -151,21 +151,21 @@
           "id": "00000000-0000-4000-8000-000000000001",
           "type": "Folder",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         },
         {
           "id": "00000000-0000-4000-8000-000000000021",
           "type": "Single",
           "parent": "00000000-0000-4000-8000-000000000001",
-          "order": 1,
+          "number": 1,
           "properties": {}
         },
         {
           "id": "00000000-0000-4000-8000-000000000022",
           "type": "Single",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -192,14 +192,14 @@
           "id": "00000000-0000-4000-8000-000000000001",
           "type": "Folder",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         },
         {
           "id": "00000000-0000-4000-8000-000000000021",
           "type": "Single",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -224,7 +224,7 @@
           "id": "00000000-0000-4000-8000-000000000021",
           "type": "Single",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -232,7 +232,7 @@
         {
           "op": "move",
           "id": "00000000-0000-4000-8000-000000000021",
-          "order": {
+          "number": {
             "old": 1,
             "new": 2
           }
@@ -249,7 +249,7 @@
           "id": "00000000-0000-4000-8000-000000000021",
           "type": "Single",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -259,7 +259,7 @@
           "id": "00000000-0000-4000-8000-000000000021",
           "type": "Item",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],

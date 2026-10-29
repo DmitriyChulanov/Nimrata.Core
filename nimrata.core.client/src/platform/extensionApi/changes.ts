@@ -34,7 +34,7 @@ export function cancelIfFailed(result: Outcome): HookResult {
  * @param parent - идентификатор родителя или `null` для корня
  * @param type - тип объекта
  * @param properties - начальные свойства
- * @param order - порядок среди соседей
+ * @param number - номер среди соседей
  * @returns идентификатор созданного объекта
  */
 export function createNode(
@@ -42,9 +42,9 @@ export function createNode(
     parent: string | null,
     type: string,
     properties: Record<string, unknown> = {},
-    order?: number,
+    number?: number,
 ): string {
-    const result = tx.create({ type, parent, properties, order });
+    const result = tx.create({ type, parent, properties, number });
     orThrow(result);
     return result.ok ? result.id : '';
 }

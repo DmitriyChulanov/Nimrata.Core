@@ -34,7 +34,7 @@ export interface TreeRow extends TreeNode {
 
 /**
  * Потомки родителя в порядке дерева, включая скрытые в дереве типы:
- * по `order`, затем по названию (collator `ru`), затем по идентификатору
+ * по `number`, затем по названию (collator `ru`), затем по идентификатору
  *
  * @param reader - доступ к дереву
  * @param parent - идентификатор родителя; `null` — корень
@@ -46,7 +46,7 @@ function sortedNodes(reader: TreeReader, parent: string | null): TreeNode[] {
         .map((object) => ({ object, title: objectLabel(reader, object) }))
         .sort(
             (a, b) =>
-                a.object.order - b.object.order ||
+                a.object.number - b.object.number ||
                 collator.compare(a.title, b.title) ||
                 (a.object.id < b.object.id ? -1 : 1),
         );
@@ -122,4 +122,59 @@ export function expandToReveal(
     const missing = object ? ancestors(reader, object).filter((o) => !expanded.has(o.id)) : [];
     if (missing.length === 0) return expanded;
     return new Set([...expanded, ...missing.map((o) => o.id)]);
+}
+
+/**
+ * Идентификаторы узлов с видимыми потомками среди выбранных узлов и всех их потомков
+ *
+ * @param reader - доступ к дереву
+ * @param ids - выбранные узлы
+ * @returns узлы, которые можно раскрыть или свернуть
+ */
+export function branchesOf(reader: TreeReader, ids: readonly string[]): string[] {
+    const result: string[] = [];
+    const seen = new Set<string>();
+    const walk = (id: string) => {
+        if (seen.has(id)) return;
+        seen.add(id);
+        if (!hasChildren(reader, id)) return;
+        result.push(id);
+        for (const child of visibleChildren(reader, id)) walk(child.object.id);
+    };
+    for (const id of ids) if (reader.getObject(id)) walk(id);
+    return result;
+}
+
+/**
+ * Раскрывает выбранные узлы вместе со всей иерархией потомков
+ *
+ * @param reader - доступ к дереву
+ * @param expanded - идентификаторы раскрытых узлов
+ * @param ids - выбранные узлы
+ * @returns новый набор раскрытых узлов
+ */
+export function expandSubtrees(
+    reader: TreeReader,
+    expanded: ReadonlySet<string>,
+    ids: readonly string[],
+): ReadonlySet<string> {
+    return new Set([...expanded, ...branchesOf(reader, ids)]);
+}
+
+/**
+ * Сворачивает выбранные узлы вместе со всей иерархией потомков
+ *
+ * @param reader - доступ к дереву
+ * @param expanded - идентификаторы раскрытых узлов
+ * @param ids - выбранные узлы
+ * @returns новый набор раскрытых узлов
+ */
+export function collapseSubtrees(
+    reader: TreeReader,
+    expanded: ReadonlySet<string>,
+    ids: readonly string[],
+): ReadonlySet<string> {
+    const next = new Set(expanded);
+    for (const id of branchesOf(reader, ids)) next.delete(id);
+    return next;
 }

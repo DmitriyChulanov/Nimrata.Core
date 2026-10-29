@@ -32,7 +32,7 @@ const stored = (id: string, type: string, parent: string | null = null) => ({
     id,
     type,
     parent,
-    order: 0,
+    number: 0,
     properties: {},
 });
 

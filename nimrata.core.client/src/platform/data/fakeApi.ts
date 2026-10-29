@@ -54,7 +54,7 @@ interface Known {
     type: string;
     /** Идентификатор родителя; `null` — корень */
     parent: string | null;
-    order: number;
+    number: number;
     properties: Record<string, unknown>;
 }
 
@@ -112,6 +112,16 @@ function checkParent(
  * Отказ набора (HTTP 422), как `ChangesetRejectedException` сервера
  */
 const rejected = (message: string, code?: string): ApiError => new ApiError(422, message, code);
+
+/**
+ * «Номер» — целое число не меньше 1
+ */
+function checkNumber(value: unknown): number {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+        throw rejected('number должен быть целым числом не меньше 1.');
+    }
+    return value;
+}
 
 /**
  * Отказ набора из-за расхождения с текущими данными (HTTP 409)
@@ -272,13 +282,13 @@ export function createFakeApi(
             id: string;
             type: string;
             parent: string | null;
-            order?: number;
+            number?: number;
             properties?: Record<string, unknown>;
         }[]) {
             known.set(o.id, {
                 type: o.type,
                 parent: o.parent ?? null,
-                order: o.order ?? 0,
+                number: o.number ?? 1,
                 properties: o.properties ?? {},
             });
         }
@@ -334,7 +344,7 @@ export function createFakeApi(
                 known.set(id, {
                     type: typeId,
                     parent,
-                    order: (op.order as number | undefined) ?? 0,
+                    number: op.number === undefined ? 1 : checkNumber(op.number),
                     properties,
                 });
             } else if (op.op === 'update') {
@@ -358,8 +368,8 @@ export function createFakeApi(
             } else if (op.op === 'move') {
                 const target = targetOf(id);
                 const parentChange = op.parent as { old?: string | null; new: string | null };
-                const orderChange = op.order as { old?: number; new: number } | undefined;
-                let { parent, order } = target;
+                const numberChange = op.number as { old?: number; new: number } | undefined;
+                let { parent, number } = target;
                 if (parentChange) {
                     if (!valuesEqual(target.parent, parentChange.old)) {
                         throw conflict(
@@ -383,15 +393,15 @@ export function createFakeApi(
                     singletonGuard(target.type, parentChange.new, id);
                     parent = parentChange.new;
                 }
-                if (orderChange) {
-                    if (orderChange.old !== target.order) {
+                if (numberChange) {
+                    if (numberChange.old !== target.number) {
                         throw conflict(
-                            'порядок (order) изменился с момента загрузки (значение «было» не совпало с текущим).',
+                            'номер (number) изменился с момента загрузки (значение «было» не совпало с текущим).',
                         );
                     }
-                    order = orderChange.new;
+                    number = checkNumber(numberChange.new);
                 }
-                known.set(id, { ...target, parent, order });
+                known.set(id, { ...target, parent, number });
             } else if (op.op === 'delete') {
                 targetOf(id);
                 for (const other of known.values()) {

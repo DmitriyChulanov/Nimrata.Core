@@ -1,7 +1,10 @@
 import { ancestors } from '@platform/objectQueries/objectQueries';
 
-import type { DataObject } from '@platform/data/DataController';
-import type { ObjectReader } from '@platform/objectQueries/objectQueries';
+import { nextNumber, planInsertion } from './numbering';
+import { childrenInOrder } from './treeModel';
+
+import type { NumberChange } from './numbering';
+import type { TreeReader } from './treeModel';
 
 /**
  * Куда относительно целевого узла опускается переносимый: перед ним, внутрь или после него
@@ -9,18 +12,17 @@ import type { ObjectReader } from '@platform/objectQueries/objectQueries';
 export type DropPosition = 'before' | 'inside' | 'after';
 
 /**
- * План переноса: допустим ли он и какие родитель и порядок получит узел
+ * План переноса: допустим ли он и какие изменения родителя и номеров он даёт
  */
-export type MovePlan = { ok: true; parent: string | null; order: number } | { ok: false };
+export type MovePlan = { ok: true; parent: string | null; changes: NumberChange[] } | { ok: false };
 
 /**
- * Планирует перенос узла: допустим ли он и какие родитель и порядок получит узел.
- * `siblings` отдаёт видимых потомков родителя в порядке показа (как их видит пользователь).
+ * Планирует перенос узла: допустим ли он, какой родитель у него будет и как изменятся номера.
+ * «До»/«после» узла перенумеровывают целевую коллекцию плотно (1..N), «внутрь» ставит узел последним.
  * Корень принимает любые типы; у остальных родителей тип должен входить в `allowedChildren`
  */
 export function planMove(
-    data: ObjectReader,
-    siblings: (parent: string | null) => DataObject[],
+    data: TreeReader,
     dragId: string,
     targetId: string,
     position: DropPosition,
@@ -44,24 +46,22 @@ export function planMove(
         if (!parentType?.allowedChildren?.includes(dragged.type)) return { ok: false };
     }
 
-    const others = siblings(parent).filter((o) => o.id !== dragId);
+    const all = childrenInOrder(data, parent);
+    const others = all.filter((o) => o.id !== dragId);
     const index =
         position === 'inside'
             ? others.length
             : others.findIndex((o) => o.id === target.id) + (position === 'after' ? 1 : 0);
-    const previous = others[index - 1];
-    const next = others[index];
-    const order =
-        previous && next
-            ? (previous.order + next.order) / 2
-            : previous
-              ? previous.order + 1
-              : next
-                ? next.order - 1
-                : 0;
 
-    if (parent === dragged.parent && order === dragged.order) return { ok: false };
-    return { ok: true, parent, order };
+    // Узел и так стоит на этом месте этой коллекции
+    if (parent === dragged.parent && all[index]?.id === dragId) return { ok: false };
+
+    const changes =
+        position === 'inside'
+            ? [{ id: dragId, parent, number: nextNumber(others) }]
+            : planInsertion(dragged, parent, others, index);
+    if (changes.length === 0) return { ok: false };
+    return { ok: true, parent, changes };
 }
 
 /**

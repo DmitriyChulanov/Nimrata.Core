@@ -132,8 +132,8 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
     /// <summary>
     /// Описывает операцию создания объекта
     /// </summary>
-    private static object Create(Guid id, string type, Guid? parent = null, double order = 1, object? properties = null) =>
-        new { op = "create", id, type, parent, order, properties = properties ?? new { } };
+    private static object Create(Guid id, string type, Guid? parent = null, int number = 1, object? properties = null) =>
+        new { op = "create", id, type, parent, number, properties = properties ?? new { } };
 
     /// <summary>
     /// Отправляет набор изменений
@@ -453,7 +453,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
 
         var update = await Apply(_me,
             new { op = "update", id = item, changes = new { title = new { old = (string?)null, @new = "x" } } });
-        var move = await Apply(_me, new { op = "move", id = item, order = new { old = 1, @new = 2 } });
+        var move = await Apply(_me, new { op = "move", id = item, number = new { old = 1, @new = 2 } });
         var delete = await Apply(_me, new { op = "delete", id = item });
 
         await AssertRejected(update, HttpStatusCode.UnprocessableEntity, "Расширение отключено", "extension_disabled");
@@ -587,7 +587,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
     {
         Guid group = Guid.CreateVersion7(), movable = Guid.CreateVersion7();
         await ApplyOk(_me, Create(group, "AlphaGroup"), Create(Guid.CreateVersion7(), "AlphaRoot", group),
-            Create(movable, "AlphaRoot", null, order: 2));
+            Create(movable, "AlphaRoot", null, number: 2));
 
         var response = await Apply(_me, new { op = "move", id = movable, parent = new { old = (Guid?)null, @new = group } });
 
@@ -603,10 +603,10 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
     public async Task Changeset_MoveSingletonToFreeParentOrChangeOrder_IsAccepted()
     {
         Guid group = Guid.CreateVersion7(), root = Guid.CreateVersion7();
-        await ApplyOk(_me, Create(group, "AlphaGroup"), Create(root, "AlphaRoot", null, order: 1));
+        await ApplyOk(_me, Create(group, "AlphaGroup"), Create(root, "AlphaRoot", null, number: 1));
 
         var toGroup = await Apply(_me, new { op = "move", id = root, parent = new { old = (Guid?)null, @new = group } });
-        var reorder = await Apply(_me, new { op = "move", id = root, order = new { old = 1, @new = 5 } });
+        var reorder = await Apply(_me, new { op = "move", id = root, number = new { old = 1, @new = 5 } });
 
         Assert.Equal(HttpStatusCode.OK, toGroup.StatusCode);
         Assert.Equal(HttpStatusCode.OK, reorder.StatusCode);

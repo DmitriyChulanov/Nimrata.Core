@@ -11,8 +11,8 @@
 {
   "name": "описание",
   "extensionEnabled": false,
-  "objects": [{ "id": "<guid>", "type": "Folder", "parent": null, "order": 1, "properties": {} }],
-  "operations": [{ "op": "create", "id": "<guid>", "type": "Item", "parent": null, "order": 1, "properties": {} }],
+  "objects": [{ "id": "<guid>", "type": "Folder", "parent": null, "number": 1, "properties": {} }],
+  "operations": [{ "op": "create", "id": "<guid>", "type": "Item", "parent": null, "number": 1, "properties": {} }],
   "expect": { "ok": false, "code": "singleton_exists", "conflict": true }
 }
 ```

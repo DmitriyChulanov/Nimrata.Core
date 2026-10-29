@@ -9,9 +9,9 @@ import type { ChangeScope, DataController, DataObject } from '@platform';
 import type { Ymd } from './dates';
 
 /**
- * Категории дня идут перед задачами (у задач порядок не меньше 0)
+ * Категории дня идут перед задачами (номер задачи не меньше 2)
  */
-const CATEGORY_ORDER = -1;
+const CATEGORY_NUMBER = 1;
 
 /**
  * Потомок `parent` одного из типов `types`, подходящий под условие
@@ -54,10 +54,10 @@ function ensureNode(
     type: string,
     match: (o: DataObject) => boolean,
     properties: Record<string, unknown>,
-    order: number,
+    number: number,
 ): string {
     return (
-        findChild(data, parent, type, match)?.id ?? createNode(tx, parent, type, properties, order)
+        findChild(data, parent, type, match)?.id ?? createNode(tx, parent, type, properties, number)
     );
 }
 
@@ -129,7 +129,7 @@ export function ensureCategory(
         CATEGORY,
         (o) => o.properties.name === name,
         { name },
-        CATEGORY_ORDER,
+        CATEGORY_NUMBER,
     );
 }
 

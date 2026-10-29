@@ -15,8 +15,8 @@ const types = [
 ];
 
 const objects = [
-    { id: 'a', type: 'Item', parent: null, order: 0, properties: { link: 'https://x.test' } },
-    { id: 'b', type: 'Item', parent: null, order: 1, properties: {} },
+    { id: 'a', type: 'Item', parent: null, number: 0, properties: { link: 'https://x.test' } },
+    { id: 'b', type: 'Item', parent: null, number: 1, properties: {} },
 ];
 
 /**

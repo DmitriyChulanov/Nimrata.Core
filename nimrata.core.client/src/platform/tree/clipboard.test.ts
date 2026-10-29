@@ -16,8 +16,8 @@ const types = [
     { id: 'Hidden', name: 'Механизм', extension: 't', extensionVersion: 1, hiddenInTree: true },
 ];
 
-function obj(id: string, type: string, parent: string | null, order: number, name?: string) {
-    return { id, type, parent, order, properties: name === undefined ? {} : { name } };
+function obj(id: string, type: string, parent: string | null, number: number, name?: string) {
+    return { id, type, parent, number, properties: name === undefined ? {} : { name } };
 }
 
 async function load(objects: unknown[]) {
@@ -31,10 +31,10 @@ async function load(objects: unknown[]) {
  */
 describe('clipboard: порядок', () => {
     /**
-     * Проверяет, что при равном `order` порядок выбирается по названию, как в дереве, а не по id
+     * Проверяет, что при равном `number` порядок выбирается по названию, как в дереве, а не по id
      */
     it('topLevelIds_equalOrder_followsVisibleTitleOrder', async () => {
-        // В дереве «Арбуз» (id b) идёт перед «Яблоком» (id a): при равном order решает название
+        // В дереве «Арбуз» (id b) идёт перед «Яблоком» (id a): при равном number решает название
         const data = await load([
             obj('a', 'Folder', null, 0, 'Яблоко'),
             obj('b', 'Folder', null, 0, 'Арбуз'),
@@ -44,7 +44,7 @@ describe('clipboard: порядок', () => {
     });
 
     /**
-     * Проверяет порядок снимков потомков при равном `order`; скрытый объект копируется как раньше
+     * Проверяет порядок снимков потомков при равном `number`; скрытый объект копируется как раньше
      */
     it('copySubtrees_equalOrder_followsVisibleOrder_andKeepsHiddenChildren', async () => {
         const data = await load([
@@ -67,7 +67,10 @@ describe('clipboard: порядок', () => {
      * Проверяет, что вложенный выделенный объект и несуществующий id не попадают в верхние
      */
     it('topLevelIds_descendantSelected_dropped', async () => {
-        const data = await load([obj('r', 'Folder', null, 0, 'Р'), obj('c', 'Folder', 'r', 0, 'К')]);
+        const data = await load([
+            obj('r', 'Folder', null, 0, 'Р'),
+            obj('c', 'Folder', 'r', 0, 'К'),
+        ]);
 
         expect(topLevelIds(data, ['c', 'r', 'нет'])).toEqual(['r']);
     });

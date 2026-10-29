@@ -2,6 +2,9 @@
 
 ## Не выпущено
 
+### Изменено («Номер» объекта)
+- Миграция `0025_objects_number.sql`: `objects.sort_order` (double) заменено целым `number` (`NOT NULL DEFAULT 1`, проверка `>= 1`). `ObjectRecord.Order` → `Number`. В операциях набора изменений `create` и `move` поле `order` стало `number`: целое ≥ 1, иначе отказ 422; без `number` при создании — 1; `move` проверяет «было» по `number` (409 при расхождении). `GET api/objects` сортирует по `number`. Обновлены контрактные сценарии `contracts/changeset/` и тесты.
+
 ### Добавлено (контракт Набора изменений)
 - Тесты `ChangesetContractTests`: JSON-сценарии `contracts/changeset/` (родитель, singleton, `extension_disabled`, значения свойств, «было») прогоняются против реального сервера (Testcontainers) и сверяются по признаку успеха, коду ошибки и конфликту (409); те же сценарии проверяет клиентский `fakeApi`. Поведение сервера не менялось.
 

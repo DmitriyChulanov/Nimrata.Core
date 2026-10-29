@@ -5,7 +5,16 @@ import { useData } from '@platform/data/useData';
 import { useSelection } from '@platform/selection/useSelection';
 import { Button } from '@platform/ui';
 
-import { commonProperties, sortItems, titleProperty, toSections } from './gridModel';
+import { applyNumberChanges, planNumberEdit } from '@platform/tree/numbering';
+
+import {
+    commonProperties,
+    NUMBER_PROPERTY_ID,
+    numberProperty,
+    sortItems,
+    titleProperty,
+    toSections,
+} from './gridModel';
 import { ReferenceEditor } from './ReferenceEditor';
 import './PropertyGrid.css';
 
@@ -324,16 +333,20 @@ export function PropertyGrid() {
     const type = data.getType(object.type);
 
     const title = titleProperty(object, objects, data.getTitle, data.getType);
+    // «Номер» правится у одного объекта: перенумерация соседей для группы неоднозначна
+    const number = ids.length === 1 ? numberProperty(object, data.getType) : null;
     const items: GridItem[] = [
-        ...[...commonProperties(object, objects, data.getType), ...(title ? [title] : [])].map(
-            (entry): GridItem => ({
-                kind: 'property',
-                id: entry.property.id,
-                order: entry.property.order,
-                category: entry.property.category,
-                entry,
-            }),
-        ),
+        ...[
+            ...commonProperties(object, objects, data.getType),
+            ...(title ? [title] : []),
+            ...(number ? [number] : []),
+        ].map((entry): GridItem => ({
+            kind: 'property',
+            id: entry.property.id,
+            order: entry.property.order,
+            category: entry.property.category,
+            entry,
+        })),
         ...data.getGroupActions(ids, 'propertyGrid').map(({ action, unavailable }): GridItem => ({
             kind: 'action',
             id: action.id,
@@ -349,6 +362,7 @@ export function PropertyGrid() {
 
     async function commit(property: PropertyDefinition, value: unknown): Promise<boolean> {
         setError(null);
+        if (property.id === NUMBER_PROPERTY_ID) return commitNumber(value);
         const result =
             ids.length === 1
                 ? await data.setProperty(object!.id, property.id, value)
@@ -360,6 +374,16 @@ export function PropertyGrid() {
                           tx.setProperty(id, property.id, value);
                       }
                   });
+        if (!result.ok) setError(result.error);
+        return result.ok;
+    }
+
+    async function commitNumber(value: unknown): Promise<boolean> {
+        if (typeof value !== 'number' || value < 1) {
+            setError('Номер: введите целое число не меньше 1.');
+            return false;
+        }
+        const result = await applyNumberChanges(data, planNumberEdit(data, object!, value));
         if (!result.ok) setError(result.error);
         return result.ok;
     }

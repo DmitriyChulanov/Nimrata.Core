@@ -19,7 +19,7 @@ const create = (id: string, type: string, parent: string | null) => ({
     id,
     type,
     parent,
-    order: 0,
+    number: 1,
     properties: {},
 });
 
@@ -27,7 +27,7 @@ const stored = (id: string, type: string) => ({
     id,
     type,
     parent: null,
-    order: 0,
+    number: 1,
     properties: {},
 });
 

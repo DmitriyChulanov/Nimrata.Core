@@ -25,9 +25,15 @@ const types = [
 ];
 
 const objects = [
-    { id: 'root', type: 'Folder', parent: null, order: 0, properties: {} },
-    { id: 'other', type: 'Folder', parent: null, order: 1, properties: {} },
-    { id: 't1', type: 'Task', parent: 'root', order: 0, properties: { title: 'A', status: 'new' } },
+    { id: 'root', type: 'Folder', parent: null, number: 0, properties: {} },
+    { id: 'other', type: 'Folder', parent: null, number: 1, properties: {} },
+    {
+        id: 't1',
+        type: 'Task',
+        parent: 'root',
+        number: 0,
+        properties: { title: 'A', status: 'new' },
+    },
 ];
 
 async function loaded() {
@@ -331,7 +337,7 @@ describe('DataController: actions', () => {
             ],
         },
     ];
-    const actionObjects = [{ id: 'j', type: 'Job', parent: null, order: 0, properties: {} }];
+    const actionObjects = [{ id: 'j', type: 'Job', parent: null, number: 0, properties: {} }];
 
     async function withActions() {
         const api = createFakeApi(actionTypes, actionObjects);

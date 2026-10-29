@@ -74,7 +74,9 @@ function completeNote(data: DataController, note: DataObject, tx: ChangeScope): 
             .find((o) => o.type === NOTE_GROUP && o.properties.name === name);
         container = existing?.id ?? createNode(tx, container, NOTE_GROUP, { name });
     }
-    orThrow(tx.move(note.id, { parent: container }));
+    // В завершённых заметка встаёт последней среди соседей
+    const number = data.getChildren(container).reduce((max, o) => Math.max(max, o.number), 0) + 1;
+    orThrow(tx.move(note.id, { parent: container, number }));
 }
 
 /**

@@ -28,8 +28,8 @@ const types = [
     },
 ];
 
-function obj(id: string, type: string, parent: string | null, order: number, name: string) {
-    return { id, type, parent, order, properties: { name } };
+function obj(id: string, type: string, parent: string | null, number: number, name: string) {
+    return { id, type, parent, number, properties: { name } };
 }
 
 async function renderTree(objects: unknown[]) {
@@ -102,6 +102,23 @@ describe('Tree: move by dragging', () => {
         drag('Лист', 'Группа', 2);
 
         await waitFor(() => expect(names()).toEqual(['Папка', 'Лист', 'Группа', 'Заметка']));
+    });
+
+    /**
+     * Проверяет, что перенос «до» перенумеровывает коллекцию плотно одним набором изменений
+     */
+    it('treeDnd_dropBefore_renumbersCollectionDenselyInOneChangeset', async () => {
+        const { api, controller } = await renderTree([
+            obj('a', 'Note', null, 1, 'А'),
+            obj('b', 'Note', null, 5, 'Б'),
+            obj('c', 'Note', null, 5, 'В'),
+        ]);
+
+        drag('В', 'Б', 2);
+
+        await waitFor(() => expect(names()).toEqual(['А', 'В', 'Б']));
+        expect(['a', 'b', 'c'].map((id) => controller.getObject(id)?.number)).toEqual([1, 3, 2]);
+        expect(api.changesets).toHaveLength(1);
     });
 
     /**

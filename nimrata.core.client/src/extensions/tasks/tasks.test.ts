@@ -267,7 +267,7 @@ describe('Tracker: categories', () => {
 /**
  * Дни, порядок и выходные
  */
-describe('Tracker: days, order, weekends', () => {
+describe('Tracker: days, number, weekends', () => {
     /**
      * Проверяет, что суббота и воскресенье — выходные дни, а будни — обычные
      */
@@ -302,9 +302,9 @@ describe('Tracker: days, order, weekends', () => {
         await createTask(data, root, { name: 'b', date: '2026-02-20' });
         await createTask(data, root, { name: 'c', date: '2026-02-03' });
 
-        const months = [...data.getChildren(root.id)].sort((x, y) => x.order - y.order);
+        const months = [...data.getChildren(root.id)].sort((x, y) => x.number - y.number);
         expect(months.map((m) => m.properties.date)).toEqual(['2026-02-01', '2026-12-01']);
-        const days = [...data.getChildren(months[0].id)].sort((x, y) => x.order - y.order);
+        const days = [...data.getChildren(months[0].id)].sort((x, y) => x.number - y.number);
         expect(days.map((d) => d.properties.date)).toEqual(['2026-02-03', '2026-02-20']);
     });
 
@@ -318,7 +318,7 @@ describe('Tracker: days, order, weekends', () => {
         await createTask(data, root, { name: 'a', date: '2027-01-10' });
         await createTask(data, root, { name: 'b', date: '2026-12-10' });
 
-        const months = [...data.getChildren(root.id)].sort((x, y) => x.order - y.order);
+        const months = [...data.getChildren(root.id)].sort((x, y) => x.number - y.number);
         expect(months.map((m) => m.properties.date)).toEqual(['2026-12-01', '2027-01-01']);
     });
 
@@ -340,7 +340,7 @@ describe('Tracker: days, order, weekends', () => {
 /**
  * Порядок задач в дне
  */
-describe('Tracker: task order in a day', () => {
+describe('Tracker: task number in a day', () => {
     /**
      * Проверяет, что задачи дня упорядочены по времени независимо от порядка создания, а без времени идут первыми
      */
@@ -354,12 +354,8 @@ describe('Tracker: task order in a day', () => {
         await data.setProperty(findTask(data, 'Ранняя').id, 'time', '09:00');
 
         const day = data.getChildren(data.getChildren(root.id)[0].id)[0];
-        const ordered = [...data.getChildren(day.id)].sort((a, b) => a.order - b.order);
-        expect(ordered.map((t) => t.properties.name)).toEqual([
-            'Без времени',
-            'Ранняя',
-            'Поздняя',
-        ]);
+        const ordered = [...data.getChildren(day.id)].sort((a, b) => a.number - b.number);
+        expect(ordered.map((t) => t.properties.name)).toEqual(['Без времени', 'Ранняя', 'Поздняя']);
     });
 });
 

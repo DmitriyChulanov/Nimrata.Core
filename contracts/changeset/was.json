@@ -7,7 +7,7 @@
           "id": "00000000-0000-4000-8000-000000000011",
           "type": "Item",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {
             "title": "a"
           }
@@ -36,7 +36,7 @@
           "id": "00000000-0000-4000-8000-000000000011",
           "type": "Item",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {
             "title": "a"
           }
@@ -66,7 +66,7 @@
           "id": "00000000-0000-4000-8000-000000000011",
           "type": "Item",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -93,7 +93,7 @@
           "id": "00000000-0000-4000-8000-000000000011",
           "type": "Item",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {
             "title": "a"
           }
@@ -123,7 +123,7 @@
           "id": "00000000-0000-4000-8000-000000000011",
           "type": "Item",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -151,21 +151,21 @@
           "id": "00000000-0000-4000-8000-000000000001",
           "type": "Folder",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         },
         {
           "id": "00000000-0000-4000-8000-000000000002",
           "type": "Folder",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         },
         {
           "id": "00000000-0000-4000-8000-000000000011",
           "type": "Item",
           "parent": "00000000-0000-4000-8000-000000000001",
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -191,21 +191,21 @@
           "id": "00000000-0000-4000-8000-000000000001",
           "type": "Folder",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         },
         {
           "id": "00000000-0000-4000-8000-000000000002",
           "type": "Folder",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         },
         {
           "id": "00000000-0000-4000-8000-000000000011",
           "type": "Item",
           "parent": "00000000-0000-4000-8000-000000000001",
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -230,7 +230,7 @@
           "id": "00000000-0000-4000-8000-000000000011",
           "type": "Item",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -238,7 +238,7 @@
         {
           "op": "move",
           "id": "00000000-0000-4000-8000-000000000011",
-          "order": {
+          "number": {
             "old": 5,
             "new": 6
           }
@@ -256,7 +256,7 @@
           "id": "00000000-0000-4000-8000-000000000011",
           "type": "Item",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {}
         }
       ],
@@ -264,7 +264,7 @@
         {
           "op": "move",
           "id": "00000000-0000-4000-8000-000000000011",
-          "order": {
+          "number": {
             "old": 1,
             "new": 6
           }
@@ -281,7 +281,7 @@
           "id": "00000000-0000-4000-8000-000000000011",
           "type": "Item",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {
             "title": "a"
           }
@@ -320,7 +320,7 @@
           "id": "00000000-0000-4000-8000-000000000011",
           "type": "Item",
           "parent": null,
-          "order": 1,
+          "number": 1,
           "properties": {
             "title": "a"
           }

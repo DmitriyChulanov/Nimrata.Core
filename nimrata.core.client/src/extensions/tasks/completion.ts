@@ -65,7 +65,7 @@ function relocate(
     let container = ensureDay(data, tx, base, ymd);
     for (const name of chain) container = ensureCategory(data, tx, container, name);
 
-    orThrow(tx.move(task.id, { parent: container, order: taskOrder(task) }));
+    orThrow(tx.move(task.id, { parent: container, number: taskOrder(task) }));
     pruneEmptyCategories(data, tx, oldParent);
 }
 

@@ -107,13 +107,13 @@ it('extensions_firstLoginWithoutRoots_createsEachExtensionStartStructureInItsOwn
  */
 it('extensions_loginWithExistingRoots_createsNoDuplicatesAndSendsNoChangesets', async () => {
     const { api } = stubServer([
-        { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
-        { id: 'n', type: 'NotesRoot', parent: null, order: 1, properties: {} },
-        { id: 'na', type: 'ActiveNotesRoot', parent: 'n', order: 0, properties: {} },
-        { id: 'nc', type: 'CompletedNotesRoot', parent: 'n', order: 1, properties: {} },
-        { id: 's', type: 'SettingsRoot', parent: null, order: 2, properties: {} },
-        { id: 'ts', type: 'TasksSettings', parent: 's', order: 0, properties: {} },
-        { id: 'ct', type: 'CategoryTemplates', parent: 'ts', order: 0, properties: {} },
+        { id: 't', type: 'TasksRoot', parent: null, number: 0, properties: {} },
+        { id: 'n', type: 'NotesRoot', parent: null, number: 1, properties: {} },
+        { id: 'na', type: 'ActiveNotesRoot', parent: 'n', number: 0, properties: {} },
+        { id: 'nc', type: 'CompletedNotesRoot', parent: 'n', number: 1, properties: {} },
+        { id: 's', type: 'SettingsRoot', parent: null, number: 2, properties: {} },
+        { id: 'ts', type: 'TasksSettings', parent: 's', number: 0, properties: {} },
+        { id: 'ct', type: 'CategoryTemplates', parent: 'ts', number: 0, properties: {} },
     ]);
     render(<App />);
 
@@ -141,17 +141,17 @@ it('extensions_serverRejectsRepeatsTopUp_showsErrorToUser', async () => {
     const today = todayIso();
     const month = `${today.slice(0, 8)}01`;
     const { api } = stubServer([
-        { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
-        { id: 'c', type: 'CurrentTasksRoot', parent: 't', order: 0, properties: {} },
-        { id: 'x', type: 'CompletedTasksRoot', parent: 't', order: 1, properties: {} },
-        { id: 'n', type: 'NotesRoot', parent: null, order: 1, properties: {} },
-        { id: 'm', type: 'Month', parent: 'c', order: 0, properties: { date: month } },
-        { id: 'd', type: 'Day', parent: 'm', order: 0, properties: { date: today } },
+        { id: 't', type: 'TasksRoot', parent: null, number: 0, properties: {} },
+        { id: 'c', type: 'CurrentTasksRoot', parent: 't', number: 0, properties: {} },
+        { id: 'x', type: 'CompletedTasksRoot', parent: 't', number: 1, properties: {} },
+        { id: 'n', type: 'NotesRoot', parent: null, number: 1, properties: {} },
+        { id: 'm', type: 'Month', parent: 'c', number: 0, properties: { date: month } },
+        { id: 'd', type: 'Day', parent: 'm', number: 0, properties: { date: today } },
         {
             id: 'k',
             type: 'Task',
             parent: 'd',
-            order: 0,
+            number: 0,
             properties: { title: 'Ежедневно', repeat: 'weekly', repeatId: 'r1' },
         },
     ]);

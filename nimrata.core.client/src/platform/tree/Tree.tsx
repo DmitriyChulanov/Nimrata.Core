@@ -10,8 +10,16 @@ import { TypeIcon } from './TypeIcon';
 import { useSelection } from '@platform/selection/useSelection';
 
 import { canPaste, copySubtrees, pasteSubtrees, topLevelIds } from './clipboard';
+import { applyNumberChanges } from './numbering';
 import { planMove, positionInRow } from './planMove';
-import { expandToReveal, flatten, visibleChildren } from './treeModel';
+import {
+    branchesOf,
+    collapseSubtrees,
+    expandSubtrees,
+    expandToReveal,
+    flatten,
+    visibleChildren,
+} from './treeModel';
 import { colorPresentation, resolveRuleColor } from './colorRules';
 import './ruleColors.css';
 
@@ -230,14 +238,11 @@ export function Tree() {
         position: DropPosition;
         valid: boolean;
     } | null>(null);
-    const siblingsOf = (parent: string | null) =>
-        visibleChildren(data, parent).map((c) => c.object);
-
     const moveTo = async (id: string, target: string, position: DropPosition) => {
-        const plan = planMove(data, siblingsOf, id, target, position);
+        const plan = planMove(data, id, target, position);
         if (!plan.ok) return;
         setError(null);
-        const result = await data.move(id, { parent: plan.parent, order: plan.order });
+        const result = await applyNumberChanges(data, plan.changes);
         if (!result.ok) setError(result.error);
         else if (plan.parent !== null) setExpanded((prev) => new Set(prev).add(plan.parent!));
     };
@@ -247,7 +252,7 @@ export function Tree() {
      */
     const onMoveKey = (e: ReactKeyboardEvent, object: DataObject) => {
         if (!e.altKey) return;
-        const siblings = siblingsOf(object.parent);
+        const siblings = visibleChildren(data, object.parent).map((c) => c.object);
         const index = siblings.findIndex((s) => s.id === object.id);
         const steps: Record<string, [DataObject | null | undefined, DropPosition]> = {
             ArrowUp: [siblings[index - 1], 'before'],
@@ -299,6 +304,25 @@ export function Tree() {
                 onSelect: () => void pasteInto(single.id),
             });
         }
+
+        // Свернуть и развернуть действуют на всю иерархию выбранных узлов
+        const branches = branchesOf(data, ids);
+        edit.push(
+            {
+                id: 'collapse',
+                label: 'Свернуть',
+                icon: 'arrows-in-vertical',
+                disabled: branches.length === 0,
+                onSelect: () => setExpanded((prev) => collapseSubtrees(data, prev, ids)),
+            },
+            {
+                id: 'expand',
+                label: 'Развернуть',
+                icon: 'arrows-out-vertical',
+                disabled: branches.length === 0,
+                onSelect: () => setExpanded((prev) => expandSubtrees(data, prev, ids)),
+            },
+        );
 
         // Действие доступно группе, если оно есть у каждого выделенного объекта
         const [firstTarget, ...others] = targets;
@@ -414,13 +438,7 @@ export function Tree() {
                                         e.clientY - rect.top,
                                         ROW_HEIGHT,
                                     );
-                                    const valid = planMove(
-                                        data,
-                                        siblingsOf,
-                                        drag.id,
-                                        object.id,
-                                        position,
-                                    ).ok;
+                                    const valid = planMove(data, drag.id, object.id, position).ok;
                                     if (valid) e.preventDefault();
                                     if (e.dataTransfer) {
                                         e.dataTransfer.dropEffect = valid ? 'move' : 'none';

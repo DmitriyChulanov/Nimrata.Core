@@ -23,12 +23,12 @@ export function taskTitle(task: DataObject): string | undefined {
 }
 
 /**
- * Порядок задачи среди соседей: без времени — 0, иначе 1 + минуты от полуночи
+ * Номер задачи среди соседей: без времени — 2, иначе 2 + минуты от полуночи (номер 1 у категорий дня)
  */
 export function taskOrder(task: DataObject): number {
     const time = task.properties.time;
-    if (typeof time !== 'string' || !TIME.test(time)) return 0;
-    return 1 + Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
+    if (typeof time !== 'string' || !TIME.test(time)) return 2;
+    return 2 + Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
 }
 
 /**
@@ -37,8 +37,8 @@ export function taskOrder(task: DataObject): number {
 export function syncTaskOrder(data: DataController, id: string, tx: ChangeScope): HookResult {
     const task = data.getObject(id);
     if (!task) return;
-    const order = taskOrder(task);
-    if (task.order !== order) return cancelIfFailed(tx.move(id, { order }));
+    const number = taskOrder(task);
+    if (task.number !== number) return cancelIfFailed(tx.move(id, { number }));
 }
 
 /**

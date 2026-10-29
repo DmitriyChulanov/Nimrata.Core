@@ -146,8 +146,8 @@ export function describeEntry(entry: JournalEntry, resolver: JournalResolver): E
             }
             return {
                 what: 'Перенесён',
-                was: `порядок ${formatValue(was.order, resolver)}`,
-                became: `порядок ${formatValue(became.order, resolver)}`,
+                was: `номер ${formatValue(was.number, resolver)}`,
+                became: `номер ${formatValue(became.number, resolver)}`,
             };
         }
         case 'update':

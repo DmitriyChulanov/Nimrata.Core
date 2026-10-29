@@ -116,9 +116,9 @@ describe('Tasks: start structure under race', () => {
     it('startStructure_singletonExists_isAlreadyThereNotError', async () => {
         const { api, data } = await start();
         api.objects = [
-            { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
-            { id: 'c', type: 'CurrentTasksRoot', parent: 't', order: 0, properties: {} },
-            { id: 'x', type: 'CompletedTasksRoot', parent: 't', order: 1, properties: {} },
+            { id: 't', type: 'TasksRoot', parent: null, number: 0, properties: {} },
+            { id: 'c', type: 'CurrentTasksRoot', parent: 't', number: 0, properties: {} },
+            { id: 'x', type: 'CompletedTasksRoot', parent: 't', number: 1, properties: {} },
         ];
 
         const result = await ensureTasksStart(data);
@@ -158,7 +158,7 @@ describe('Tasks: user isolation', () => {
     it('isolation_structure_isCompletedFromObjectsServerGaveThisUser', async () => {
         // Сервер отдаёт пользователю только его объекты; у второго пользователя корней нет —
         // они создаются у него, а чужие объекты не появляются
-        const own = [{ id: 'r1', type: 'TasksRoot', parent: null, order: 0, properties: {} }];
+        const own = [{ id: 'r1', type: 'TasksRoot', parent: null, number: 0, properties: {} }];
         const first = await start(own);
         const second = await start([]);
 

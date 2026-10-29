@@ -45,10 +45,10 @@ function obj(
     id: string,
     type: string,
     parent: string | null,
-    order: number,
+    number: number,
     properties: Record<string, unknown> = {},
 ) {
-    return { id, type, parent, order, properties };
+    return { id, type, parent, number, properties };
 }
 
 const objects = [

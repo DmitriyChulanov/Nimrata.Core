@@ -40,8 +40,8 @@ const types = [
     },
 ];
 
-function obj(id: string, type: string, parent: string | null, order: number, name?: string) {
-    return { id, type, parent, order, properties: name === undefined ? {} : { name } };
+function obj(id: string, type: string, parent: string | null, number: number, name?: string) {
+    return { id, type, parent, number, properties: name === undefined ? {} : { name } };
 }
 
 function SelectionProbe() {
@@ -224,6 +224,8 @@ describe('Tree: context menu layout', () => {
             'Создать: Ссылка',
             'Копировать',
             'Вставить',
+            'Свернуть',
+            'Развернуть',
             '—',
             'Открыть',
             '—',
@@ -241,7 +243,14 @@ describe('Tree: context menu layout', () => {
 
         await rightClick(user, 'Ссыль');
 
-        expect(menuLabels()).toEqual(['Копировать', 'Вставить', '—', 'Удалить']);
+        expect(menuLabels()).toEqual([
+            'Копировать',
+            'Вставить',
+            'Свернуть',
+            'Развернуть',
+            '—',
+            'Удалить',
+        ]);
     });
 
     /**
@@ -256,7 +265,17 @@ describe('Tree: context menu layout', () => {
         const icons = screen
             .getAllByRole('menuitem')
             .map((i) => i.querySelector('svg')?.getAttribute('data-icon'));
-        expect(icons).toEqual(['plus', 'plus', 'plus', 'copy', 'clipboard', 'globe', 'trash-2']);
+        expect(icons).toEqual([
+            'plus',
+            'plus',
+            'plus',
+            'copy',
+            'clipboard',
+            'arrows-in-vertical',
+            'arrows-out-vertical',
+            'globe',
+            'trash-2',
+        ]);
     });
 });
 
@@ -321,8 +340,8 @@ describe('Tree: copy and paste', () => {
         const objects = [
             obj('f', 'Folder', null, 0, 'Папка'),
             obj('a', 'Note', 'f', 1, 'А'),
-            { id: 'in', type: 'Link', parent: 'f', order: 2, properties: { target: 'a' } },
-            { id: 'out', type: 'Link', parent: 'f', order: 3, properties: { target: 'l' } },
+            { id: 'in', type: 'Link', parent: 'f', number: 2, properties: { target: 'a' } },
+            { id: 'out', type: 'Link', parent: 'f', number: 3, properties: { target: 'l' } },
             obj('g', 'Folder', null, 1, 'Другая'),
             obj('l', 'Note', null, 2, 'Лист'),
         ];
@@ -403,7 +422,15 @@ describe('Tree: commands for a group', () => {
         await user.keyboard('{/Control}');
 
         await rightClick(user, 'Лист');
-        expect(menuLabels()).toEqual(['Копировать', '—', 'Открыть', '—', 'Удалить']);
+        expect(menuLabels()).toEqual([
+            'Копировать',
+            'Свернуть',
+            'Развернуть',
+            '—',
+            'Открыть',
+            '—',
+            'Удалить',
+        ]);
         expect(selected()).toBe('f,l');
         await user.keyboard('{Escape}');
 
@@ -443,7 +470,7 @@ describe('Tree: commands for a group', () => {
 
         await rightClick(user, 'Ссыль');
 
-        expect(menuLabels()).toEqual(['Копировать', '—', 'Удалить']);
+        expect(menuLabels()).toEqual(['Копировать', 'Свернуть', 'Развернуть', '—', 'Удалить']);
     });
 
     /**

@@ -46,7 +46,7 @@ describe('ensureCreated', () => {
     it('ensureCreated_singletonExists_isNotErrorAndReloadsData', async () => {
         const { api, data } = await loaded();
         // сервер уже содержит корень, созданный в другой вкладке; клиент о нём не знает
-        api.objects = [{ id: 'other', type: 'Root', parent: null, order: 0, properties: {} }];
+        api.objects = [{ id: 'other', type: 'Root', parent: null, number: 0, properties: {} }];
 
         const result = await ensureCreated(data, createRoot(data));
 
@@ -109,7 +109,7 @@ describe('ensureCreated', () => {
         api.rejectNext(409, 'расхождение');
         await data.perform((tx) => void tx.create({ type: 'Root', parent: null }));
         expect(data.getSnapshot().needsReload).toBe(true);
-        api.objects = [{ id: 'r', type: 'Root', parent: null, order: 0, properties: {} }];
+        api.objects = [{ id: 'r', type: 'Root', parent: null, number: 0, properties: {} }];
 
         const result = await ensureCreated(data, createRoot(data));
 

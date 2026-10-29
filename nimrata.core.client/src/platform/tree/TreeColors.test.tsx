@@ -29,8 +29,8 @@ const types = [
     { id: 'Plain', name: 'Простой', extension: 't', extensionVersion: 1 },
 ];
 
-function task(id: string, order: number, properties: Record<string, unknown>) {
-    return { id, type: 'Task', parent: null, order, properties: { name: id, ...properties } };
+function task(id: string, number: number, properties: Record<string, unknown>) {
+    return { id, type: 'Task', parent: null, number, properties: { name: id, ...properties } };
 }
 
 async function renderColored(objects: unknown[]) {
@@ -60,7 +60,7 @@ describe('Tree: color rules', () => {
         await renderColored([
             task('a', 0, { priority: 'high' }),
             task('b', 1, { priority: 'medium' }),
-            { id: 'p', type: 'Plain', parent: null, order: 2, properties: { name: 'p' } },
+            { id: 'p', type: 'Plain', parent: null, number: 2, properties: { name: 'p' } },
         ]);
 
         expect(colorOf('a')).toBe('red');

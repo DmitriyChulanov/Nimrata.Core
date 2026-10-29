@@ -26,7 +26,7 @@ export interface DataObject {
     /** Идентификатор типа объекта */
     type: string;
     parent: string | null;
-    order: number;
+    number: number;
     properties: Record<string, unknown>;
 }
 
@@ -76,8 +76,8 @@ export interface CreateInput {
     type: string;
     /** Родитель; `null` или отсутствие — корень */
     parent?: string | null;
-    /** Порядок среди соседей; без него объект добавляется последним */
-    order?: number;
+    /** Номер среди соседей (целое ≥ 1); без него — максимальный номер соседей плюс 1 */
+    number?: number;
     /** Начальные значения свойств */
     properties?: Record<string, unknown>;
 }
@@ -88,8 +88,8 @@ export interface CreateInput {
 export interface MoveInput {
     /** Новый родитель; `null` — корень; отсутствие — не менять */
     parent?: string | null;
-    /** Новый порядок среди соседей; отсутствие — не менять */
-    order?: number;
+    /** Новый номер среди соседей (целое ≥ 1); отсутствие — не менять */
+    number?: number;
 }
 
 /**
@@ -142,8 +142,8 @@ export interface HookContext {
     oldValue?: unknown;
     newValue?: unknown;
     /** `move`: прежнее и новое положение */
-    from?: { parent: string | null; order: number };
-    to?: { parent: string | null; order: number };
+    from?: { parent: string | null; number: number };
+    to?: { parent: string | null; number: number };
     /** Тот же набор изменений, что и у исходного действия пользователя */
     tx: ChangeScope;
 }
@@ -242,13 +242,8 @@ export interface DataController {
     /** Все загруженные типы */
     getTypes(): TypeDefinition[];
     getObject(id: string): DataObject | undefined;
-    /** Потомки родителя по возрастанию порядка; `null` — корневые объекты */
+    /** Потомки родителя по возрастанию номера; `null` — корневые объекты */
     getChildren(parent: string | null): DataObject[];
-    /**
-     * Порядок для вставки на позицию `index` среди потомков `parent`
-     * (объект `exclude` — перемещаемый, в соседи не входит)
-     */
-    orderAt(parent: string | null, index: number, exclude?: string): number;
     /** Создаёт объект (одно действие — один набор изменений) */
     create(input: CreateInput, options?: OperationOptions): Promise<CreateResult>;
     /** Меняет свойство; `null` удаляет значение */
@@ -408,6 +403,13 @@ interface HookEntry {
  * @param options - API-клиент и генератор идентификаторов
  * @returns контроллер с пустой моделью; данные загружает `load`
  */
+/**
+ * Номер для нового объекта среди соседей: максимальный плюс 1, а в пустой коллекции — 1
+ */
+function nextNumber(siblings: readonly DataObject[]): number {
+    return siblings.reduce((max, o) => Math.max(max, o.number), 0) + 1;
+}
+
 export function createDataController(options: DataControllerOptions): DataController {
     const { api } = options;
 
@@ -446,7 +448,7 @@ export function createDataController(options: DataControllerOptions): DataContro
                 else index.set(o.parent, [o]);
             }
             for (const list of index.values()) {
-                list.sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : 1));
+                list.sort((a, b) => a.number - b.number || (a.id < b.id ? -1 : 1));
             }
             childrenIndex = index;
         }
@@ -538,15 +540,14 @@ export function createDataController(options: DataControllerOptions): DataContro
                 }
                 const id = newId();
                 const siblings = getChildren(parent);
-                const lastSibling = siblings.at(-1);
-                const order = input.order ?? (lastSibling ? lastSibling.order + 1 : 0);
+                const number = input.number ?? nextNumber(siblings);
                 // Значения по умолчанию из определения типа; заданные явно приоритетнее
                 const properties: Record<string, unknown> = {};
                 for (const p of type.properties ?? []) {
                     if (p.default !== undefined && p.default !== null) properties[p.id] = p.default;
                 }
                 Object.assign(properties, input.properties);
-                const object: DataObject = { id, type: input.type, parent, order, properties };
+                const object: DataObject = { id, type: input.type, parent, number, properties };
 
                 const cancelled = runHooks(scope, tx, 'create', 'before', { object });
                 if (cancelled !== null) return refuse(scope, cancelled);
@@ -558,7 +559,7 @@ export function createDataController(options: DataControllerOptions): DataContro
                     id,
                     type: input.type,
                     parent,
-                    order,
+                    number,
                     properties,
                 });
 
@@ -618,12 +619,12 @@ export function createDataController(options: DataControllerOptions): DataContro
                         }
                     }
                 }
-                const order = to.order ?? object.order;
-                if (parent === object.parent && order === object.order) {
+                const number = to.number ?? object.number;
+                if (parent === object.parent && number === object.number) {
                     return refuse(scope, 'Перемещение ничего не меняет.');
                 }
-                const from = { parent: object.parent, order: object.order };
-                const target = { parent, order };
+                const from = { parent: object.parent, number: object.number };
+                const target = { parent, number };
                 const context = { object: snapshotOf(object), from, to: target };
 
                 const cancelled = runHooks(scope, tx, 'move', 'before', context);
@@ -633,9 +634,9 @@ export function createDataController(options: DataControllerOptions): DataContro
                 if (!current) return refuse(scope, 'Объект не найден.');
                 const operation: Extract<Operation, { op: 'move' }> = { op: 'move', id };
                 if (parent !== from.parent) operation.parent = { old: from.parent, new: parent };
-                if (order !== from.order) operation.order = { old: from.order, new: order };
+                if (number !== from.number) operation.number = { old: from.number, new: number };
                 touch(scope, id);
-                putObject({ ...current, parent, order });
+                putObject({ ...current, parent, number });
                 scope.operations.push(operation);
 
                 const failed = runHooks(scope, tx, 'move', 'after', {
@@ -825,17 +826,6 @@ export function createDataController(options: DataControllerOptions): DataContro
         getTypes: () => [...types.values()],
         getObject: (id) => objects.get(id),
         getChildren: (parent) => getChildren(parent),
-        orderAt(parent, index, exclude) {
-            const siblings = getChildren(parent, exclude);
-            const first = siblings[0];
-            const last = siblings.at(-1);
-            if (!first || !last) return 0;
-            if (index <= 0) return first.order - 1;
-            const before = siblings[index - 1];
-            const after = siblings[index];
-            if (!before || !after) return last.order + 1;
-            return (before.order + after.order) / 2;
-        },
         async create(input, opts) {
             let created: CreateResult = { ok: false, error: 'Объект не создан.' };
             const result = await execute((tx) => {

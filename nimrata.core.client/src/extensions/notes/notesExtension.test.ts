@@ -54,7 +54,7 @@ describe('Notes: start structure', () => {
      */
     it('startStructure_notesRootWithoutChildren_createsMissingRoots', async () => {
         const { api, data } = await start([
-            { id: 'n', type: 'NotesRoot', parent: null, order: 0, properties: {} },
+            { id: 'n', type: 'NotesRoot', parent: null, number: 0, properties: {} },
         ]);
 
         const result = await ensureNotesStart(data);
@@ -110,7 +110,7 @@ describe('Notes: start structure under race', () => {
     it('startStructure_singletonExists_isAlreadyThereNotError', async () => {
         const { api, data } = await start();
         // сервер уже содержит корень, клиент о нём не знает
-        api.objects = [{ id: 'n', type: 'NotesRoot', parent: null, order: 0, properties: {} }];
+        api.objects = [{ id: 'n', type: 'NotesRoot', parent: null, number: 0, properties: {} }];
 
         const result = await ensureNotesStart(data);
 
@@ -477,7 +477,7 @@ describe('Notes: user isolation', () => {
      * Проверяет, что корень достраивается по объектам, которые сервер отдал этому пользователю
      */
     it('isolation_root_isCreatedFromObjectsServerGaveThisUser', async () => {
-        const own = [{ id: 'r1', type: 'NotesRoot', parent: null, order: 0, properties: {} }];
+        const own = [{ id: 'r1', type: 'NotesRoot', parent: null, number: 0, properties: {} }];
         const first = await start(own);
         const second = await start([]);
 

@@ -18,8 +18,8 @@ const types = [
     { id: 'Item', name: 'Элемент', extension: 't', extensionVersion: 1, actions: [pick] },
 ];
 const objects = [
-    { id: 'a', type: 'Item', parent: null, order: 0, properties: {} },
-    { id: 'b', type: 'Item', parent: null, order: 1, properties: {} },
+    { id: 'a', type: 'Item', parent: null, number: 0, properties: {} },
+    { id: 'b', type: 'Item', parent: null, number: 1, properties: {} },
 ];
 
 /**

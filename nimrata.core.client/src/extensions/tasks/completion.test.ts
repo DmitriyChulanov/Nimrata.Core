@@ -307,7 +307,7 @@ describe('Tracker: complete and postpone', () => {
 
             await run(data, task(data, 'Дело'), 'postpone', { date: '2026-03-06' });
 
-            expect(task(data, 'Дело').order).toBe(1 + 9 * 60 + 30);
+            expect(task(data, 'Дело').number).toBe(2 + 9 * 60 + 30);
         });
 
         /**

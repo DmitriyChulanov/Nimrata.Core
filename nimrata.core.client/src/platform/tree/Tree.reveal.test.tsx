@@ -22,8 +22,8 @@ const types = [
     { id: 'Note', name: 'Заметка', extension: 't', extensionVersion: 1, icon: 'file-text' },
 ];
 
-function obj(id: string, type: string, parent: string | null, order: number, name: string) {
-    return { id, type, parent, order, properties: { name } };
+function obj(id: string, type: string, parent: string | null, number: number, name: string) {
+    return { id, type, parent, number, properties: { name } };
 }
 
 function RevealButton({ target }: { target: string }) {

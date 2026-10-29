@@ -23,8 +23,8 @@ const types = [
 ];
 
 const objects = [
-    { id: 'a', type: 'Item', parent: null, order: 0, properties: { name: 'Первый' } },
-    { id: 'b', type: 'Item', parent: null, order: 1, properties: {} },
+    { id: 'a', type: 'Item', parent: null, number: 0, properties: { name: 'Первый' } },
+    { id: 'b', type: 'Item', parent: null, number: 1, properties: {} },
 ];
 
 async function setup() {

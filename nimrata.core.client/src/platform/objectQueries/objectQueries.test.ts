@@ -7,7 +7,7 @@ import type { TypeDefinition } from '../types/types';
 import type { ObjectReader } from './objectQueries';
 
 function obj(id: string, parent: string | null, properties: DataObject['properties'] = {}) {
-    return { id, type: 'folder', parent, order: 0, properties } as DataObject;
+    return { id, type: 'folder', parent, number: 0, properties } as DataObject;
 }
 
 function readerOf(objects: DataObject[], types: Partial<TypeDefinition>[] = []): ObjectReader {

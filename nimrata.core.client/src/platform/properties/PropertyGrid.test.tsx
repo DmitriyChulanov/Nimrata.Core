@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -47,12 +47,12 @@ const types = [
 ];
 
 const objects = [
-    { id: 'p', type: 'Person', parent: null, order: 0, properties: { name: 'Иван' } },
+    { id: 'p', type: 'Person', parent: null, number: 0, properties: { name: 'Иван' } },
     {
         id: 't',
         type: 'Task',
         parent: null,
-        order: 1,
+        number: 1,
         properties: { title: 'Первая', code: 'A-1', owner: 'p', count: 5, done: false },
     },
 ];
@@ -112,6 +112,25 @@ describe('PropertyGrid: rendering', () => {
     });
 
     /**
+     * Проверяет, что «Номер» показывается и правка занятого номера сдвигает соседей одним набором
+     */
+    it('propertyGrid_number_editShiftsNeighboursInOneChangeset', async () => {
+        const { api, controller } = await renderGrid();
+        const input = screen.getByLabelText('Номер');
+        expect(input).toHaveValue('1');
+
+        await userEvent.clear(input);
+        await userEvent.type(input, '0{Enter}');
+        expect(screen.getByRole('alert')).toHaveTextContent('Номер');
+
+        await userEvent.clear(input);
+        await userEvent.type(input, '2{Enter}');
+
+        await waitFor(() => expect(controller.getObject('t')?.number).toBe(2));
+        expect(api.changesets).toHaveLength(1);
+    });
+
+    /**
      * Проверяет, что ссылочное свойство показывается как текст только для чтения
      */
     it('propertyGrid_referenceProperty_shownAsReadOnlyText', async () => {
@@ -120,7 +139,7 @@ describe('PropertyGrid: rendering', () => {
         const group = screen.getByRole('group', { name: 'Прочее' });
         expect(within(group).getByText('Владелец')).toBeInTheDocument();
         expect(within(group).getByText('Иван')).toBeInTheDocument();
-        expect(within(group).queryByRole('textbox')).not.toBeInTheDocument();
+        expect(within(group).queryByLabelText('Владелец')).not.toBeInTheDocument();
     });
 
     /**

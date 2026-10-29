@@ -30,9 +30,9 @@ const types = [
 ];
 
 const objects = [
-    { id: 'a', type: 'Item', parent: null, order: 0, properties: { name: 'Первый' } },
-    { id: 'b', type: 'Item', parent: null, order: 1, properties: { name: 'Второй' } },
-    { id: 'c', type: 'Other', parent: null, order: 2, properties: {} },
+    { id: 'a', type: 'Item', parent: null, number: 0, properties: { name: 'Первый' } },
+    { id: 'b', type: 'Item', parent: null, number: 1, properties: { name: 'Второй' } },
+    { id: 'c', type: 'Other', parent: null, number: 2, properties: {} },
 ];
 
 async function setup() {

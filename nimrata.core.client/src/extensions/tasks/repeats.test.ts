@@ -230,7 +230,7 @@ describe('Tracker: repeats', () => {
             expect(copy.properties.priority).toBe('high');
             expect(copy.properties.notifyBefore).toBe(15);
             expect(copy.properties.status).toBeUndefined();
-            expect(copy.order).toBe(1 + 9 * 60 + 30);
+            expect(copy.number).toBe(2 + 9 * 60 + 30);
             expect(categoryNames(data, copy)).toEqual(['Работа']);
         });
 
@@ -434,7 +434,7 @@ describe('Tracker: repeats', () => {
             expect(members).toHaveLength(9);
             for (const m of members) {
                 expect(data.getTitle(m)).toBe('08:00 — Встреча');
-                expect(m.order).toBe(1 + 8 * 60);
+                expect(m.number).toBe(2 + 8 * 60);
             }
         });
 
@@ -460,10 +460,10 @@ describe('Tracker: repeats', () => {
             const { data } = await weekly();
             const list = series(data, 'Планёрка');
 
-            const result = await data.move(list[1].id, { order: 7 });
+            const result = await data.move(list[1].id, { number: 7 });
 
             expect(result.ok).toBe(true);
-            for (const m of series(data, 'Планёрка')) expect(m.order).toBe(7);
+            for (const m of series(data, 'Планёрка')) expect(m.number).toBe(7);
         });
 
         /**
@@ -821,7 +821,7 @@ describe('Tracker: repeats', () => {
             expect(taskDate(data, last)).toBe('2026-05-27');
             expect(categoryNames(data, last)).toEqual(['Работа']);
             expect(data.getTitle(last)).toBe('10:00 — Планёрка');
-            expect(last.order).toBe(1 + 10 * 60);
+            expect(last.number).toBe(2 + 10 * 60);
         });
     });
 

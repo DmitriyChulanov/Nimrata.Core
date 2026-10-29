@@ -17,11 +17,11 @@ export type Operation =
           id: string;
           type: string;
           parent: string | null;
-          order: number;
+          number: number;
           properties: Record<string, unknown>;
       }
     | { op: 'update'; id: string; changes: Record<string, ValueChange<unknown>> }
-    | { op: 'move'; id: string; parent?: ValueChange<string | null>; order?: ValueChange<number> }
+    | { op: 'move'; id: string; parent?: ValueChange<string | null>; number?: ValueChange<number> }
     | { op: 'delete'; id: string };
 
 /**
@@ -116,7 +116,7 @@ export function invertOperation(operation: Operation, before: DataObject | undef
                 id: operation.id,
                 type: before.type,
                 parent: before.parent ?? null,
-                order: before.order,
+                number: before.number,
                 properties: { ...before.properties },
             };
         case 'update': {
@@ -129,7 +129,7 @@ export function invertOperation(operation: Operation, before: DataObject | undef
         case 'move': {
             const inverse: Extract<Operation, { op: 'move' }> = { op: 'move', id: operation.id };
             if (operation.parent) inverse.parent = swap(operation.parent);
-            if (operation.order) inverse.order = swap(operation.order);
+            if (operation.number) inverse.number = swap(operation.number);
             return inverse;
         }
         default:
@@ -162,7 +162,7 @@ export function applyOperations(objects: Map<string, DataObject>, operations: Op
                     id,
                     type: operation.type,
                     parent: operation.parent,
-                    order: operation.order,
+                    number: operation.number,
                     properties: { ...operation.properties },
                 });
                 break;
@@ -181,11 +181,11 @@ export function applyOperations(objects: Map<string, DataObject>, operations: Op
             }
             case 'move': {
                 if (!existing) break;
-                const { parent, order } = operation;
+                const { parent, number } = operation;
                 objects.set(id, {
                     ...existing,
                     parent: parent ? parent.new : existing.parent,
-                    order: order ? order.new : existing.order,
+                    number: number ? number.new : existing.number,
                 });
                 break;
             }

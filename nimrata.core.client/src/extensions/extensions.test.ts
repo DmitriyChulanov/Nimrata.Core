@@ -112,14 +112,14 @@ describe('hidden extension data', () => {
         const api = createFakeApi(
             types,
             [
-                { id: 't', type: 'TasksRoot', parent: null, order: 0, properties: {} },
-                { id: 'c', type: 'CurrentTasksRoot', parent: 't', order: 0, properties: {} },
-                { id: 'n', type: 'NotesRoot', parent: null, order: 1, properties: {} },
+                { id: 't', type: 'TasksRoot', parent: null, number: 0, properties: {} },
+                { id: 'c', type: 'CurrentTasksRoot', parent: 't', number: 0, properties: {} },
+                { id: 'n', type: 'NotesRoot', parent: null, number: 1, properties: {} },
                 {
                     id: 'k',
                     type: 'Task',
                     parent: 'c',
-                    order: 0,
+                    number: 0,
                     properties: { name: 'А', internalLink: 'n' },
                 },
             ],
