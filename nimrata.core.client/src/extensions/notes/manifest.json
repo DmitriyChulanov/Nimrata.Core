@@ -1,6 +1,6 @@
 {
     "extension": "notes",
-    "version": 17,
+    "version": 18,
     "name": "Трекер заметок",
     "description": "Заметки и группы заметок, команды быстрого доступа.",
     "icon": "notebook",
@@ -126,13 +126,15 @@
                     "id": "createQuickAccessCommand",
                     "name": "Создать команду для быстрого доступа",
                     "icon": "zap",
-                    "placements": ["propertyGrid", "contextMenu"]
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "category": "Быстрый доступ"
                 },
                 {
                     "id": "removeQuickAccessCommand",
                     "name": "Удалить команду для быстрого доступа",
                     "icon": "x",
-                    "placements": ["propertyGrid", "contextMenu"]
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "category": "Быстрый доступ"
                 }
             ],
             "icon": "folder",
@@ -148,20 +150,23 @@
                     "id": "title",
                     "name": "Название",
                     "kind": "string",
-                    "category": "Основное"
+                    "category": "Основное",
+                    "order": 1
                 },
                 {
                     "id": "name",
                     "name": "Имя",
                     "kind": "string",
                     "category": "Основное",
-                    "readOnly": true
+                    "readOnly": true,
+                    "order": 2
                 },
                 {
                     "id": "comment",
                     "name": "Комментарий",
                     "kind": "text",
-                    "category": "Основное"
+                    "category": "Основное",
+                    "order": 3
                 },
                 {
                     "id": "priority",
@@ -182,13 +187,22 @@
                             "value": "high",
                             "name": "Высокий"
                         }
-                    ]
+                    ],
+                    "order": 4
                 },
                 {
                     "id": "link",
                     "name": "Внешняя ссылка",
                     "kind": "string",
-                    "category": "Ссылки"
+                    "category": "Ссылки",
+                    "order": 6
+                },
+                {
+                    "id": "internalLink",
+                    "name": "Внутренняя ссылка",
+                    "kind": "reference",
+                    "category": "Ссылки",
+                    "order": 8
                 }
             ],
             "actions": [
@@ -196,25 +210,41 @@
                     "id": "complete",
                     "name": "Завершить",
                     "icon": "circle-check",
-                    "placements": ["propertyGrid", "contextMenu"]
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "category": "Основное",
+                    "order": 5
                 },
                 {
                     "id": "openExternalLink",
                     "name": "Перейти по внешней ссылке",
                     "icon": "globe",
-                    "placements": ["propertyGrid", "contextMenu"]
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "category": "Ссылки",
+                    "order": 7
                 },
                 {
                     "id": "createQuickAccessCommand",
                     "name": "Создать команду для быстрого доступа",
                     "icon": "zap",
-                    "placements": ["propertyGrid", "contextMenu"]
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "category": "Быстрый доступ",
+                    "order": 10
                 },
                 {
                     "id": "removeQuickAccessCommand",
                     "name": "Удалить команду для быстрого доступа",
                     "icon": "x",
-                    "placements": ["propertyGrid", "contextMenu"]
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "category": "Быстрый доступ",
+                    "order": 11
+                },
+                {
+                    "id": "openInternalLink",
+                    "name": "Перейти по внутренней ссылке",
+                    "icon": "link",
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "category": "Ссылки",
+                    "order": 9
                 }
             ],
             "colorRules": [

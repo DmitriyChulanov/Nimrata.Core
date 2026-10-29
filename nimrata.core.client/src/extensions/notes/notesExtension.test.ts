@@ -365,7 +365,6 @@ describe('Notes: behavior', () => {
 
             expect(actionIds(note.id)).not.toContain('complete');
         });
-
     });
 
     /**
@@ -421,6 +420,51 @@ describe('Notes: behavior', () => {
             expect(result.ok).toBe(false);
             expect(open).not.toHaveBeenCalled();
             open.mockRestore();
+        });
+    });
+
+    /**
+     * Действие «Перейти по внутренней ссылке»
+     */
+    describe('"Open internal link"', () => {
+        /**
+         * Проверяет, что действие доступно только при заданной внутренней ссылке
+         */
+        it('openInternalLink_available_onlyWhenInternalLinkIsSet', async () => {
+            await data.runAction(notesId, 'createNote', { title: 'Без ссылки' });
+            await data.runAction(notesId, 'createNote', { title: 'Со ссылкой' });
+            const without = childByName(notesId, 'Без ссылки')!;
+            const withLink = childByName(notesId, 'Со ссылкой')!;
+            await data.setProperty(withLink.id, 'internalLink', without.id);
+
+            const ids = (id: string) => data.getActions(id, 'propertyGrid').map((a) => a.id);
+            expect(ids(without.id)).not.toContain('openInternalLink');
+            expect(ids(withLink.id)).toContain('openInternalLink');
+        });
+
+        /**
+         * Проверяет, что действие просит дерево показать объект-цель
+         */
+        it('openInternalLink_target_isRevealedInTree', async () => {
+            const reveal = vi.fn();
+            const api = createFakeApi(types, []);
+            const controller = createDataController({ api });
+            await controller.load();
+            registerNotes(controller, { reveal });
+            await ensureNotesStart(controller);
+            const active = byType(controller, 'NotesRoot');
+            const activeId = controller
+                .getChildren(active.id)
+                .find((o) => o.type === 'ActiveNotesRoot')!.id;
+            await controller.runAction(activeId, 'createNote', { title: 'А' });
+            await controller.runAction(activeId, 'createNote', { title: 'Б' });
+            const [a, b] = controller.getChildren(activeId);
+            await controller.setProperty(a.id, 'internalLink', b.id);
+
+            const result = await controller.runAction(a.id, 'openInternalLink');
+
+            expect(result.ok).toBe(true);
+            expect(reveal).toHaveBeenCalledWith(b.id);
         });
     });
 });

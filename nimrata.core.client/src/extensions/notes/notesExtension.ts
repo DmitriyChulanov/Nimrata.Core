@@ -5,6 +5,7 @@ import {
     ensureCreated,
     orThrow,
     registerOpenExternalLink,
+    registerOpenInternalLink,
 } from '@platform';
 
 import { ACTIVE_NOTES_ROOT, COMPLETED_NOTES_ROOT, NOTE, NOTES_ROOT, NOTE_GROUP } from './constants';
@@ -96,7 +97,7 @@ function completeNote(data: DataController, note: DataObject, tx: ChangeScope): 
 
 /**
  * Подключает логику Трекера заметок к контроллеру данных: вычисление имён, действия создания
- * (только в «Активных»), «Завершить», внешняя ссылка и быстрый доступ. Возвращает функцию отписки
+ * (только в «Активных»), «Завершить», внешняя и внутренняя ссылки и быстрый доступ. Возвращает функцию отписки
  *
  * @param data - контроллер данных
  * @returns функция отписки
@@ -142,6 +143,7 @@ export function registerNotes(data: DataController, options: ExtensionOptions = 
             available: inActive,
         }),
         registerOpenExternalLink(data, [NOTE]),
+        registerOpenInternalLink(data, NOTE, options.reveal),
         registerQuickAccess(data, options.reveal),
     );
 

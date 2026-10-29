@@ -1,6 +1,6 @@
 {
     "extension": "tasks",
-    "version": 18,
+    "version": 19,
     "name": "Трекер задач",
     "description": "Задачи по годам, месяцам и дням: категории, повторы, выбор текущего дня и уведомления.",
     "icon": "list-checks",
@@ -198,7 +198,8 @@
                                 }
                             ]
                         }
-                    ]
+                    ],
+                    "category": "Основное"
                 }
             ],
             "icon": "calendar-1",
@@ -250,7 +251,8 @@
                                 }
                             ]
                         }
-                    ]
+                    ],
+                    "category": "Основное"
                 }
             ],
             "icon": "palmtree",
@@ -282,7 +284,8 @@
                             "kind": "string",
                             "required": true
                         }
-                    ]
+                    ],
+                    "category": "Основное"
                 },
                 {
                     "id": "postpone",
@@ -296,7 +299,8 @@
                             "kind": "date",
                             "required": true
                         }
-                    ]
+                    ],
+                    "category": "Основное"
                 }
             ],
             "icon": "tag",
@@ -312,26 +316,30 @@
                     "id": "title",
                     "name": "Название",
                     "kind": "string",
-                    "category": "Основное"
+                    "category": "Основное",
+                    "order": 1
                 },
                 {
                     "id": "name",
                     "name": "Имя",
                     "kind": "string",
                     "category": "Основное",
-                    "readOnly": true
+                    "readOnly": true,
+                    "order": 2
                 },
                 {
                     "id": "time",
                     "name": "Время",
                     "kind": "time",
-                    "category": "Основное"
+                    "category": "Уведомления",
+                    "order": 8
                 },
                 {
                     "id": "comment",
                     "name": "Комментарий",
                     "kind": "text",
-                    "category": "Основное"
+                    "category": "Основное",
+                    "order": 3
                 },
                 {
                     "id": "priority",
@@ -352,7 +360,8 @@
                             "value": "high",
                             "name": "Высокий"
                         }
-                    ]
+                    ],
+                    "order": 4
                 },
                 {
                     "id": "status",
@@ -364,25 +373,29 @@
                             "value": "completed",
                             "name": "Завершена"
                         }
-                    ]
+                    ],
+                    "order": 5
                 },
                 {
                     "id": "notifyBefore",
                     "name": "Уведомить за (мин)",
                     "kind": "integer",
-                    "category": "Уведомления"
+                    "category": "Уведомления",
+                    "order": 9
                 },
                 {
                     "id": "link",
                     "name": "Внешняя ссылка",
                     "kind": "string",
-                    "category": "Ссылки"
+                    "category": "Ссылки",
+                    "order": 11
                 },
                 {
                     "id": "internalLink",
                     "name": "Внутренняя ссылка",
                     "kind": "reference",
-                    "category": "Ссылки"
+                    "category": "Ссылки",
+                    "order": 13
                 },
                 {
                     "id": "repeat",
@@ -407,7 +420,8 @@
                             "value": "monthly",
                             "name": "Каждый месяц"
                         }
-                    ]
+                    ],
+                    "order": 10
                 },
                 {
                     "id": "repeatId",
@@ -422,19 +436,25 @@
                     "id": "openExternalLink",
                     "name": "Перейти по внешней ссылке",
                     "icon": "globe",
-                    "placements": ["propertyGrid", "contextMenu"]
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "category": "Ссылки",
+                    "order": 12
                 },
                 {
                     "id": "openInternalLink",
                     "name": "Перейти по внутренней ссылке",
                     "icon": "link",
-                    "placements": ["propertyGrid", "contextMenu"]
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "category": "Ссылки",
+                    "order": 14
                 },
                 {
                     "id": "complete",
                     "name": "Завершить",
                     "icon": "circle-check",
-                    "placements": ["propertyGrid", "contextMenu"]
+                    "placements": ["propertyGrid", "contextMenu"],
+                    "category": "Основное",
+                    "order": 6
                 },
                 {
                     "id": "postpone",
@@ -448,7 +468,9 @@
                             "kind": "date",
                             "required": true
                         }
-                    ]
+                    ],
+                    "category": "Основное",
+                    "order": 7
                 }
             ],
             "colorRules": [
