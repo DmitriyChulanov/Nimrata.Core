@@ -89,9 +89,9 @@ async function mount(titles: string[]) {
  */
 describe('Notes: quick access commands panel', () => {
     /**
-     * Проверяет, что команды стоят в блоке «Трекер заметок» по алфавиту, а шаблон не показан
+     * Проверяет, что команды стоят в блоке «Трекер заметок» по номеру (порядку создания), а шаблон не показан
      */
-    it('quickAccessUi_panel_listsCommandsInNotesBlockSortedByNameWithoutTemplate', async () => {
+    it('quickAccessUi_panel_listsCommandsInNotesBlockInCreationOrderWithoutTemplate', async () => {
         await mount(['Яблоко', 'Арбуз', 'Груша']);
 
         const block = screen.getByRole('group', { name: 'Трекер заметок' });
@@ -99,7 +99,7 @@ describe('Notes: quick access commands panel', () => {
             within(block)
                 .getAllByRole('button')
                 .map((b) => b.textContent),
-        ).toEqual(['Арбуз', 'Груша', 'Яблоко']);
+        ).toEqual(['Яблоко', 'Арбуз', 'Груша']);
         expect(screen.queryByRole('button', { name: 'Открыть в дереве' })).toBeNull();
     });
 

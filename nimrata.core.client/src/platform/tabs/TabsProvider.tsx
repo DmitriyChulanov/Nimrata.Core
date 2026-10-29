@@ -21,20 +21,25 @@ export interface TabsProviderProps {
 }
 
 /**
- * Начальная раскладка: сохранённая, очищенная от неизвестных видов вкладок
+ * Начальная раскладка: сохранённая, очищенная от неизвестных видов вкладок и дополненная видами
+ * с `openOnStart`, которых в ней нет; активной остаётся сохранённая вкладка, а если её нет — первая
  *
  * @param registry - реестр видов вкладок
  * @param userId - пользователь, чья раскладка загружается
- * @returns раскладка; пустая, если ничего не сохранено
+ * @returns раскладка; без сохранённой содержит только вкладки `openOnStart`
  */
 function initialLayout(registry: TabRegistry, userId: string): StoredLayout {
     const stored = loadLayout(userId);
-    if (!stored) return { tabs: [], activeId: null, widths: DEFAULT_WIDTHS };
-    const tabs = stored.tabs.filter((t) => registry.get(t.kind));
-    const activeId = tabs.some((t) => t.id === stored.activeId)
-        ? stored.activeId
+    const tabs = (stored?.tabs ?? []).filter((t) => registry.get(t.kind));
+    for (const kind of registry.list()) {
+        if (kind.openOnStart && !tabs.some((t) => t.kind === kind.id)) {
+            tabs.push({ id: `${kind.id}#1`, kind: kind.id });
+        }
+    }
+    const activeId = tabs.some((t) => t.id === stored?.activeId)
+        ? (stored?.activeId ?? null)
         : (tabs[0]?.id ?? null);
-    return { tabs, activeId, widths: stored.widths };
+    return { tabs, activeId, widths: stored?.widths ?? DEFAULT_WIDTHS };
 }
 
 /**

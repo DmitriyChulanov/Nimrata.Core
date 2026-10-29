@@ -1,4 +1,12 @@
-import { render, screen, within } from '@testing-library/react';
+import {
+    act,
+    createEvent,
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+    within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -300,6 +308,148 @@ describe('Commands tab', () => {
     });
 });
 
+const labels = (group: string) =>
+    within(screen.getByRole('group', { name: group }))
+        .getAllByRole('button')
+        .map((b) => b.textContent);
+
+/**
+ * Тянет кнопку на кнопку; jsdom не знает DragEvent и даёт нулевую геометрию, поэтому положение
+ * указателя задаётся `clientX`: отрицательное — левая половина (`before`), иначе правая (`after`)
+ */
+function drag(source: string, target: string, clientX: number) {
+    const sourceButton = screen.getByRole('button', { name: source });
+    const targetButton = screen.getByRole('button', { name: target });
+    const at = (create: typeof createEvent.dragOver) => {
+        const event = create(targetButton);
+        Object.defineProperty(event, 'clientX', { value: clientX });
+        fireEvent(targetButton, event);
+    };
+    fireEvent.dragStart(sourceButton);
+    at(createEvent.dragOver);
+    at(createEvent.drop);
+    fireEvent.dragEnd(sourceButton);
+}
+
+/**
+ * Перестановка кнопок перетаскиванием
+ */
+describe('Commands tab reordering', () => {
+    /**
+     * Проверяет, что первое перетаскивание превращает команды манифеста блока в пользовательские
+     * с номерами и применяет перенос
+     */
+    it('commandsTab_firstDrag_materializesManifestCommandsAndMoves', async () => {
+        const loaded = await load();
+        renderTab(loaded);
+
+        drag('Сломаться', 'Запустить', -1);
+
+        await waitFor(() =>
+            expect(labels('Альфа')).toEqual(['Сломаться', 'Запустить', 'Спросить']),
+        );
+        const copies = loaded.data.getChildren(null).filter((o) => o.type === CUSTOM_COMMAND);
+        expect(copies.map((o) => [o.properties.command, o.number])).toEqual([
+            ['fail', 1],
+            ['run', 2],
+            ['ask', 3],
+        ]);
+        expect(copies.every((o) => o.properties.name === '' && o.properties.params === '')).toBe(
+            true,
+        );
+        expect(labels('Бета')).toEqual(['Бета-команда']);
+    });
+
+    /**
+     * Проверяет, что вставка в правую половину ставит кнопку после цели
+     */
+    it('commandsTab_dropOnRightHalf_insertsAfterTarget', async () => {
+        renderTab(await load());
+
+        drag('Запустить', 'Спросить', 1);
+
+        await waitFor(() =>
+            expect(labels('Альфа')).toEqual(['Спросить', 'Запустить', 'Сломаться']),
+        );
+    });
+
+    /**
+     * Проверяет, что порядок задаёт номер, а пользовательские команды-шаблоны переставляются так же
+     */
+    it('commandsTab_customCommands_followNumberAndCanBeReordered', async () => {
+        const loaded = await load();
+        await loaded.data.perform((tx) => {
+            createCustomCommand(tx, {
+                name: 'Икс',
+                extension: 'alpha',
+                command: 'open',
+                params: {},
+            });
+            createCustomCommand(tx, {
+                name: 'Игрек',
+                extension: 'alpha',
+                command: 'open',
+                params: {},
+            });
+        });
+        renderTab(loaded);
+        expect(labels('Альфа')).toEqual(['Запустить', 'Спросить', 'Сломаться', 'Икс', 'Игрек']);
+
+        drag('Игрек', 'Запустить', -1);
+
+        await waitFor(() =>
+            expect(labels('Альфа')).toEqual(['Игрек', 'Запустить', 'Спросить', 'Сломаться', 'Икс']),
+        );
+    });
+
+    /**
+     * Проверяет, что перенос в чужой блок отклоняется и ничего не создаёт
+     */
+    it('commandsTab_dropIntoOtherExtensionBlock_isRejected', async () => {
+        const loaded = await load();
+        renderTab(loaded);
+
+        drag('Запустить', 'Бета-команда', -1);
+
+        expect(labels('Альфа')).toEqual(['Запустить', 'Спросить', 'Сломаться']);
+        expect(labels('Бета')).toEqual(['Бета-команда']);
+        expect(loaded.data.getChildren(null)).toEqual([]);
+    });
+
+    /**
+     * Проверяет, что материализованная команда с параметрами по-прежнему спрашивает параметры
+     */
+    it('commandsTab_materializedCommandWithParameters_stillOpensDialog', async () => {
+        const loaded = await load();
+        renderTab(loaded);
+        drag('Сломаться', 'Запустить', -1);
+        await waitFor(() => expect(labels('Альфа')[0]).toBe('Сломаться'));
+
+        await userEvent.click(screen.getByRole('button', { name: 'Спросить' }));
+        await userEvent.type(screen.getByLabelText(/Дней/), '2');
+        await userEvent.click(screen.getByRole('button', { name: 'Выполнить' }));
+
+        expect(loaded.ran).toEqual([{ days: 2 }]);
+    });
+
+    /**
+     * Проверяет, что перенос откатывается Undo одним шагом, включая созданные копии
+     */
+    it('commandsTab_reorder_isUndoneInOneStep', async () => {
+        const loaded = await load();
+        renderTab(loaded);
+        drag('Сломаться', 'Запустить', -1);
+        await waitFor(() => expect(labels('Альфа')[0]).toBe('Сломаться'));
+
+        await act(async () => {
+            await loaded.data.undo();
+        });
+
+        expect(labels('Альфа')).toEqual(['Запустить', 'Спросить', 'Сломаться']);
+        expect(loaded.data.getChildren(null)).toEqual([]);
+    });
+});
+
 /**
  * Регистрация вкладки «Команды»
  */
@@ -332,5 +482,42 @@ describe('Commands tab registration', () => {
 
         expect(screen.getByRole('tab', { name: 'Команды' })).toBeInTheDocument();
         expect(screen.getByRole('group', { name: 'Альфа' })).toBeInTheDocument();
+    });
+
+    /**
+     * Проверяет, что вкладка открыта и активна при первом запуске, а в запомненной раскладке
+     * добавляется без смены активной вкладки
+     */
+    it('commandsRegistration_start_opensTabWithoutChangingActiveOne', async () => {
+        const tabs = createTabRegistry();
+        registerCommands(tabs, createMenuRegistry());
+        tabs.register({ id: 'other', title: 'Другая', component: () => <p>Другая вкладка</p> });
+        const { data, extensions } = await load();
+        const mount = (userId: string) =>
+            render(
+                <DataProvider controller={data}>
+                    <ExtensionsContext.Provider value={value(extensions)}>
+                        <TabsProvider registry={tabs} userId={userId}>
+                            <TabContainer />
+                        </TabsProvider>
+                    </ExtensionsContext.Provider>
+                </DataProvider>,
+            );
+
+        const first = mount('fresh');
+        expect(screen.getByRole('tab', { name: 'Команды', selected: true })).toBeInTheDocument();
+        first.unmount();
+
+        localStorage.setItem(
+            'nimrata.layout.saved',
+            JSON.stringify({
+                tabs: [{ id: 'other#1', kind: 'other' }],
+                activeId: 'other#1',
+                widths: { left: 200, right: 200 },
+            }),
+        );
+        mount('saved');
+        expect(screen.getByRole('tab', { name: 'Другая', selected: true })).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: 'Команды', selected: false })).toBeInTheDocument();
     });
 });

@@ -19,7 +19,7 @@ export interface CustomCommandInput {
     extension: string;
     /** Идентификатор команды-шаблона в манифесте расширения */
     command: string;
-    /** Сохраняемые значения параметров */
+    /** Сохраняемые значения параметров; без них команда при запуске спрашивает параметры */
     params?: Record<string, unknown>;
 }
 
@@ -36,8 +36,20 @@ export function createCustomCommand(tx: ChangeScope, input: CustomCommandInput):
         name: input.name,
         extension: input.extension,
         command: input.command,
-        params: JSON.stringify(input.params ?? {}),
+        params: input.params === undefined ? '' : JSON.stringify(input.params),
     });
+}
+
+/**
+ * Сохранены ли у команды значения параметров: без них (`params` пуст) запуск открывает диалог,
+ * а с ними, даже пустыми, идёт без диалога
+ *
+ * @param object - объект типа `CustomCommand`
+ * @returns `true`, если значения параметров сохранены
+ */
+export function hasSavedParams(object: DataObject): boolean {
+    const raw = object.properties.params;
+    return typeof raw === 'string' && raw !== '';
 }
 
 /**

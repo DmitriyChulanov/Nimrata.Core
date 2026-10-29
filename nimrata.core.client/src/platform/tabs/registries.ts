@@ -14,6 +14,8 @@ export interface TabKind {
     component: ComponentType;
     /** Разрешено ли открывать несколько копий; по умолчанию — одна */
     multiple?: boolean;
+    /** Открывать ли вкладку при каждом запуске, если её нет в раскладке; по умолчанию — нет */
+    openOnStart?: boolean;
 }
 
 /**
