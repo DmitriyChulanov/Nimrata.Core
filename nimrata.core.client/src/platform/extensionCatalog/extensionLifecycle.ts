@@ -120,6 +120,8 @@ export function createExtensionLifecycle(options: ExtensionLifecycleOptions): Ex
     let busy = false;
     // Поколение запуска: устаревшие (отменённые dispose или повтором) прекращают работу
     let generation = 0;
+    // Подписка на полную загрузку по сигналу сервера; ставится запуском, снимается dispose
+    let unsubscribeResync: (() => void) | undefined;
 
     function update(patch: Partial<ExtensionLifecycleState>) {
         state = { ...state, ...patch };
@@ -158,7 +160,37 @@ export function createExtensionLifecycle(options: ExtensionLifecycleOptions): Ex
         return firstError;
     }
 
+    /**
+     * После полной загрузки по сигналу сервера (подключение расширения сменили в другой вкладке
+     * или устройстве): данные уже перечитаны, каталог и регистрации приводятся к серверу, новые
+     * подключённые расширения запускаются. Без сети каталог остаётся прежним
+     */
+    async function refreshCatalog(): Promise<void> {
+        const runGeneration = generation;
+        if (busy || state.status !== 'ready') return;
+        let items: ExtensionInfo[];
+        try {
+            items = await fetchExtensionCatalog(api);
+        } catch {
+            return;
+        }
+        if (generation !== runGeneration || busy) return;
+        void Promise.resolve(catalogCache?.write(items)).catch(() => undefined);
+        const before = state.activeIds;
+        const connected = connectedIds(items);
+        const changed =
+            connected.size !== before.size || [...connected].some((id) => !before.has(id));
+        update({ catalog: items, ...(changed ? { activeIds: connected } : {}) });
+        if (!changed) return;
+        syncRegistrations(connected);
+        onDataReloaded?.();
+        const startError = await startExtensions([...connected].filter((id) => !before.has(id)));
+        if (generation !== runGeneration) return;
+        if (startError !== null) update({ error: startError });
+    }
+
     async function initialize(): Promise<void> {
+        unsubscribeResync ??= controller.onResync(() => void refreshCatalog());
         const runGeneration = ++generation;
         const cancelled = () => generation !== runGeneration;
 
@@ -251,6 +283,8 @@ export function createExtensionLifecycle(options: ExtensionLifecycleOptions): Ex
         },
         dispose() {
             generation++;
+            unsubscribeResync?.();
+            unsubscribeResync = undefined;
             registrations.forEach((unregister) => unregister());
             registrations.clear();
         },

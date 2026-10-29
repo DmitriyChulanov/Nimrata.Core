@@ -15,6 +15,7 @@ export { createDataController } from './data/DataController';
 export {
     SYNC_CATCHUP_DELAY_MS,
     SYNC_MAX_OPERATIONS,
+    SYNC_OFFLINE_MESSAGE,
     SYNC_RETRY_BASE_MS,
     SYNC_RETRY_MAX_MS,
     SYNC_WINDOW_MS,
@@ -23,6 +24,17 @@ export {
 export type { PushChanges, PushChannel, PushHandlers, SyncEngineOptions } from './sync/syncEngine';
 export { SYNC_HUB_URL, createSignalRChannel } from './sync/signalrChannel';
 export type { HubConnectionLike, SignalRChannelOptions } from './sync/signalrChannel';
+export { SyncIndicator } from './sync/SyncIndicator';
+export {
+    SYNC_STATUS_POLL_MS,
+    SYNC_STATUS_SETTLE_MS,
+    SyncStatusProvider,
+} from './sync/SyncStatusProvider';
+export type { SyncStatusProviderProps } from './sync/SyncStatusProvider';
+export type { SyncStatusValue } from './sync/SyncStatusContext';
+export { useSyncStatus } from './sync/useSyncStatus';
+export { describeSyncStatus, unsentLabel } from './sync/syncStatus';
+export type { SyncIndicatorKind, SyncStatusInput, SyncStatusView } from './sync/syncStatus';
 export type {
     ActionContext,
     ActionRegistrationOptions,
@@ -48,8 +60,10 @@ export type {
     HookResult,
     MoveInput,
     OperationOptions,
+    SyncConnection,
     SyncLink,
     SyncPort,
+    SyncState,
     TitleFormatter,
 } from './data/DataController';
 export { DataProvider } from './data/DataProvider';
