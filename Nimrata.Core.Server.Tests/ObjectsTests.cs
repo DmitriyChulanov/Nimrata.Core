@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Nimrata.Core.Server.Auth;
 using Npgsql;
+using static Nimrata.Core.Server.Tests.ChangesetApi;
 
 namespace Nimrata.Core.Server.Tests;
 
@@ -116,9 +117,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     /// </summary>
     /// <param name="client">Клиент HTTP</param>
     /// <param name="operations">Операции набора</param>
-    /// <returns>Ответ сервера</returns>
-    private static Task<HttpResponseMessage> Apply(HttpClient client, params object[] operations) =>
-        client.PostAsJsonAsync("/api/changesets", new { operations = operations });
+    /// <returns>Итог набора</returns>
+    private static Task<ChangesetOutcome> Apply(HttpClient client, params object[] operations) =>
+        ChangesetApi.ApplyAsync(client, operations);
 
     /// <summary>
     /// Загружает объекты пользователя
@@ -127,19 +128,6 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     /// <returns>Массив объектов</returns>
     private static async Task<JsonElement[]> Load(HttpClient client) =>
         (await client.GetFromJsonAsync<JsonElement[]>("/api/objects"))!;
-
-    /// <summary>
-    /// Проверяет, что набор отклонён с нужным кодом и причиной
-    /// </summary>
-    /// <param name="response">Ответ сервера</param>
-    /// <param name="status">Ожидаемый код</param>
-    /// <param name="substring">Фрагмент причины</param>
-    private static async Task AssertRejected(HttpResponseMessage response, HttpStatusCode status, string substring)
-    {
-        Assert.Equal(status, response.StatusCode);
-        var reason = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString();
-        Assert.Contains(substring, reason);
-    }
 
     /// <summary>
     /// Некорректные значения свойств: название случая, свойства и фрагмент причины
@@ -171,7 +159,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     {
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "Item", null, 1, properties));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, name);
+        AssertRejected(response, name);
         Assert.Empty(await Load(_me));
     }
 
@@ -190,7 +178,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
                 level = "low", @ref = folder, folderRef = folder,
             }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
     }
 
     /// <summary>
@@ -205,8 +193,8 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         var toForeign = await Apply(_me, Create(Guid.CreateVersion7(), "Item", null, 1, new { @ref = foreign }));
         var toMissing = await Apply(_me, Create(Guid.CreateVersion7(), "Item", null, 1, new { @ref = Guid.NewGuid() }));
 
-        await AssertRejected(toForeign, HttpStatusCode.UnprocessableEntity, "ref");
-        await AssertRejected(toMissing, HttpStatusCode.UnprocessableEntity, "ref");
+        AssertRejected(toForeign, "ref");
+        AssertRejected(toMissing, "ref");
     }
 
     /// <summary>
@@ -221,7 +209,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "Item", folder, 2, new { folderRef = item }));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "folderRef");
+        AssertRejected(response, "folderRef");
     }
 
     /// <summary>
@@ -232,7 +220,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     {
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "Nope"));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "Nope");
+        AssertRejected(response, "Nope");
     }
 
     /// <summary>
@@ -243,7 +231,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     {
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "Base"));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "абстракт");
+        AssertRejected(response, "абстракт");
     }
 
     /// <summary>
@@ -254,7 +242,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     {
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "Item", Guid.NewGuid()));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "родител");
+        AssertRejected(response, "родител");
     }
 
     /// <summary>
@@ -268,7 +256,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "Item", foreignFolder));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "родител");
+        AssertRejected(response, "родител");
         Assert.Empty(await Load(_me));
     }
 
@@ -283,7 +271,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "Folder", item));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "Folder");
+        AssertRejected(response, "Folder");
     }
 
     /// <summary>
@@ -298,8 +286,8 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         var own = await Apply(_me, Create(id, "Folder"));
         var foreign = await Apply(_other, Create(id, "Folder"));
 
-        await AssertRejected(own, HttpStatusCode.Conflict, "занят");
-        await AssertRejected(foreign, HttpStatusCode.Conflict, "занят");
+        AssertRejected(own, "занят");
+        AssertRejected(foreign, "занят");
     }
 
     /// <summary>
@@ -312,26 +300,24 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me, Create(folder, "Folder"), Create(Guid.CreateVersion7(), "Nope"));
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        AssertRejected(response, "Nope");
         Assert.Empty(await Load(_me));
         Assert.Equal(0, await JournalEntryCount());
     }
 
     /// <summary>
-    /// Проверяет, что набор неверного формата отклоняется с причиной
+    /// Проверяет, что операция неверного формата отклоняет набор с причиной
     /// </summary>
-    /// <param name="body">Тело запроса</param>
+    /// <param name="operation">Операция в JSON</param>
     [Theory]
-    [InlineData("{}")]
-    [InlineData("""{ "operations": [] }""")]
-    [InlineData("""{ "operations": [ { "op": "fly" } ] }""")]
-    [InlineData("""{ "operations": [ { "op": "create", "type": "Folder" } ] }""")]
-    public async Task Changeset_InvalidFormat_RejectedWithReason(string body)
+    [InlineData("""{ "op": "fly" }""")]
+    [InlineData("""{ "op": "create", "type": "Folder" }""")]
+    [InlineData("""{ "op": "update", "id": "00000000-0000-4000-8000-000000000001", "changes": { "title": { "old": "a" } } }""")]
+    public async Task Changeset_InvalidOperationFormat_RejectedWithReason(string operation)
     {
-        var response = await _me.PostAsync("/api/changesets",
-            new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+        var response = await Apply(_me, JsonDocument.Parse(operation).RootElement);
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "");
+        AssertRejected(response, "Операция 1");
     }
 
     /// <summary>
@@ -383,7 +369,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
             done = new { old = (string?)null, @new = true },
         }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
         var properties = Find(await Load(_me), id).GetProperty("properties");
         Assert.Equal("Новое", properties.GetProperty("title").GetString());
         Assert.True(properties.GetProperty("done").GetBoolean());
@@ -401,15 +387,15 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me, Update(id, new { title = new { old = "Есть", @new = (string?)null } }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
         Assert.False(Find(await Load(_me), id).GetProperty("properties").TryGetProperty("title", out _));
     }
 
     /// <summary>
-    /// Проверяет, что несовпавшее старое значение даёт конфликт и ничего не меняет
+    /// Проверяет, что несовпавшее старое значение не мешает (LWW): применяются все изменения набора
     /// </summary>
     [Fact]
-    public async Task Changeset_UpdateProperty_OldMismatch_RejectedAsConflictAndChangesNothing()
+    public async Task Changeset_UpdateProperty_OldMismatch_AppliedByLastWriteWins()
     {
         var id = Guid.CreateVersion7();
         await Apply(_me, Create(id, "Item", null, 1, new { title = "Текущее", count = 1 }));
@@ -420,10 +406,10 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
             title = new { old = "Другое", @new = "Новое" },
         }));
 
-        await AssertRejected(response, HttpStatusCode.Conflict, "title");
+        AssertApplied(response);
         var properties = Find(await Load(_me), id).GetProperty("properties");
-        Assert.Equal("Текущее", properties.GetProperty("title").GetString());
-        Assert.Equal(1, properties.GetProperty("count").GetInt32());
+        Assert.Equal("Новое", properties.GetProperty("title").GetString());
+        Assert.Equal(2, properties.GetProperty("count").GetInt32());
     }
 
     /// <summary>
@@ -437,7 +423,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me, Update(id, new { level = new { old = "low", @new = "medium" } }));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "level");
+        AssertRejected(response, "level");
     }
 
     /// <summary>
@@ -453,8 +439,8 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         var toMissing = await Apply(_me,
             Update(Guid.NewGuid(), new { title = new { old = (string?)null, @new = "x" } }));
 
-        await AssertRejected(toForeign, HttpStatusCode.UnprocessableEntity, "не найден");
-        await AssertRejected(toMissing, HttpStatusCode.UnprocessableEntity, "не найден");
+        AssertRejected(toForeign, "не найден");
+        AssertRejected(toMissing, "не найден");
         Assert.Equal("Секрет", Find(await Load(_other), foreign).GetProperty("properties").GetProperty("title").GetString());
     }
 
@@ -469,9 +455,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me,
             Update(id, new { title = new { old = "Исходное", @new = "Изменено" } }),
-            Update(id, new { title = new { old = "Исходное", @new = "Опять" } }));
+            Update(id, new { level = new { old = (string?)null, @new = "medium" } }));
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        AssertRejected(response, "Операция 2");
         Assert.Equal("Исходное", Find(await Load(_me), id).GetProperty("properties").GetProperty("title").GetString());
     }
 
@@ -489,7 +475,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         var response = await Apply(_me, Move(item,
             parent: new { old = first, @new = second }, number: new { old = 5, @new = 3 }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
         var after = Find(await Load(_me), item);
         Assert.Equal(second, after.GetProperty("parent").GetGuid());
         Assert.Equal(3, after.GetProperty("number").GetInt32());
@@ -507,7 +493,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me, Move(nested, parent: new { old = folder, @new = (Guid?)null }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
         Assert.Equal(JsonValueKind.Null, Find(await Load(_me), nested).GetProperty("parent").ValueKind);
     }
 
@@ -523,11 +509,11 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         var folder = Guid.CreateVersion7();
 
         var create = await Apply(_me, new { op = "create", id = folder, type = "Folder", parent = (Guid?)null, number, properties = new { } });
-        await AssertRejected(create, HttpStatusCode.UnprocessableEntity, "number");
+        AssertRejected(create, "number");
 
         await Apply(_me, Create(folder, "Folder", null, 2));
         var move = await Apply(_me, Move(folder, number: new { old = 2, @new = number }));
-        await AssertRejected(move, HttpStatusCode.UnprocessableEntity, "number");
+        AssertRejected(move, "number");
     }
 
     /// <summary>
@@ -540,15 +526,15 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me, new { op = "create", id = folder, type = "Folder", parent = (Guid?)null, properties = new { } });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
         Assert.Equal(1, Find(await Load(_me), folder).GetProperty("number").GetInt32());
     }
 
     /// <summary>
-    /// Проверяет, что перемещение с неверным прежним положением даёт конфликт
+    /// Проверяет, что перемещение с неверным прежним положением применяется (LWW)
     /// </summary>
     [Fact]
-    public async Task Changeset_MoveWithWrongOld_RejectedAsConflict()
+    public async Task Changeset_MoveWithWrongOld_AppliedByLastWriteWins()
     {
         var first = Guid.CreateVersion7();
         var second = Guid.CreateVersion7();
@@ -558,8 +544,11 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         var wrongParent = await Apply(_me, Move(folder, parent: new { old = second, @new = (Guid?)null }));
         var wrongNumber = await Apply(_me, Move(folder, number: new { old = 99, @new = 1 }));
 
-        await AssertRejected(wrongParent, HttpStatusCode.Conflict, "parent");
-        await AssertRejected(wrongNumber, HttpStatusCode.Conflict, "number");
+        AssertApplied(wrongParent);
+        AssertApplied(wrongNumber);
+        var moved = Find(await Load(_me), folder);
+        Assert.Equal(JsonValueKind.Null, moved.GetProperty("parent").ValueKind);
+        Assert.Equal(1, moved.GetProperty("number").GetInt32());
     }
 
     /// <summary>
@@ -577,9 +566,9 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         var intoSelf = await Apply(_me, Move(folder, parent: new { old = (Guid?)null, @new = folder }));
         var intoDescendant = await Apply(_me, Move(folder, parent: new { old = (Guid?)null, @new = nested }));
 
-        await AssertRejected(underItem, HttpStatusCode.UnprocessableEntity, "Folder");
-        await AssertRejected(intoSelf, HttpStatusCode.UnprocessableEntity, "цикл");
-        await AssertRejected(intoDescendant, HttpStatusCode.UnprocessableEntity, "цикл");
+        AssertRejected(underItem, "Folder");
+        AssertRejected(intoSelf, "цикл");
+        AssertRejected(intoDescendant, "цикл");
     }
 
     /// <summary>
@@ -596,8 +585,8 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         var foreignObject = await Apply(_me, Move(foreignFolder, number: new { old = 1, @new = 2 }));
         var underForeign = await Apply(_me, Move(my, parent: new { old = (Guid?)null, @new = foreignFolder }));
 
-        await AssertRejected(foreignObject, HttpStatusCode.UnprocessableEntity, "не найден");
-        await AssertRejected(underForeign, HttpStatusCode.UnprocessableEntity, "родител");
+        AssertRejected(foreignObject, "не найден");
+        AssertRejected(underForeign, "родител");
     }
 
     /// <summary>
@@ -613,7 +602,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me, Delete(item), Delete(folder));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
         Assert.Equal([remaining], (await Load(_me)).Select(element => element.GetProperty("id").GetGuid()));
     }
 
@@ -629,7 +618,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
 
         var response = await Apply(_me, Delete(folder));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "потомк");
+        AssertRejected(response, "потомк");
         Assert.Equal(2, (await Load(_me)).Length);
     }
 
@@ -645,8 +634,8 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
         var foreignResponse = await Apply(_me, Delete(foreign));
         var missing = await Apply(_me, Delete(Guid.NewGuid()));
 
-        await AssertRejected(foreignResponse, HttpStatusCode.UnprocessableEntity, "не найден");
-        await AssertRejected(missing, HttpStatusCode.UnprocessableEntity, "не найден");
+        AssertRejected(foreignResponse, "не найден");
+        AssertRejected(missing, "не найден");
         Assert.Single(await Load(_other));
     }
 
@@ -742,7 +731,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
     public async Task Journal_ChangesetEntry_BelongsToAuthor()
     {
         var response = await Apply(_other, Create(Guid.CreateVersion7(), "Folder"));
-        var changeset = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var changeset = response.Id;
 
         await using var connection = new NpgsqlConnection(_database);
         var author = await Dapper.SqlMapper.ExecuteScalarAsync<string>(connection,
@@ -803,7 +792,7 @@ public sealed class ObjectsTests(ServerFactory factory) : IClassFixture<ServerFa
             Create(folder, "Folder", null, 1),
             Create(item, "Item", folder, 3, new { title = "Первый", count = 3, done = false, level = "high" }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
         var objects = await Load(_me);
         Assert.Equal(2, objects.Length);
         var loaded = objects.Single(element => element.GetProperty("id").GetGuid() == item);

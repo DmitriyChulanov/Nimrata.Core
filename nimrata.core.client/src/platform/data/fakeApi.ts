@@ -3,7 +3,7 @@ import { ApiError } from '@platform/api/apiClient';
 import { applyOperations } from './undoHistory';
 
 import type { ApiClient } from '@platform/api/apiClient';
-import type { DataObject } from './DataController';
+import type { ChangesetResult, DataObject } from './DataController';
 import type { Operation } from './undoHistory';
 
 /**
@@ -39,11 +39,15 @@ export interface FakeApiOptions {
 export interface FakeApi extends ApiClient {
     types: unknown[];
     objects: unknown[];
-    /** Все принятые наборы изменений (тела запросов) */
-    changesets: { operations: Record<string, unknown>[] }[];
+    /** Все применённые наборы изменений (наборы из тел пакетных запросов) */
+    changesets: { id: string; operations: Record<string, unknown>[] }[];
     /** Каталог расширений с текущим состоянием подключений */
     extensions: Required<FakeExtension>[];
-    /** Следующий набор будет отклонён этой ошибкой (`code` — машинный код ответа) */
+    /**
+     * Следующий запрос записи завершится отказом. `422` — следующий набор пакета получит итог
+     * `rejected` с этой причиной и кодом (`code`), как отказ сервера по инварианту; любой другой
+     * код — весь запрос завершится `ApiError` с этим HTTP-кодом (сеть, авторизация, формат)
+     */
     rejectNext(status: number, message: string, code?: string): void;
 }
 
@@ -124,17 +128,20 @@ function checkNumber(value: unknown): number {
 }
 
 /**
- * Отказ набора из-за расхождения с текущими данными (HTTP 409)
+ * Набор из тела пакетной записи `POST /changesets`
  */
-const conflict = (message: string, code?: string): ApiError => new ApiError(409, message, code);
+interface SubmittedChangeset {
+    id: string;
+    operations: Record<string, unknown>[];
+}
 
 /**
- * Значения «пусто» (нет значения или `null`) равны друг другу, прочие сравниваются по содержимому
+ * Итог отклонённого набора по ошибке проверки
  */
-function valuesEqual(left: unknown, right: unknown): boolean {
-    const empty = (value: unknown) => value === undefined || value === null;
-    if (empty(left) || empty(right)) return empty(left) && empty(right);
-    return JSON.stringify(left) === JSON.stringify(right);
+function rejectedResult(id: string, error: ApiError): ChangesetResult {
+    const result: ChangesetResult = { id, status: 'rejected', detail: error.message };
+    if (error.code) result.code = error.code;
+    return result;
 }
 
 const isRealDate = (text: string): boolean => {
@@ -253,6 +260,28 @@ function withPlatformTypes(types: unknown[]): unknown[] {
     return [...types, ...PLATFORM_TYPES.filter((t) => !known.has(t.id))];
 }
 
+let postedChangesets = 0;
+
+/**
+ * Отправляет операции одним набором пакетной записи (`POST changesets`) и возвращает его итог
+ *
+ * @param api - API-клиент (подставной или настоящий)
+ * @param operations - операции набора
+ * @param id - идентификатор набора; по умолчанию новый на каждый вызов
+ * @returns итог набора: `applied`, `duplicate` или `rejected`
+ */
+export async function postChangeset(
+    api: ApiClient,
+    operations: readonly unknown[],
+    id = `00000000-0000-7000-8000-${String(++postedChangesets).padStart(12, '0')}`,
+): Promise<ChangesetResult> {
+    const [result] = await api.post<ChangesetResult[]>('changesets', {
+        changesets: [{ id, operations }],
+    });
+    if (!result) throw new Error('Сервер не вернул итог набора.');
+    return result;
+}
+
 /**
  * Подставной API-клиент для тестов: хранит типы и объекты в памяти и применяет наборы изменений
  *
@@ -305,7 +334,7 @@ export function createFakeApi(
             if (!typesById.get(typeId)?.singleton) return;
             for (const [otherId, other] of known) {
                 if (otherId !== selfId && other.type === typeId && other.parent === parent) {
-                    throw conflict('Такой объект уже есть у этого родителя.', 'singleton_exists');
+                    throw rejected('Такой объект уже есть у этого родителя.', 'singleton_exists');
                 }
             }
         };
@@ -330,7 +359,7 @@ export function createFakeApi(
                 const type = typesById.get(typeId);
                 if (!type) throw rejected(`тип "${typeId}" неизвестен.`);
                 disabledGuard(typeId);
-                if (known.has(id)) throw conflict(`идентификатор ${id} уже занят.`);
+                if (known.has(id)) throw rejected(`идентификатор ${id} уже занят.`);
                 const parent = (op.parent as string | null | undefined) ?? null;
                 parentGuard(typeId, parent);
                 singletonGuard(typeId, parent, id);
@@ -355,12 +384,11 @@ export function createFakeApi(
                     { old?: unknown; new?: unknown }
                 >;
                 for (const [name, change] of Object.entries(changes)) {
-                    checkValue(typesById, known, target.type, name, change.new);
-                    if (!valuesEqual(properties[name], change.old)) {
-                        throw conflict(
-                            `свойство "${name}" изменилось с момента загрузки (значение «было» не совпало с текущим).`,
-                        );
+                    // LWW: «было» не сверяется, нужно только «стало»
+                    if (!('new' in change)) {
+                        throw rejected(`для свойства "${name}" нужно значение new (стало).`);
                     }
+                    checkValue(typesById, known, target.type, name, change.new);
                     if (change.new === null || change.new === undefined) delete properties[name];
                     else properties[name] = change.new;
                 }
@@ -371,11 +399,6 @@ export function createFakeApi(
                 const numberChange = op.number as { old?: number; new: number } | undefined;
                 let { parent, number } = target;
                 if (parentChange) {
-                    if (!valuesEqual(target.parent, parentChange.old)) {
-                        throw conflict(
-                            'родитель (parent) изменился с момента загрузки (значение «было» не совпало с текущим).',
-                        );
-                    }
                     if (parentChange.new !== null) {
                         for (
                             let ancestor: string | null = parentChange.new;
@@ -393,14 +416,7 @@ export function createFakeApi(
                     singletonGuard(target.type, parentChange.new, id);
                     parent = parentChange.new;
                 }
-                if (numberChange) {
-                    if (numberChange.old !== target.number) {
-                        throw conflict(
-                            'номер (number) изменился с момента загрузки (значение «было» не совпало с текущим).',
-                        );
-                    }
-                    number = checkNumber(numberChange.new);
-                }
+                if (numberChange) number = checkNumber(numberChange.new);
                 known.set(id, { ...target, parent, number });
             } else if (op.op === 'delete') {
                 targetOf(id);
@@ -416,6 +432,44 @@ export function createFakeApi(
         }
         return known;
     };
+    // Применённые наборы: идентификатор → курсор (повтор отвечает `duplicate` с прежним курсором)
+    const appliedSeq = new Map<string, number>();
+    let lastSeq = 0;
+    /**
+     * Применяет один набор пакета атомарно, как сервер: отказ не меняет данных и не влияет на соседние наборы
+     */
+    function applyChangeset(changeset: SubmittedChangeset): ChangesetResult {
+        const { id } = changeset;
+        const known = appliedSeq.get(id);
+        if (known !== undefined) return { id, status: 'duplicate', seq: known };
+        if (rejection) {
+            const error = rejection;
+            rejection = null;
+            return rejectedResult(id, error);
+        }
+        const operations = changeset.operations;
+        try {
+            const result = validate(operations);
+            if (serverMode) {
+                const map = new Map((api.objects as DataObject[]).map((o) => [o.id, { ...o }]));
+                applyOperations(map, operations as unknown as Operation[]);
+                api.objects = [...map.values()];
+            } else {
+                accepted.clear();
+                for (const [objectId, value] of result) accepted.set(objectId, value);
+                for (const o of api.objects as { id: string }[]) {
+                    if (!result.has(o.id)) accepted.set(o.id, null);
+                }
+            }
+        } catch (error) {
+            if (error instanceof ApiError) return rejectedResult(id, error);
+            throw error;
+        }
+        lastSeq += 1;
+        appliedSeq.set(id, lastSeq);
+        api.changesets.push(changeset);
+        return { id, status: 'applied', seq: lastSeq };
+    }
     const catalogItem = (e: Required<FakeExtension>) => ({ ...e });
     const api: FakeApi = {
         types: withPlatformTypes(types),
@@ -448,31 +502,20 @@ export function createFakeApi(
         post: (path, body) => {
             if (path !== 'changesets')
                 return Promise.reject(new ApiError(404, `нет маршрута ${path}`));
-            if (rejection) {
+            const batch = (body as { changesets?: unknown } | undefined)?.changesets;
+            if (!Array.isArray(batch)) {
+                return Promise.reject(
+                    new ApiError(400, 'Тело запроса должно иметь вид { changesets: [...] }.'),
+                );
+            }
+            // Отказ уровня запроса (сеть, авторизация, формат) — ответ целиком не 200
+            if (rejection && rejection.status !== 422) {
                 const error = rejection;
                 rejection = null;
                 return Promise.reject(error);
             }
-            const operations =
-                (body as { operations?: Record<string, unknown>[] }).operations ?? [];
-            try {
-                const known = validate(operations);
-                if (serverMode) {
-                    const map = new Map((api.objects as DataObject[]).map((o) => [o.id, { ...o }]));
-                    applyOperations(map, operations as unknown as Operation[]);
-                    api.objects = [...map.values()];
-                } else {
-                    accepted.clear();
-                    for (const [id, value] of known) accepted.set(id, value);
-                    for (const o of api.objects as { id: string }[]) {
-                        if (!known.has(o.id)) accepted.set(o.id, null);
-                    }
-                }
-            } catch (error) {
-                return Promise.reject(error);
-            }
-            api.changesets.push(body as never);
-            return Promise.resolve({ id: 'journal-1' } as never);
+            const results = (batch as SubmittedChangeset[]).map(applyChangeset);
+            return Promise.resolve(results as never);
         },
         put: (path, body) => {
             const match = /^extensions\/([^/]+)\/connection$/.exec(path);

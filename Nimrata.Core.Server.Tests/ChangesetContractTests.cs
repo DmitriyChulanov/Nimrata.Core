@@ -12,7 +12,7 @@ namespace Nimrata.Core.Server.Tests;
 
 /// <summary>
 /// Контракт Набора изменений: общие с клиентом JSON-сценарии (<c>contracts/changeset</c>) против реального сервера.
-/// Сравниваются признак успеха, код ошибки и конфликт (HTTP 409), текст причины не сравнивается
+/// Сравниваются признак успеха (набор применён) и машинный код отказа, текст причины не сравнивается
 /// </summary>
 public sealed class ChangesetContractTests(ServerFactory factory) : IClassFixture<ServerFactory>, IAsyncLifetime
 {
@@ -99,7 +99,7 @@ public sealed class ChangesetContractTests(ServerFactory factory) : IClassFixtur
     }
 
     /// <summary>
-    /// Проверяет, что сервер даёт на сценарий тот же признак успеха, код ошибки и конфликт, что ожидает контракт
+    /// Проверяет, что сервер даёт на сценарий тот же признак успеха и код ошибки, что ожидает контракт
     /// </summary>
     /// <param name="file">Файл сценариев</param>
     /// <param name="name">Название сценария</param>
@@ -111,22 +111,14 @@ public sealed class ChangesetContractTests(ServerFactory factory) : IClassFixtur
         var scenario = ReadScenarios(Path.Combine(ContractDirectory, file)).Single(s => s["name"]!.GetValue<string>() == name);
         await ResetAsync(scenario);
 
-        var response = await _me.PostAsJsonAsync(
-            "/api/changesets", new { operations = scenario["operations"]!.AsArray() });
+        var operations = scenario["operations"]!.AsArray().Select(o => (object)o!.DeepClone()).ToArray();
+        var result = await ChangesetApi.ApplyAsync(_me, operations);
 
         var expect = scenario["expect"]!.AsObject();
-        var actual = new JsonObject { ["ok"] = response.IsSuccessStatusCode };
-        if (!response.IsSuccessStatusCode)
+        var actual = new JsonObject { ["ok"] = result.IsApplied };
+        if (!result.IsApplied && result.Code is not null)
         {
-            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-            if (body.TryGetProperty("code", out var code))
-            {
-                actual["code"] = code.GetString();
-            }
-            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
-            {
-                actual["conflict"] = true;
-            }
+            actual["code"] = result.Code;
         }
         Assert.Equal(expect.ToJsonString(), actual.ToJsonString());
     }

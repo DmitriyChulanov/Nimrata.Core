@@ -71,6 +71,7 @@ describe('DataController: changes through a changeset', () => {
         });
         expect(api.changesets).toEqual([
             {
+                id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/),
                 operations: [
                     {
                         op: 'create',
@@ -83,6 +84,19 @@ describe('DataController: changes through a changeset', () => {
                 ],
             },
         ]);
+    });
+
+    /**
+     * Проверяет, что каждый набор уходит пакетом со своим идентификатором UUIDv7
+     */
+    it('changeset_eachSubmission_hasOwnUuid7Id', async () => {
+        const { api, data } = await loaded();
+        await data.setProperty('a', 'title', 'X');
+        await data.setProperty('a', 'title', 'Y');
+        const [first, second] = api.changesets.map((c) => c.id);
+        expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/);
+        expect(second).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/);
+        expect(first).not.toBe(second);
     });
 
     /**

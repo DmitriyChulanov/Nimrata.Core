@@ -6,33 +6,99 @@ using Npgsql;
 namespace Nimrata.Core.Server.Objects;
 
 /// <summary>
-/// Применение набора изменений: одна транзакция, проверки по типам, запись в журнал
+/// Применение наборов изменений: каждый набор — своя транзакция под блокировкой пользователя, проверки
+/// структурных инвариантов по типам, запись в журнал с курсором <c>seq</c>. Значения свойств и положение
+/// объекта решаются по LWW: «было» клиента не сверяется
 /// </summary>
 public sealed class ChangesetService(NpgsqlDataSource dataSource)
 {
     private sealed record TypeRow(string Id, string? ExtensionId, JsonElement Definition);
 
     /// <summary>
-    /// Применяет набор целиком или отклоняет его
+    /// Уже записанный в журнал набор: автор и курсор
+    /// </summary>
+    /// <param name="UserId">Автор набора</param>
+    /// <param name="Seq">Курсор, выданный набору при применении</param>
+    private sealed record KnownChangeset(Guid UserId, long Seq);
+
+    /// <summary>
+    /// Применяет наборы пакета по порядку, каждый атомарно и независимо от остальных
     /// </summary>
     /// <param name="userId">Владелец объектов и автор записей журнала</param>
-    /// <param name="body">Набор в формате клиента: объект с непустым массивом <c>operations</c></param>
-    /// <param name="cancellationToken">Отмена применения</param>
-    /// <returns>Идентификатор набора в журнале</returns>
-    /// <exception cref="ChangesetRejectedException">Набор невалиден или расходится с текущими данными</exception>
-    public async Task<Guid> ApplyAsync(Guid userId, JsonElement body, CancellationToken cancellationToken = default)
+    /// <param name="submissions">Наборы пакета в порядке отправки</param>
+    /// <param name="cancellationToken">Отмена применения; уже зафиксированные наборы остаются</param>
+    /// <returns>Итог каждого набора в порядке пакета</returns>
+    public async Task<IReadOnlyList<ChangesetResult>> ApplyBatchAsync(
+        Guid userId, IReadOnlyList<ChangesetSubmission> submissions, CancellationToken cancellationToken = default)
     {
-        if (body.ValueKind != JsonValueKind.Object
-            || !body.TryGetProperty("operations", out var operations)
-            || operations.ValueKind != JsonValueKind.Array
-            || operations.GetArrayLength() == 0)
+        var results = new List<ChangesetResult>(submissions.Count);
+        foreach (var submission in submissions)
         {
-            throw new ChangesetRejectedException("Набор изменений должен содержать непустой список операций (operations).");
+            results.Add(await ApplyAsync(userId, submission, cancellationToken));
         }
+        return results;
+    }
 
+    /// <summary>
+    /// Применяет набор целиком или отклоняет его; повтор уже применённого набора ничего не меняет
+    /// </summary>
+    /// <param name="userId">Владелец объектов и автор записей журнала</param>
+    /// <param name="submission">Набор: идентификатор клиента и непустой массив операций</param>
+    /// <param name="cancellationToken">Отмена применения</param>
+    /// <returns>Итог набора: применён (с <c>seq</c>), повтор (с прежним <c>seq</c>) или отклонён (с причиной)</returns>
+    public async Task<ChangesetResult> ApplyAsync(
+        Guid userId, ChangesetSubmission submission, CancellationToken cancellationToken = default)
+    {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
+        // Наборы пользователя фиксируются строго по одному: seq выдаётся под блокировкой, поэтому порядок seq
+        // совпадает с порядком фиксации, и курсор не проскочит незафиксированный набор с меньшим seq
+        await connection.ExecuteAsync(new CommandDefinition(
+            "select pg_advisory_xact_lock(hashtextextended(@key, 0))",
+            new { key = $"changesets:{userId}" },
+            transaction,
+            cancellationToken: cancellationToken));
+
+        var known = await connection.QuerySingleOrDefaultAsync<KnownChangeset>(new CommandDefinition(
+            "select user_id as UserId, seq as Seq from changesets where id = @id",
+            new { id = submission.Id },
+            transaction,
+            cancellationToken: cancellationToken));
+        if (known is not null)
+        {
+            return known.UserId == userId
+                ? ChangesetResult.Duplicate(submission.Id, known.Seq)
+                : ChangesetResult.Rejected(submission.Id, $"Идентификатор набора {submission.Id} уже занят.");
+        }
+
+        try
+        {
+            var seq = await ApplyOperationsAsync(connection, transaction, userId, submission, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return ChangesetResult.Applied(submission.Id, seq);
+        }
+        catch (ChangesetRejectedException rejection)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ChangesetResult.Rejected(submission.Id, rejection.Message, rejection.Code);
+        }
+    }
+
+    /// <summary>
+    /// Записывает набор в журнал и выполняет его операции в открытой транзакции
+    /// </summary>
+    /// <param name="connection">Открытое соединение</param>
+    /// <param name="transaction">Транзакция набора, уже под блокировкой пользователя</param>
+    /// <param name="userId">Владелец объектов и автор набора</param>
+    /// <param name="submission">Набор: идентификатор клиента и операции</param>
+    /// <param name="cancellationToken">Отмена применения</param>
+    /// <returns>Курсор записанного набора</returns>
+    /// <exception cref="ChangesetRejectedException">Операция нарушает структурный инвариант или неверна по формату</exception>
+    private static async Task<long> ApplyOperationsAsync(
+        NpgsqlConnection connection, NpgsqlTransaction transaction, Guid userId, ChangesetSubmission submission,
+        CancellationToken cancellationToken)
+    {
         var typeRows = await connection.QueryAsync<TypeRow>(new CommandDefinition(
             "select id as Id, extension_id as ExtensionId, definition as Definition from types",
             transaction: transaction,
@@ -45,15 +111,15 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
             transaction,
             cancellationToken: cancellationToken))).ToHashSet();
 
-        var changesetId = await connection.ExecuteScalarAsync<Guid>(new CommandDefinition(
-            "insert into changesets (user_id) values (@userId) returning id",
-            new { userId },
+        var seq = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+            "insert into changesets (id, user_id) values (@id, @userId) returning seq",
+            new { id = submission.Id, userId },
             transaction,
             cancellationToken: cancellationToken));
 
-        var context = new ChangesetContext(connection, transaction, userId, changesetId, types, disabledExtensions, cancellationToken);
+        var context = new ChangesetContext(connection, transaction, userId, submission.Id, types, disabledExtensions, cancellationToken);
         var number = 0;
-        foreach (var operation in operations.EnumerateArray())
+        foreach (var operation in submission.Operations.EnumerateArray())
         {
             number++;
             try
@@ -62,16 +128,14 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
             }
             catch (ChangesetRejectedException rejection)
             {
-                throw new ChangesetRejectedException($"Операция {number}: {rejection.Message}", rejection.Conflict, rejection.Code);
+                throw new ChangesetRejectedException($"Операция {number}: {rejection.Message}", rejection.Code);
             }
             catch (Exception exception) when (exception is InvalidOperationException or FormatException or KeyNotFoundException)
             {
                 throw new ChangesetRejectedException($"Операция {number}: неверный формат ({exception.Message}).");
             }
         }
-
-        await transaction.CommitAsync(cancellationToken);
-        return changesetId;
+        return seq;
     }
 
     private static async Task ExecuteAsync(ChangesetContext context, JsonElement operation)
@@ -118,7 +182,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
 
         if (await context.ScalarAsync<bool>("select exists (select 1 from objects where id = @id)", new { id }))
         {
-            throw new ChangesetRejectedException($"идентификатор {id} уже занят.", conflict: true);
+            throw new ChangesetRejectedException($"идентификатор {id} уже занят.");
         }
 
         var parent = ReadGuid(operation, "parent");
@@ -188,22 +252,16 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         {
             var name = change.Name;
             if (change.Value.ValueKind != JsonValueKind.Object
-                || !change.Value.TryGetProperty("old", out var expectedOld)
                 || !change.Value.TryGetProperty("new", out var newValue))
             {
-                throw new ChangesetRejectedException($"для свойства \"{name}\" нужны значения old (было) и new (стало).");
+                throw new ChangesetRejectedException($"для свойства \"{name}\" нужно значение new (стало).");
             }
             await ValidateValueAsync(context, type, name, newValue);
 
+            // LWW: «было» клиента не сверяется, в журнал идёт фактическое прежнее значение
             var current = properties.TryGetPropertyValue(name, out var currentNode) && currentNode is not null
                 ? JsonSerializer.Deserialize<JsonElement>(currentNode.ToJsonString())
                 : default;
-            if (!ValuesEqual(current, expectedOld))
-            {
-                throw new ChangesetRejectedException(
-                    $"свойство \"{name}\" изменилось с момента загрузки (значение «было» не совпало с текущим). Обновите данные.",
-                    conflict: true);
-            }
 
             if (newValue.ValueKind == JsonValueKind.Null)
             {
@@ -249,7 +307,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         }
         if (changesNumber)
         {
-            number = ReadNewNumber(target, numberChange);
+            number = ReadNewNumber(numberChange);
         }
 
         await context.ExecuteAsync(
@@ -263,20 +321,13 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
     }
 
     /// <summary>
-    /// Проверяет «было» для parent и возвращает нового родителя (<c>null</c> — корень)
+    /// Проверяет структурные инварианты нового родителя и возвращает его (<c>null</c> — корень); «было» не сверяется (LWW)
     /// </summary>
     private static async Task<Guid?> ReadNewParentAsync(ChangesetContext context, ObjectRecord target, JsonElement change)
     {
-        if (!change.TryGetProperty("old", out var expectedOld) || !change.TryGetProperty("new", out var newValue))
+        if (!change.TryGetProperty("new", out var newValue))
         {
-            throw new ChangesetRejectedException("для parent нужны значения old (было) и new (стало).");
-        }
-        var currentParent = target.Parent is { } current ? GuidToJson(current) : default;
-        if (!ValuesEqual(currentParent, expectedOld))
-        {
-            throw new ChangesetRejectedException(
-                "родитель (parent) изменился с момента загрузки (значение «было» не совпало с текущим). Обновите данные.",
-                conflict: true);
+            throw new ChangesetRejectedException("для parent нужно значение new (стало).");
         }
         if (newValue.ValueKind == JsonValueKind.Null)
         {
@@ -297,24 +348,15 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
     }
 
     /// <summary>
-    /// Проверяет «было» для number и возвращает новый номер
+    /// Новый номер объекта; «было» не сверяется (LWW)
     /// </summary>
-    private static int ReadNewNumber(ObjectRecord target, JsonElement change)
+    private static int ReadNewNumber(JsonElement change)
     {
-        if (!change.TryGetProperty("old", out var expectedOld) || !change.TryGetProperty("new", out var newValue))
+        if (!change.TryGetProperty("new", out var newValue))
         {
-            throw new ChangesetRejectedException("для number нужны значения old (было) и new (стало, целое ≥ 1).");
+            throw new ChangesetRejectedException("для number нужно значение new (стало, целое ≥ 1).");
         }
-        var number = ReadNumber(newValue, "number.new");
-        if (expectedOld.ValueKind != JsonValueKind.Number
-            || !expectedOld.TryGetInt32(out var currentNumber)
-            || currentNumber != target.Number)
-        {
-            throw new ChangesetRejectedException(
-                "номер (number) изменился с момента загрузки (значение «было» не совпало с текущим). Обновите данные.",
-                conflict: true);
-        }
-        return number;
+        return ReadNumber(newValue, "number.new");
     }
 
     /// <summary>
@@ -386,10 +428,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
     private static async Task EnsureSingletonAsync(
         ChangesetContext context, TypeDescriptor type, Guid? parent, Guid? excludedId = null)
     {
-        // Блокировка до конца транзакции: два одновременных набора не создадут дубликат
-        await context.ExecuteAsync(
-            "select pg_advisory_xact_lock(hashtextextended(@key, 0))",
-            new { key = $"singleton:{context.UserId}:{type.Id}:{parent}" });
+        // Два одновременных набора не создадут дубликат: наборы владельца применяются под общей блокировкой
         var exists = await context.ScalarAsync<bool>(
             """
             select exists (
@@ -402,7 +441,6 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         {
             throw new ChangesetRejectedException(
                 $"объект типа \"{type.Id}\" уже есть у этого родителя, второй создать нельзя.",
-                conflict: true,
                 code: RejectionCodes.SingletonExists);
         }
     }
@@ -494,31 +532,6 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.TryGetGuid(out var id)
             ? id
             : null;
-
-    private static JsonElement GuidToJson(Guid id) => JsonSerializer.Deserialize<JsonElement>($"\"{id}\"");
-
-    /// <summary>
-    /// Сравнение значений свойств; <c>default</c> (Undefined) и JSON null считаются «пусто»
-    /// </summary>
-    private static bool ValuesEqual(JsonElement left, JsonElement right)
-    {
-        static bool IsEmpty(JsonElement element) => element.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null;
-
-        if (IsEmpty(left) || IsEmpty(right))
-        {
-            return IsEmpty(left) && IsEmpty(right);
-        }
-        if (left.ValueKind != right.ValueKind)
-        {
-            return false;
-        }
-        return left.ValueKind switch
-        {
-            JsonValueKind.String => left.GetString() == right.GetString(),
-            JsonValueKind.Number => left.GetDecimal() == right.GetDecimal(),
-            _ => true,
-        };
-    }
 
     private static Task WriteJournalAsync(
         ChangesetContext context, Guid objectId, string typeId, string operation, string? property,

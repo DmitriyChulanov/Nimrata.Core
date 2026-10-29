@@ -59,9 +59,9 @@ describe('DataController: Undo/Redo', () => {
 
         expect(result).toEqual({ ok: true });
         expect(data.getObject('a')?.properties.title).toBe('A');
-        expect(api.changesets[1]).toEqual({
-            operations: [{ op: 'update', id: 'a', changes: { title: { old: 'Новое', new: 'A' } } }],
-        });
+        expect(api.changesets[1].operations).toEqual([
+            { op: 'update', id: 'a', changes: { title: { old: 'Новое', new: 'A' } } },
+        ]);
         expect(data.canUndo()).toBe(false);
         expect(data.canRedo()).toBe(true);
     });
@@ -78,7 +78,9 @@ describe('DataController: Undo/Redo', () => {
 
         expect(result).toEqual({ ok: true });
         expect(data.getObject('a')?.properties.title).toBe('Новое');
-        expect(api.changesets[2]).toEqual(api.changesets[0]);
+        // Повтор — новый набор с теми же операциями, но своим идентификатором
+        expect(api.changesets[2].operations).toEqual(api.changesets[0].operations);
+        expect(api.changesets[2].id).not.toBe(api.changesets[0].id);
         expect(data.canUndo()).toBe(true);
         expect(data.canRedo()).toBe(false);
     });
