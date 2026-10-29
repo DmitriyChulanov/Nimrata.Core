@@ -4,7 +4,13 @@ import { createDataController } from './DataController';
 import { createFakeApi } from './fakeApi';
 
 const types = [
-    { id: 'Folder', name: 'Папка', extension: 't', extensionVersion: 1 },
+    {
+        id: 'Folder',
+        name: 'Папка',
+        extension: 't',
+        extensionVersion: 1,
+        properties: [{ id: 'x', name: 'Служебное', kind: 'string' }],
+    },
     {
         id: 'Task',
         name: 'Задача',

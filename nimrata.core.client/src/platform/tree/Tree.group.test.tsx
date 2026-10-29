@@ -19,6 +19,7 @@ const types = [
         extensionVersion: 1,
         icon: 'folder',
         allowedChildren: ['Note', 'Folder', 'Link'],
+        properties: [{ id: 'name', name: 'Название', kind: 'string' }],
         actions: [{ id: 'open', name: 'Открыть', icon: 'globe', placements: ['contextMenu'] }],
     },
     {

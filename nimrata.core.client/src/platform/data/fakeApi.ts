@@ -48,12 +48,30 @@ export interface FakeApi extends ApiClient {
 }
 
 /**
- * Известный подставному API объект: тип и родитель
+ * Известный подставному API объект: тип, родитель, порядок и свойства
  */
 interface Known {
     type: string;
     /** Идентификатор родителя; `null` — корень */
     parent: string | null;
+    order: number;
+    properties: Record<string, unknown>;
+}
+
+/**
+ * Описание свойства типа, нужное проверке значения
+ */
+interface PropertyLike {
+    id: string;
+    name?: string;
+    kind: string;
+    category?: string;
+    readOnly?: boolean;
+    hidden?: boolean;
+    /** Допустимые значения перечисления */
+    values?: { value: string }[];
+    /** Допустимые типы объекта-цели ссылки; отсутствие — любые */
+    targetTypes?: string[];
 }
 
 /**
@@ -67,6 +85,8 @@ interface TypeLike {
     extension?: string;
     /** Не более одного объекта типа у родителя */
     singleton?: boolean;
+    /** Свойства типа; отсутствие — свойств нет */
+    properties?: PropertyLike[];
 }
 
 /**
@@ -89,10 +109,133 @@ function checkParent(
 }
 
 /**
- * Платформенные типы без расширения (как в миграциях сервера), которые есть у каждого пользователя
+ * Отказ набора (HTTP 422), как `ChangesetRejectedException` сервера
  */
-const PLATFORM_TYPES = [
-    { id: 'SettingsRoot', name: 'Настройки', sealed: true, singleton: true, icon: 'settings' },
+const rejected = (message: string, code?: string): ApiError => new ApiError(422, message, code);
+
+/**
+ * Отказ набора из-за расхождения с текущими данными (HTTP 409)
+ */
+const conflict = (message: string, code?: string): ApiError => new ApiError(409, message, code);
+
+/**
+ * Значения «пусто» (нет значения или `null`) равны друг другу, прочие сравниваются по содержимому
+ */
+function valuesEqual(left: unknown, right: unknown): boolean {
+    const empty = (value: unknown) => value === undefined || value === null;
+    if (empty(left) || empty(right)) return empty(left) && empty(right);
+    return JSON.stringify(left) === JSON.stringify(right);
+}
+
+const isRealDate = (text: string): boolean => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+    if (!match) return false;
+    const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return (
+        date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day
+    );
+};
+
+/**
+ * Проверка значения свойства так же, как `ValidateValueAsync` сервера: вид, перечисление, ссылка и её `targetTypes`
+ */
+function checkValue(
+    types: Map<string, TypeLike>,
+    known: Map<string, Known>,
+    typeId: string,
+    name: string,
+    value: unknown,
+): void {
+    const descriptor = types.get(typeId)?.properties?.find((p) => p.id === name);
+    if (!descriptor) throw rejected(`у типа "${typeId}" нет свойства "${name}".`);
+    if (value === null) return;
+    const isValid = (() => {
+        switch (descriptor.kind) {
+            case 'string':
+            case 'text':
+                return typeof value === 'string';
+            case 'integer':
+                return typeof value === 'number' && Number.isInteger(value);
+            case 'boolean':
+                return typeof value === 'boolean';
+            case 'date':
+                return typeof value === 'string' && isRealDate(value);
+            case 'time':
+                return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+            case 'enum':
+                return (
+                    typeof value === 'string' &&
+                    (descriptor.values ?? []).some((v) => v.value === value)
+                );
+            case 'reference':
+                // Идентификаторы в тестах не обязаны быть GUID: несуществующую цель отклонит проверка ниже
+                return typeof value === 'string';
+            default:
+                return false;
+        }
+    })();
+    if (!isValid) {
+        throw rejected(`значение свойства "${name}" не подходит под вид "${descriptor.kind}".`);
+    }
+    if (descriptor.kind === 'reference') {
+        const target = known.get(value as string);
+        if (!target) throw rejected(`свойство "${name}" ссылается на несуществующий объект.`);
+        if (descriptor.targetTypes && !descriptor.targetTypes.includes(target.type)) {
+            throw rejected(
+                `свойство "${name}" не может ссылаться на объект типа "${target.type}".`,
+            );
+        }
+    }
+}
+
+/**
+ * Платформенные типы без расширения (как в миграциях сервера `0023`, `0024`), которые есть у каждого пользователя
+ */
+const PLATFORM_TYPES: (TypeLike & Record<string, unknown>)[] = [
+    {
+        id: 'SettingsRoot',
+        name: 'Настройки',
+        sealed: true,
+        singleton: true,
+        icon: 'settings',
+        iconColor: 'gray',
+    },
+    {
+        id: 'CustomCommand',
+        name: 'Пользовательская команда',
+        sealed: true,
+        hiddenInTree: true,
+        allowedChildren: [],
+        properties: [
+            { id: 'name', name: 'Название', kind: 'string', category: 'Основное' },
+            {
+                id: 'extension',
+                name: 'Расширение',
+                kind: 'string',
+                category: 'Основное',
+                readOnly: true,
+            },
+            {
+                id: 'command',
+                name: 'Команда',
+                kind: 'string',
+                category: 'Основное',
+                readOnly: true,
+            },
+            {
+                id: 'params',
+                name: 'Параметры',
+                kind: 'text',
+                hidden: true,
+                readOnly: true,
+            },
+        ],
+        icon: 'play',
+        iconColor: 'gray',
+    },
 ];
 
 function withPlatformTypes(types: unknown[]): unknown[] {
@@ -125,44 +268,139 @@ export function createFakeApi(
     const validate = (operations: Record<string, unknown>[]): Map<string, Known> => {
         const typesById = typeMap();
         const known = new Map<string, Known>();
-        for (const o of api.objects as { id: string; type: string; parent: string | null }[]) {
-            known.set(o.id, { type: o.type, parent: o.parent ?? null });
+        for (const o of api.objects as {
+            id: string;
+            type: string;
+            parent: string | null;
+            order?: number;
+            properties?: Record<string, unknown>;
+        }[]) {
+            known.set(o.id, {
+                type: o.type,
+                parent: o.parent ?? null,
+                order: o.order ?? 0,
+                properties: o.properties ?? {},
+            });
         }
         for (const [id, value] of accepted) {
             if (value) known.set(id, value);
             else known.delete(id);
         }
+        const disabledGuard = (type: string | undefined) => {
+            if (isDisabled(type)) {
+                throw rejected('Расширение отключено.', 'extension_disabled');
+            }
+        };
+        const singletonGuard = (typeId: string, parent: string | null, selfId: string) => {
+            if (!typesById.get(typeId)?.singleton) return;
+            for (const [otherId, other] of known) {
+                if (otherId !== selfId && other.type === typeId && other.parent === parent) {
+                    throw conflict('Такой объект уже есть у этого родителя.', 'singleton_exists');
+                }
+            }
+        };
+        // Проверка нового родителя: существует, расширение подключено, тип потомка допустим
+        const parentGuard = (childType: string, parent: string | null) => {
+            if (parent === null) return;
+            const parentRow = known.get(parent);
+            if (!parentRow) throw rejected(`родитель ${parent} не найден.`);
+            disabledGuard(parentRow.type);
+            checkParent(typesById, childType, parentRow.type);
+        };
+        const targetOf = (id: string): Known => {
+            const target = known.get(id);
+            if (!target) throw rejected(`объект ${id} не найден.`);
+            disabledGuard(target.type);
+            return target;
+        };
         for (const op of operations) {
             const id = op.id as string;
-            const type = op.op === 'create' ? (op.type as string) : known.get(id)?.type;
-            if (isDisabled(type)) {
-                throw new ApiError(422, 'Расширение отключено.', 'extension_disabled');
-            }
             if (op.op === 'create') {
+                const typeId = op.type as string;
+                const type = typesById.get(typeId);
+                if (!type) throw rejected(`тип "${typeId}" неизвестен.`);
+                disabledGuard(typeId);
+                if (known.has(id)) throw conflict(`идентификатор ${id} уже занят.`);
                 const parent = (op.parent as string | null | undefined) ?? null;
-                const parentType = parent ? known.get(parent)?.type : undefined;
-                checkParent(typesById, op.type as string, parentType);
-                if (typesById.get(op.type as string)?.singleton) {
-                    for (const other of known.values()) {
-                        if (other.type === op.type && other.parent === parent) {
-                            throw new ApiError(
-                                409,
-                                'Такой объект уже есть у этого родителя.',
-                                'singleton_exists',
-                            );
+                parentGuard(typeId, parent);
+                singletonGuard(typeId, parent, id);
+                const properties: Record<string, unknown> = {};
+                for (const [name, value] of Object.entries(
+                    (op.properties as Record<string, unknown> | undefined) ?? {},
+                )) {
+                    checkValue(typesById, known, typeId, name, value);
+                    if (value !== null) properties[name] = value;
+                }
+                known.set(id, {
+                    type: typeId,
+                    parent,
+                    order: (op.order as number | undefined) ?? 0,
+                    properties,
+                });
+            } else if (op.op === 'update') {
+                const target = targetOf(id);
+                const properties = { ...target.properties };
+                const changes = (op.changes ?? {}) as Record<
+                    string,
+                    { old?: unknown; new?: unknown }
+                >;
+                for (const [name, change] of Object.entries(changes)) {
+                    checkValue(typesById, known, target.type, name, change.new);
+                    if (!valuesEqual(properties[name], change.old)) {
+                        throw conflict(
+                            `свойство "${name}" изменилось с момента загрузки (значение «было» не совпало с текущим).`,
+                        );
+                    }
+                    if (change.new === null || change.new === undefined) delete properties[name];
+                    else properties[name] = change.new;
+                }
+                known.set(id, { ...target, properties });
+            } else if (op.op === 'move') {
+                const target = targetOf(id);
+                const parentChange = op.parent as { old?: string | null; new: string | null };
+                const orderChange = op.order as { old?: number; new: number } | undefined;
+                let { parent, order } = target;
+                if (parentChange) {
+                    if (!valuesEqual(target.parent, parentChange.old)) {
+                        throw conflict(
+                            'родитель (parent) изменился с момента загрузки (значение «было» не совпало с текущим).',
+                        );
+                    }
+                    if (parentChange.new !== null) {
+                        for (
+                            let ancestor: string | null = parentChange.new;
+                            ancestor !== null;
+                            ancestor = known.get(ancestor)?.parent ?? null
+                        ) {
+                            if (ancestor === id) {
+                                throw rejected(
+                                    'нельзя переместить объект в самого себя или в своего потомка (получится цикл).',
+                                );
+                            }
                         }
                     }
+                    parentGuard(target.type, parentChange.new);
+                    singletonGuard(target.type, parentChange.new, id);
+                    parent = parentChange.new;
                 }
-                known.set(id, { type: op.type as string, parent });
-            } else if (op.op === 'move') {
-                const target = op.parent as { new: string | null } | undefined;
-                const current = known.get(id);
-                if (target && current) {
-                    const parentType = target.new ? known.get(target.new)?.type : undefined;
-                    checkParent(typesById, current.type, parentType);
-                    known.set(id, { ...current, parent: target.new });
+                if (orderChange) {
+                    if (orderChange.old !== target.order) {
+                        throw conflict(
+                            'порядок (order) изменился с момента загрузки (значение «было» не совпало с текущим).',
+                        );
+                    }
+                    order = orderChange.new;
                 }
+                known.set(id, { ...target, parent, order });
             } else if (op.op === 'delete') {
+                targetOf(id);
+                for (const other of known.values()) {
+                    if (other.parent === id) {
+                        throw rejected(
+                            `у объекта ${id} остались потомки: перечислите в наборе все удаляемые объекты, потомков раньше родителей.`,
+                        );
+                    }
+                }
                 known.delete(id);
             }
         }

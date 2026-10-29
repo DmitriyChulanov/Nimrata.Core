@@ -14,6 +14,11 @@ const types = [
         name: 'Задача',
         extension: 't',
         extensionVersion: 1,
+        properties: [
+            { id: 'name', name: 'Название', kind: 'string' },
+            { id: 'priority', name: 'Приоритет', kind: 'string' },
+            { id: 'status', name: 'Статус', kind: 'string' },
+        ],
         colorRules: [
             { property: 'priority', equals: 'medium', color: 'orange' },
             { property: 'priority', equals: 'high', color: 'red' },

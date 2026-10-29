@@ -1,46 +1,14 @@
 import { useState } from 'react';
 
-import { collator } from '@platform/collator';
 import { Icon } from '@platform/icons/Icon';
+import { objectLabel } from '@platform/objectQueries/objectQueries';
 import { useSelection } from '@platform/selection/useSelection';
+import { flatten } from '@platform/tree/treeModel';
 import { TypeIcon } from '@platform/tree/TypeIcon';
 import { Button, Dialog, IconButton } from '@platform/ui';
 
 import type { DataController, DataObject } from '@platform/data/DataController';
 import type { PropertyDefinition } from '@platform/types/types';
-
-/**
- * Название объекта для показа: вычисляемое имя, иначе название типа
- *
- * @param data - контроллер данных
- * @param object - объект
- * @returns текст названия
- */
-function titleOf(data: DataController, object: DataObject): string {
-    const name = object.properties.name;
-    if (typeof name === 'string' && name !== '') return name;
-    return data.getType(object.type)?.name ?? object.type;
-}
-
-/**
- * Потомки родителя, видимые в дереве, в порядке показа
- *
- * @param data - контроллер данных
- * @param parent - идентификатор родителя; `null` — корень
- * @returns объекты с названиями
- */
-function visibleChildren(data: DataController, parent: string | null) {
-    return data
-        .getChildren(parent)
-        .filter((o) => !data.getType(o.type)?.hiddenInTree)
-        .map((object) => ({ object, title: titleOf(data, object) }))
-        .sort(
-            (a, b) =>
-                a.object.order - b.object.order ||
-                collator.compare(a.title, b.title) ||
-                (a.object.id < b.object.id ? -1 : 1),
-        );
-}
 
 /**
  * Свойства диалога выбора цели ссылки
@@ -74,15 +42,7 @@ function ReferencePicker({ data, property, current, onPick, onCancel }: PickerPr
             return next;
         });
 
-    const items: { object: DataObject; title: string; level: number; hasChildren: boolean }[] = [];
-    const walk = (parent: string | null, level: number) => {
-        for (const { object, title } of visibleChildren(data, parent)) {
-            const hasChildren = visibleChildren(data, object.id).length > 0;
-            items.push({ object, title, level, hasChildren });
-            if (hasChildren && expanded.has(object.id)) walk(object.id, level + 1);
-        }
-    };
-    walk(null, 1);
+    const items = flatten(data, expanded);
 
     const chosenObject = chosen ? data.getObject(chosen) : undefined;
     const canConfirm = chosenObject !== undefined && allowed(chosenObject);
@@ -183,7 +143,7 @@ export function ReferenceEditor({
         : !id
           ? '—'
           : target
-            ? titleOf(data, target)
+            ? objectLabel(data, target)
             : 'Недоступный объект';
 
     return (
