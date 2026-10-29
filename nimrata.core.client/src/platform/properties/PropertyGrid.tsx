@@ -11,7 +11,7 @@ import './PropertyGrid.css';
 
 import type { ReactNode } from 'react';
 import type { DataController, DataObject } from '@platform/data/DataController';
-import type { PropertyDefinition } from '@platform/types/types';
+import type { ActionDefinition, PropertyDefinition } from '@platform/types/types';
 import type { CommonProperty, GridItem } from './gridModel';
 
 /**
@@ -261,26 +261,28 @@ function Row({
 }
 
 /**
- * Строка действия: кнопка по центру на всю ширину таблицы
+ * Строка действий: подряд идущие кнопки по центру в одной строке, не влезающие переносятся
  */
 function ActionRow({
-    item,
+    items,
     onLaunch,
 }: {
-    item: Extract<GridItem, { kind: 'action' }>;
-    onLaunch: () => void;
+    items: readonly Extract<GridItem, { kind: 'action' }>[];
+    onLaunch: (action: ActionDefinition) => void;
 }) {
-    const { action, unavailable } = item;
     return (
         <div className="property-grid-action-row">
-            <Button
-                icon={action.icon}
-                disabled={unavailable !== null}
-                title={unavailable ?? undefined}
-                onClick={onLaunch}
-            >
-                {action.name}
-            </Button>
+            {items.map(({ action, unavailable }) => (
+                <Button
+                    key={action.id}
+                    icon={action.icon}
+                    disabled={unavailable !== null}
+                    title={unavailable ?? undefined}
+                    onClick={() => onLaunch(action)}
+                >
+                    {action.name}
+                </Button>
+            ))}
         </div>
     );
 }
@@ -344,32 +346,42 @@ export function PropertyGrid() {
         return result.ok;
     }
 
-    function renderItem(item: GridItem): ReactNode {
-        if (item.kind === 'action') {
-            return (
-                <ActionRow
-                    key={`action:${item.id}`}
-                    item={item}
-                    onLaunch={() => {
-                        setError(null);
-                        if (ids.length === 1) void launcher.launch(object!.id, item.action);
-                        else void launcher.launchMany(ids, item.action);
-                    }}
-                />
+    function launch(action: ActionDefinition) {
+        setError(null);
+        if (ids.length === 1) void launcher.launch(object!.id, action);
+        else void launcher.launchMany(ids, action);
+    }
+
+    function renderItems(sectionItems: readonly GridItem[]): ReactNode[] {
+        const nodes: ReactNode[] = [];
+        for (let i = 0; i < sectionItems.length; i++) {
+            const item = sectionItems[i];
+            if (item.kind === 'action') {
+                // Подряд идущие действия — одной строкой
+                const run: Extract<GridItem, { kind: 'action' }>[] = [item];
+                while (i + 1 < sectionItems.length) {
+                    const next = sectionItems[i + 1];
+                    if (next.kind !== 'action') break;
+                    run.push(next);
+                    i++;
+                }
+                nodes.push(<ActionRow key={`action:${item.id}`} items={run} onLaunch={launch} />);
+                continue;
+            }
+            const { property, value }: CommonProperty = item.entry;
+            nodes.push(
+                <Row
+                    key={`${groupKey}:${property.id}`}
+                    property={property}
+                    value={value.mixed ? undefined : value.value}
+                    mixed={value.mixed}
+                    data={data}
+                    onCommit={(next) => commit(property, next)}
+                    onInvalid={setError}
+                />,
             );
         }
-        const { property, value }: CommonProperty = item.entry;
-        return (
-            <Row
-                key={`${groupKey}:${property.id}`}
-                property={property}
-                value={value.mixed ? undefined : value.value}
-                mixed={value.mixed}
-                data={data}
-                onCommit={(next) => commit(property, next)}
-                onInvalid={setError}
-            />
-        );
+        return nodes;
     }
 
     return (
@@ -380,7 +392,7 @@ export function PropertyGrid() {
             {launcher.dialog}
             {sections.map((section, index) =>
                 section.category === null ? (
-                    <div key={`start:${index}`}>{section.items.map(renderItem)}</div>
+                    <div key={`start:${index}`}>{renderItems(section.items)}</div>
                 ) : (
                     <section
                         key={`${section.category}:${index}`}
@@ -388,7 +400,7 @@ export function PropertyGrid() {
                         aria-label={section.category}
                     >
                         <h3>{section.category}</h3>
-                        {section.items.map(renderItem)}
+                        {renderItems(section.items)}
                     </section>
                 ),
             )}
