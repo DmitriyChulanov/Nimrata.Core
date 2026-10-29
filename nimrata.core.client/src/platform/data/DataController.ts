@@ -1,11 +1,11 @@
-import { ApiError } from '@platform/api/apiClient';
+import { createSyncEngine } from '@platform/sync/syncEngine';
 
 import { createActionRegistry } from './actionRegistry';
 import { createDataStore } from './dataStore';
 import { errorMessage } from './errorMessage';
 
 import type { GroupLaunch } from './actionRegistry';
-import type { DataStore, LocalEdit, PendingChangeset, StoreSnapshot } from './dataStore';
+import type { DataStore, LocalEdit, StoreSnapshot } from './dataStore';
 import type { HistoryEntry, Operation } from './undoHistory';
 import { applyOperations, createUndoHistory, invertOperations, touchedIds } from './undoHistory';
 import { uuid7 } from './uuid7';
@@ -246,7 +246,7 @@ export interface DataControllerOptions {
     newId?: () => string;
     /**
      * Сетевая часть: отправляет наборы очереди и пишет итоги и входящие изменения в хранилище.
-     * По умолчанию — `createDirectTransport(api)` (каждый набор отдельным запросом, по одному)
+     * По умолчанию — `createSyncEngine(api)` (пакеты с окном 200 мс, повтор при сбое сети)
      */
     transport?: ChangesetTransport;
 }
@@ -469,67 +469,6 @@ function sameValue(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Сетевая часть по умолчанию: каждый набор очереди уходит отдельным запросом пакетной записи,
- * запросы — строго по одному в порядке очереди. Итог `applied`/`duplicate` подтверждает набор,
- * `rejected` и ошибка запроса — отклоняют. Пакетирование и повторы — задача SyncEngine
- *
- * @param api - API-клиент
- * @returns сетевая часть для `DataControllerOptions.transport`
- */
-export function createDirectTransport(api: ApiClient): ChangesetTransport {
-    return (port) => {
-        const sent = new Set<string>();
-        let chain: Promise<void> = Promise.resolve();
-        let disposed = false;
-
-        const send = async (changeset: PendingChangeset) => {
-            // Набор могли убрать из очереди каскадом, пока он ждал отправки
-            if (disposed || !port.pending().some((c) => c.id === changeset.id)) return;
-            try {
-                const [result] = await api.post<ChangesetResult[]>('changesets', {
-                    changesets: [{ id: changeset.id, operations: changeset.operations }],
-                });
-                if (!result) {
-                    port.reject(changeset.id, { error: 'Сервер не вернул итог набора.' });
-                } else if (result.status === 'rejected') {
-                    port.reject(changeset.id, {
-                        error: result.detail ?? 'Набор изменений отклонён.',
-                        status: 422,
-                        ...(result.code ? { code: result.code } : {}),
-                    });
-                } else {
-                    port.confirm(changeset.id, result.seq ?? 0);
-                }
-            } catch (error) {
-                port.reject(
-                    changeset.id,
-                    error instanceof ApiError
-                        ? {
-                              error: error.message,
-                              status: error.status,
-                              ...(error.code ? { code: error.code } : {}),
-                          }
-                        : { error: errorMessage(error) },
-                );
-            }
-        };
-
-        const pump = () => {
-            for (const changeset of port.pending()) {
-                if (sent.has(changeset.id)) continue;
-                sent.add(changeset.id);
-                chain = chain.then(() => send(changeset));
-            }
-        };
-        const unsubscribe = port.subscribePending(pump);
-        return () => {
-            disposed = true;
-            unsubscribe();
-        };
-    };
-}
-
-/**
  * Итог шага локальной очереди: готовый результат либо ожидание итога набора на сервере
  */
 type StepResult = { result: ChangeResult } | { outcome: Promise<ChangeResult> };
@@ -566,7 +505,7 @@ export function createDataController(options: DataControllerOptions): DataContro
 
     const newId = options.newId ?? uuid7;
     const history = createUndoHistory();
-    (options.transport ?? createDirectTransport(api))(store);
+    (options.transport ?? createSyncEngine(api))(store);
 
     // Локальная часть наборов (хуки, обработчики, применение к модели) выполняется строго по
     // очереди; ответа сервера следующее действие не ждёт

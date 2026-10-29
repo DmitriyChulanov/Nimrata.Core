@@ -10,7 +10,14 @@ export { ResetPasswordScreen } from './auth/ResetPasswordScreen';
 export { TypesProvider } from './types/TypesProvider';
 export { useTypes } from './types/useTypes';
 export type { TypesContextValue, TypesStatus } from './types/TypesContext';
-export { createDataController, createDirectTransport } from './data/DataController';
+export { createDataController } from './data/DataController';
+export {
+    SYNC_MAX_OPERATIONS,
+    SYNC_RETRY_BASE_MS,
+    SYNC_RETRY_MAX_MS,
+    SYNC_WINDOW_MS,
+    createSyncEngine,
+} from './sync/syncEngine';
 export type {
     ActionContext,
     ActionRegistrationOptions,

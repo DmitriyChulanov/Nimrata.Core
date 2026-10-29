@@ -118,7 +118,7 @@ describe('Tree: move by dragging', () => {
 
         await waitFor(() => expect(names()).toEqual(['А', 'В', 'Б']));
         expect(['a', 'b', 'c'].map((id) => controller.getObject(id)?.number)).toEqual([1, 3, 2]);
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
     });
 
     /**
@@ -218,7 +218,7 @@ describe('Tree: move by keyboard', () => {
         item('Папка').focus();
         await user.keyboard('{Alt>}{ArrowDown}{/Alt}');
         await waitFor(() => expect(names()).toEqual(['Группа', 'Папка', 'Заметка', 'Лист']));
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
 
         await user.keyboard('{Alt>}{ArrowUp}{/Alt}');
         await waitFor(() => expect(names()).toEqual(['Папка', 'Группа', 'Заметка', 'Лист']));

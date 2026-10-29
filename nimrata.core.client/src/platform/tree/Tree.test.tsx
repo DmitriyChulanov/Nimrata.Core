@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -236,7 +236,7 @@ describe('Tree: context menu', () => {
         await user.click(screen.getByRole('menuitem', { name: 'Создать: Заметка' }));
 
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         expect(api.changesets[0].operations[0]).toMatchObject({
             op: 'create',
             type: 'Note',
@@ -258,8 +258,9 @@ describe('Tree: context menu', () => {
         });
         await user.click(screen.getByRole('menuitem', { name: 'Создать: Заметка' }));
 
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         const created = String(api.changesets[0].operations[0].id);
-        expect(screen.getByLabelText('выделено')).toHaveTextContent(created);
+        await waitFor(() => expect(screen.getByLabelText('выделено')).toHaveTextContent(created));
         expect(screen.getByLabelText('правка имени')).toHaveTextContent(created);
     });
 
@@ -302,7 +303,7 @@ describe('Tree: context menu', () => {
 
         expect(names()).toEqual(['Лист']);
         expect(controller.getObject('a')).toBeUndefined();
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         expect(api.changesets[0].operations.map((o) => o.id)).toEqual(['a', 'f']);
     });
 

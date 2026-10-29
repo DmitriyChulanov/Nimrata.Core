@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -143,7 +143,7 @@ describe('Property grid actions', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'Завершить' }));
 
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         expect(screen.getByLabelText('Статус')).toHaveValue('done');
     });
 
@@ -203,7 +203,7 @@ describe('Tree context menu actions', () => {
 
         await userEvent.click(within(menu).getByRole('menuitem', { name: 'Завершить' }));
 
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         expect(data.getObject('j')?.properties.status).toBe('done');
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
@@ -286,7 +286,7 @@ describe('Action parameters dialog', () => {
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
 
         expect(calls).toEqual([{ days: 3, note: 'позже', urgent: true, level: 'high', who: 'f' }]);
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 

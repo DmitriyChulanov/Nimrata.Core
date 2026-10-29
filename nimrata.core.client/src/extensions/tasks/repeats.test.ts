@@ -541,7 +541,7 @@ describe('Tracker: repeats', () => {
          */
         it('sync_serverRejection_revertsEditForWholeSet', async () => {
             const { data, api } = await weekly();
-            api.rejectNext(500, 'сбой');
+            api.rejectNext(422, 'сбой');
 
             const result = await data.setProperty(
                 series(data, 'Планёрка')[0].id,

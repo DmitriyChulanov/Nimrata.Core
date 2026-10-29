@@ -265,9 +265,11 @@ export function Tree() {
         const plan = planMove(data, id, target, position);
         if (!plan.ok) return;
         setError(null);
+        // Новый родитель раскрывается сразу: итог сервера приходит после окна отправки, а узел
+        // уже перенесён в видимой модели
+        if (plan.parent !== null) setExpanded((prev) => new Set(prev).add(plan.parent!));
         const result = await applyNumberChanges(data, plan.changes);
         if (!result.ok) setError(result.error);
-        else if (plan.parent !== null) setExpanded((prev) => new Set(prev).add(plan.parent!));
     };
 
     /**
