@@ -43,6 +43,26 @@ describe('objectLabel', () => {
         const a = obj('a', null);
         expect(objectLabel(readerOf([a]), a)).toBe('folder');
     });
+
+    it('название от формирователя типа главнее name', () => {
+        const a = obj('a', null, { name: 'Дом' });
+        const reader = { ...readerOf([a], types), getTitle: () => '09:00 — Дом' };
+        expect(objectLabel(reader, a)).toBe('09:00 — Дом');
+    });
+
+    it('формирователь без ответа или с пустым ответом уступает name', () => {
+        const a = obj('a', null, { name: 'Дом' });
+        const base = readerOf([a], types);
+        expect(objectLabel({ ...base, getTitle: () => undefined }, a)).toBe('Дом');
+        expect(objectLabel({ ...base, getTitle: () => '' }, a)).toBe('Дом');
+    });
+
+    it('формирователь без ответа и без name даёт название типа', () => {
+        const a = obj('a', null);
+        expect(objectLabel({ ...readerOf([a], types), getTitle: () => undefined }, a)).toBe(
+            'Папка',
+        );
+    });
 });
 
 describe('ancestors', () => {

@@ -26,7 +26,10 @@ export function JournalTab() {
         objectLabel: (id) => {
             const object = data.getObject(id);
             if (!object) return null;
-            return objectLabel({ getObject: data.getObject, getType }, object);
+            return objectLabel(
+                { getObject: data.getObject, getType, getTitle: data.getTitle },
+                object,
+            );
         },
         objectTypeId: (id) => data.getObject(id)?.type ?? null,
     };

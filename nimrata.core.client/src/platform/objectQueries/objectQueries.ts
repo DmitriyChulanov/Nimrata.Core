@@ -9,16 +9,21 @@ export interface ObjectReader {
     getObject(id: string): DataObject | undefined;
     /** Тип по идентификатору */
     getType(id: string): TypeDefinition | undefined;
+    /** Название объекта, сформированное расширением его типа; `undefined` — формирователя нет или он отказался */
+    getTitle?(object: DataObject): string | undefined;
 }
 
 /**
- * Название объекта: свойство `name`, иначе название типа, иначе идентификатор типа
+ * Название объекта: формирователь его типа, иначе свойство `name`, иначе название типа, иначе
+ * идентификатор типа
  *
  * @param reader - доступ к объектам и типам
  * @param object - объект
  * @returns текст для показа
  */
 export function objectLabel(reader: ObjectReader, object: DataObject): string {
+    const title = reader.getTitle?.(object);
+    if (title !== undefined && title !== '') return title;
     const name = object.properties.name;
     if (typeof name === 'string' && name !== '') return name;
     return reader.getType(object.type)?.name ?? object.type;

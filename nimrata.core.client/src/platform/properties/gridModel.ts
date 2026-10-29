@@ -106,6 +106,44 @@ export function commonProperties(
 }
 
 /**
+ * Идентификатор виртуального свойства «Название»: в БД его нет, значение считает формирователь типа
+ */
+export const TITLE_PROPERTY_ID = 'title';
+
+/**
+ * Виртуальное свойство «Название» (только чтение): есть, только если формирователь типа
+ * определил название у каждого выделенного объекта. Стоит сразу после «Имени»
+ *
+ * @param primary - основной объект: у него берётся положение строки
+ * @param objects - все выделенные объекты, включая основной
+ * @param getTitle - название объекта от формирователя его типа
+ * @param getType - поиск типа по идентификатору
+ * @returns строка «Название» либо `null`, если показывать нечего
+ */
+export function titleProperty(
+    primary: DataObject,
+    objects: readonly DataObject[],
+    getTitle: (object: DataObject) => string | undefined,
+    getType: (id: string) => TypeDefinition | undefined,
+): CommonProperty | null {
+    const titles = objects.map(getTitle);
+    if (titles.some((title) => title === undefined)) return null;
+    const name = getType(primary.type)?.properties?.find((p) => p.id === 'name');
+    const same = titles.every((title) => title === titles[0]);
+    return {
+        property: {
+            id: TITLE_PROPERTY_ID,
+            name: 'Название',
+            kind: 'string',
+            category: name?.category ?? 'Основное',
+            order: name?.order === undefined ? undefined : name.order + 0.5,
+            readOnly: true,
+        },
+        value: same ? { mixed: false, value: titles[0] } : { mixed: true },
+    };
+}
+
+/**
  * Сквозной порядок: сначала строки с `order` по возрастанию (при равенстве — в порядке описания),
  * затем остальные в порядке описания
  *

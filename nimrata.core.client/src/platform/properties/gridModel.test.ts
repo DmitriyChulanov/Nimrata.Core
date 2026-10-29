@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { commonProperties, sortItems, toSections } from './gridModel';
+import { commonProperties, sortItems, titleProperty, toSections } from './gridModel';
 
 import type { GridItem } from './gridModel';
 import type { TypeDefinition } from '@platform/types/types';
@@ -138,5 +138,60 @@ describe('gridModel: sortItems and toSections', () => {
             ['Срок', ['p4']],
             ['Прочее', ['a2']],
         ]);
+    });
+});
+
+/**
+ * Модель таблицы свойств: виртуальное «Название»
+ */
+describe('gridModel: titleProperty', () => {
+    const withName = new Map(types);
+    withName.set('N', {
+        id: 'N',
+        name: 'Н',
+        extension: 't',
+        extensionVersion: 1,
+        properties: [{ id: 'name', name: 'Имя', kind: 'string', category: 'Основное', order: 2 }],
+    } as TypeDefinition);
+    const typeOf = (id: string) => withName.get(id);
+
+    /**
+     * Проверяет, что без названия от формирователя строки нет
+     */
+    it('titleProperty_withoutFormatterTitle_returnsNull', () => {
+        const a = object('1', 'N', {});
+
+        expect(titleProperty(a, [a], () => undefined, typeOf)).toBeNull();
+    });
+
+    /**
+     * Проверяет, что строка только для чтения и стоит сразу после «Имени»
+     */
+    it('titleProperty_withTitle_readOnlyRowAfterName', () => {
+        const a = object('1', 'N', {});
+
+        const row = titleProperty(a, [a], () => '09:00 — А', typeOf);
+
+        expect(row?.property).toMatchObject({
+            id: 'title',
+            name: 'Название',
+            readOnly: true,
+            category: 'Основное',
+            order: 2.5,
+        });
+        expect(row?.value).toEqual({ mixed: false, value: '09:00 — А' });
+    });
+
+    /**
+     * Проверяет, что разные названия группы дают «Различны», а отсутствие у любого объекта скрывает строку
+     */
+    it('titleProperty_group_mixedOrHidden', () => {
+        const [a, b] = [object('1', 'N', {}), object('2', 'N', {})];
+        const byId = (o: { id: string }) => (o.id === '1' ? 'А' : 'Б');
+
+        expect(titleProperty(a, [a, b], byId, typeOf)?.value).toEqual({ mixed: true });
+        expect(
+            titleProperty(a, [a, b], (o) => (o.id === '1' ? 'А' : undefined), typeOf),
+        ).toBeNull();
     });
 });

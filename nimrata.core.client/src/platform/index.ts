@@ -35,6 +35,7 @@ export type {
     HookResult,
     MoveInput,
     OperationOptions,
+    TitleFormatter,
 } from './data/DataController';
 export { DataProvider } from './data/DataProvider';
 export { useData } from './data/useData';

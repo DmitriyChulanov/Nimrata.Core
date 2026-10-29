@@ -5,7 +5,7 @@ import { useData } from '@platform/data/useData';
 import { useSelection } from '@platform/selection/useSelection';
 import { Button } from '@platform/ui';
 
-import { commonProperties, sortItems, toSections } from './gridModel';
+import { commonProperties, sortItems, titleProperty, toSections } from './gridModel';
 import { ReferenceEditor } from './ReferenceEditor';
 import './PropertyGrid.css';
 
@@ -308,14 +308,17 @@ export function PropertyGrid() {
     const ids = objects.map((o) => o.id);
     const type = data.getType(object.type);
 
+    const title = titleProperty(object, objects, data.getTitle, data.getType);
     const items: GridItem[] = [
-        ...commonProperties(object, objects, data.getType).map((entry): GridItem => ({
-            kind: 'property',
-            id: entry.property.id,
-            order: entry.property.order,
-            category: entry.property.category,
-            entry,
-        })),
+        ...[...commonProperties(object, objects, data.getType), ...(title ? [title] : [])].map(
+            (entry): GridItem => ({
+                kind: 'property',
+                id: entry.property.id,
+                order: entry.property.order,
+                category: entry.property.category,
+                entry,
+            }),
+        ),
         ...data.getGroupActions(ids, 'propertyGrid').map(({ action, unavailable }): GridItem => ({
             kind: 'action',
             id: action.id,

@@ -158,6 +158,12 @@ export type HookResult = { cancel: string } | void;
 export type HookHandler = (context: HookContext) => HookResult;
 
 /**
+ * Формирователь названия объекта типа; `undefined` или пустая строка — взять название по умолчанию
+ * (`name`, затем название типа)
+ */
+export type TitleFormatter = (object: DataObject) => string | undefined;
+
+/**
  * Контекст обработчика действия
  */
 export interface ActionContext {
@@ -279,6 +285,13 @@ export interface DataController {
         phase: HookPhase,
         handler: HookHandler,
     ): () => void;
+    /**
+     * Задаёт способ формирования «Названия» объектов типа `typeId`. Название не хранится, а считается
+     * при чтении; повторная регистрация того же типа заменяет формирователь. Возвращает функцию отписки
+     */
+    registerTitle(typeId: string, formatter: TitleFormatter): () => void;
+    /** Название объекта от формирователя его типа; `undefined` — формирователя нет или он отказался */
+    getTitle(object: DataObject): string | undefined;
     /** Привязывает обработчик к действию `actionId` типа `typeId`. Возвращает функцию отписки */
     registerAction(
         typeId: string,
@@ -403,6 +416,7 @@ export function createDataController(options: DataControllerOptions): DataContro
     let snapshot: DataSnapshot = { status: 'idle', version: 0, error: null, needsReload: false };
     const listeners = new Set<() => void>();
     const hookEntries: HookEntry[] = [];
+    const titleFormatters = new Map<string, TitleFormatter>();
     // Индекс «родитель → потомки по порядку»: строится по требованию, сбрасывается при любом
     // изменении модели (в том числе внутри набора, между его операциями)
     let childrenIndex: Map<string | null, DataObject[]> | null = null;
@@ -764,8 +778,23 @@ export function createDataController(options: DataControllerOptions): DataContro
         };
     }
 
+    function registerTitle(typeId: string, formatter: TitleFormatter) {
+        titleFormatters.set(typeId, formatter);
+        return () => {
+            if (titleFormatters.get(typeId) === formatter) titleFormatters.delete(typeId);
+        };
+    }
+
+    function getTitle(object: DataObject): string | undefined {
+        return titleFormatters.get(object.type)?.(object);
+    }
+
     const registry = createActionRegistry({
-        reader: { getObject: (id) => objects.get(id), getType: (id) => types.get(id) },
+        reader: {
+            getObject: (id) => objects.get(id),
+            getType: (id) => types.get(id),
+            getTitle,
+        },
         execute,
     });
 
@@ -824,6 +853,8 @@ export function createDataController(options: DataControllerOptions): DataContro
         canRedo: () => history.canRedo(),
         perform: (run, opts) => execute((tx) => run(tx), opts),
         registerHook,
+        registerTitle,
+        getTitle,
         registerAction: registry.registerAction,
         registerCommand: registry.registerCommand,
         isCommandAvailable: registry.isCommandAvailable,
