@@ -21,6 +21,7 @@ const EMPTY: Selection = { ids: [], primary: null };
 export function SelectionProvider({ children }: { children: ReactNode }) {
     const [selection, setState] = useState<Selection>(EMPTY);
     const [revealRequest, setRevealRequest] = useState<SelectionValue['revealRequest']>(null);
+    const [nameEditRequest, setNameEditRequest] = useState<SelectionValue['nameEditRequest']>(null);
 
     const setSelection = useCallback((ids: readonly string[], primary?: string | null) => {
         const unique = [...new Set(ids)];
@@ -45,6 +46,11 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
         },
         [setSelection],
     );
+    const requestNameEdit = useCallback(
+        (id: string) => setNameEditRequest((prev) => ({ id, seq: (prev?.seq ?? 0) + 1 })),
+        [],
+    );
+    const finishNameEdit = useCallback(() => setNameEditRequest(null), []);
     const value = useMemo(
         () => ({
             selectedId: selection.primary,
@@ -53,8 +59,20 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
             setSelection,
             reveal,
             revealRequest,
+            requestNameEdit,
+            nameEditRequest,
+            finishNameEdit,
         }),
-        [selection, select, setSelection, reveal, revealRequest],
+        [
+            selection,
+            select,
+            setSelection,
+            reveal,
+            revealRequest,
+            requestNameEdit,
+            nameEditRequest,
+            finishNameEdit,
+        ],
     );
     return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }

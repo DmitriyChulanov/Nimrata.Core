@@ -301,3 +301,79 @@ describe('PropertyGrid: editing', () => {
         expect(screen.queryByLabelText('Название')).not.toBeInTheDocument();
     });
 });
+
+function RequestNameEdit({ id }: { id: string }) {
+    const { select, requestNameEdit } = useSelection();
+    return (
+        <button
+            type="button"
+            onClick={() => {
+                select(id);
+                requestNameEdit(id);
+            }}
+        >
+            создан {id}
+        </button>
+    );
+}
+
+/**
+ * Таблица свойств: «Имя» и «Название»
+ */
+describe('PropertyGrid: name and title', () => {
+    async function renderWithRequest() {
+        const api = createFakeApi(types, objects);
+        const controller = createDataController({ api });
+        await controller.load();
+        controller.registerTitle('Person', (o) => `Гражданин ${String(o.properties.name ?? '')}`);
+        render(
+            <DataProvider controller={controller}>
+                <SelectionProvider>
+                    <RequestNameEdit id="p" />
+                    <Select id="t" />
+                    <Select id="p" />
+                    <PropertyGrid />
+                </SelectionProvider>
+            </DataProvider>,
+        );
+    }
+
+    /**
+     * Проверяет, что после запроса на правку фокус встаёт в редактируемое «Имя» и не возвращается
+     * при повторном выделении объекта
+     */
+    it('propertyGrid_nameEditRequest_focusesNameOnceOnly', async () => {
+        await renderWithRequest();
+
+        await userEvent.click(screen.getByRole('button', { name: 'создан p' }));
+        expect(screen.getByLabelText('Имя')).toHaveFocus();
+
+        await userEvent.click(screen.getByRole('button', { name: 'выбрать t' }));
+        await userEvent.click(screen.getByRole('button', { name: 'выбрать p' }));
+        expect(screen.getByLabelText('Имя')).not.toHaveFocus();
+    });
+
+    /**
+     * Проверяет, что у типа с формирователем есть строка «Название» только для чтения
+     */
+    it('propertyGrid_typeWithFormatter_showsReadOnlyTitleRow', async () => {
+        await renderWithRequest();
+
+        await userEvent.click(screen.getByRole('button', { name: 'создан p' }));
+
+        expect(screen.getByLabelText('Название')).toHaveValue('Гражданин Иван');
+        expect(screen.getByLabelText('Название')).toBeDisabled();
+    });
+
+    /**
+     * Проверяет, что у типа без формирователя строки «Название» нет, а у задачи это обычное свойство
+     */
+    it('propertyGrid_typeWithoutFormatter_hasNoTitleRow', async () => {
+        await renderWithRequest();
+        await userEvent.click(screen.getByRole('button', { name: 'выбрать t' }));
+
+        expect(screen.getAllByLabelText('Название')).toHaveLength(1);
+        expect(screen.getByLabelText('Название')).toHaveValue('Первая');
+        expect(screen.getByLabelText('Название')).toBeEnabled();
+    });
+});

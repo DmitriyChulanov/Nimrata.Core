@@ -49,7 +49,15 @@ function creatableTypes(data: DataController, parent: DataObject): TypeDefinitio
  */
 export function Tree() {
     const data = useData();
-    const { selectedId, selectedIds, select, setSelection, reveal, revealRequest } = useSelection();
+    const {
+        selectedId,
+        selectedIds,
+        select,
+        setSelection,
+        reveal,
+        revealRequest,
+        requestNameEdit,
+    } = useSelection();
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     // Опорная строка для выделения диапазона Shift+клик
     const anchor = useRef<string | null>(null);
@@ -121,6 +129,7 @@ export function Tree() {
         if (result.ok) {
             setExpanded((prev) => new Set(prev).add(parent));
             reveal(result.id);
+            requestNameEdit(result.id);
         } else setError(result.error);
     };
 

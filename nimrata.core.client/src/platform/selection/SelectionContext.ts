@@ -19,6 +19,12 @@ export interface SelectionValue {
     reveal(id: string, ids?: readonly string[]): void;
     /** Последний запрос на показ узла в дереве; `seq` растёт с каждым вызовом `reveal` */
     revealRequest: { id: string; seq: number } | null;
+    /** Просит таблицу свойств перевести фокус на редактируемое «Имя» объекта `id` (после создания) */
+    requestNameEdit(id: string): void;
+    /** Невыполненный запрос на правку «Имени»; `seq` растёт с каждым вызовом `requestNameEdit` */
+    nameEditRequest: { id: string; seq: number } | null;
+    /** Сообщает, что запрос на правку «Имени» выполнен: таблица свойств больше не будет брать фокус */
+    finishNameEdit(): void;
 }
 
 /**

@@ -29,7 +29,13 @@ function obj(id: string, type: string, parent: string | null, order: number, nam
 }
 
 function SelectionProbe() {
-    return <output aria-label="выделено">{useSelection().selectedId ?? ''}</output>;
+    const { selectedId, nameEditRequest } = useSelection();
+    return (
+        <>
+            <output aria-label="выделено">{selectedId ?? ''}</output>
+            <output aria-label="правка имени">{nameEditRequest?.id ?? ''}</output>
+        </>
+    );
 }
 
 async function renderTree(objects: unknown[]) {
@@ -203,6 +209,24 @@ describe('Tree: context menu', () => {
             parent: 'f',
         });
         expect(names()).toEqual(['Папка', 'А', 'Заметка', 'Лист']);
+    });
+
+    /**
+     * Проверяет, что после создания новый объект выделен и запрошена правка его «Имени»
+     */
+    it('tree_create_selectsNewObjectAndRequestsNameEdit', async () => {
+        const user = userEvent.setup();
+        const { api } = await renderTree(family);
+
+        await user.pointer({
+            keys: '[MouseRight]',
+            target: screen.getByRole('treeitem', { name: 'Папка' }),
+        });
+        await user.click(screen.getByRole('menuitem', { name: 'Создать: Заметка' }));
+
+        const created = String(api.changesets[0].operations[0].id);
+        expect(screen.getByLabelText('выделено')).toHaveTextContent(created);
+        expect(screen.getByLabelText('правка имени')).toHaveTextContent(created);
     });
 
     /**

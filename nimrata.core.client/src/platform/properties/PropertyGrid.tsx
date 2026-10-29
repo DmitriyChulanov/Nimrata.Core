@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
 import { useData } from '@platform/data/useData';
@@ -87,6 +87,8 @@ interface EditorProps {
     onCommit: (value: unknown) => Promise<boolean>;
     /** Сообщает о некорректном вводе */
     onInvalid: (message: string) => void;
+    /** Номер запроса на фокус поля (после создания объекта); `undefined` — фокус не нужен */
+    focusSeq?: number;
 }
 
 /**
@@ -100,8 +102,13 @@ function TextEditor({
     inputId,
     onCommit,
     onInvalid,
+    focusSeq,
 }: EditorProps) {
     const [draft, setDraft] = useState<string | null>(null);
+    const field = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+    useEffect(() => {
+        if (focusSeq !== undefined) field.current?.focus();
+    }, [focusSeq]);
     const submitted = useRef<string | null>(null);
     const multiline = property.kind === 'text';
     const text = draft ?? toText(value);
@@ -125,6 +132,7 @@ function TextEditor({
     }
 
     const common = {
+        ref: field,
         id: inputId,
         value: text,
         placeholder: mixed ? MIXED_TEXT : undefined,
@@ -225,6 +233,7 @@ function Row({
     data,
     onCommit,
     onInvalid,
+    focusSeq,
 }: {
     property: PropertyDefinition;
     value: unknown;
@@ -232,6 +241,7 @@ function Row({
     data: DataController;
     onCommit: (value: unknown) => Promise<boolean>;
     onInvalid: (message: string) => void;
+    focusSeq?: number;
 }) {
     const inputId = useId();
     const disabled = property.readOnly === true;
@@ -254,6 +264,7 @@ function Row({
                 inputId={inputId}
                 onCommit={onCommit}
                 onInvalid={onInvalid}
+                focusSeq={focusSeq}
                 data={data}
             />
         </div>
@@ -293,9 +304,13 @@ function ActionRow({
  */
 export function PropertyGrid() {
     const data = useData();
-    const { selectedId, selectedIds } = useSelection();
+    const { selectedId, selectedIds, nameEditRequest, finishNameEdit } = useSelection();
     const [error, setError] = useState<string | null>(null);
     const launcher = useActionLauncher();
+    // Запрос на правку «Имени» исполняется один раз: после фокуса он снимается
+    useEffect(() => {
+        if (nameEditRequest) finishNameEdit();
+    }, [nameEditRequest, finishNameEdit]);
 
     const object = selectedId ? data.getObject(selectedId) : undefined;
     if (!object) return <p>Объект не выбран.</p>;
@@ -381,6 +396,15 @@ export function PropertyGrid() {
                     data={data}
                     onCommit={(next) => commit(property, next)}
                     onInvalid={setError}
+                    focusSeq={
+                        property.id === 'name' &&
+                        !property.readOnly &&
+                        ids.length === 1 &&
+                        nameEditRequest !== null &&
+                        nameEditRequest.id === object?.id
+                            ? nameEditRequest.seq
+                            : undefined
+                    }
                 />,
             );
         }
