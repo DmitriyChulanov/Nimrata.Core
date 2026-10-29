@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDataController } from './DataController';
-import { createFakeApi } from './fakeApi';
+import { createFakeApi, whenSynced } from './fakeApi';
 
 const types = [
     {
@@ -61,6 +61,7 @@ describe('DataController: commands', () => {
         const result = await data.runCommand(ask, { days: 3 });
 
         expect(result.ok).toBe(true);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
         expect(data.getChildren(null).map((o) => o.properties.name)).toEqual(['d3', 'второй']);
     });
@@ -119,6 +120,7 @@ describe('DataController: commands', () => {
         const result = await data.runCommand(run);
 
         expect(result).toEqual({ ok: false, error: 'Не вышло' });
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(0);
         expect(data.getChildren(null)).toEqual([]);
     });

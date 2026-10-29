@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDataController } from '@platform';
-import { createFakeApi } from '@platform/data/fakeApi';
+import { createFakeApi, whenSynced } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { ensureTasksStart, registerTasks, taskDate } from './tasksExtension';
@@ -91,10 +91,12 @@ describe('Tracker: task creation', () => {
      */
     it('createTask_everything_isOneChangeset', async () => {
         const { api, data } = await start();
+        await whenSynced(data);
         const before = api.changesets.length;
 
         await createTask(data, current(data), { name: 'А', date: '2026-04-01' });
 
+        await whenSynced(data);
         expect(api.changesets.length - before).toBe(1);
     });
 

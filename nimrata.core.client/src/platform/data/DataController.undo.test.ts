@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDataController } from './DataController';
-import { createFakeApi } from './fakeApi';
+import { createFakeApi, whenSynced } from './fakeApi';
 
 const types = [
     { id: 'Folder', name: 'Папка', extension: 't', extensionVersion: 1 },
@@ -44,6 +44,7 @@ describe('DataController: Undo/Redo', () => {
         expect(data.canRedo()).toBe(false);
         expect(await data.undo()).toEqual({ ok: false, error: 'Нечего отменять.' });
         expect(await data.redo()).toEqual({ ok: false, error: 'Нечего повторять.' });
+        await whenSynced(data);
         expect(api.changesets).toEqual([]);
     });
 
@@ -59,6 +60,7 @@ describe('DataController: Undo/Redo', () => {
 
         expect(result).toEqual({ ok: true });
         expect(data.getObject('a')?.properties.title).toBe('A');
+        await whenSynced(data);
         expect(api.changesets[1].operations).toEqual([
             { op: 'update', id: 'a', changes: { title: { old: 'Новое', new: 'A' } } },
         ]);
@@ -78,8 +80,11 @@ describe('DataController: Undo/Redo', () => {
 
         expect(result).toEqual({ ok: true });
         expect(data.getObject('a')?.properties.title).toBe('Новое');
+        await whenSynced(data);
         // Повтор — новый набор с теми же операциями, но своим идентификатором
+        await whenSynced(data);
         expect(api.changesets[2].operations).toEqual(api.changesets[0].operations);
+        await whenSynced(data);
         expect(api.changesets[2].id).not.toBe(api.changesets[0].id);
         expect(data.canUndo()).toBe(true);
         expect(data.canRedo()).toBe(false);
@@ -105,6 +110,7 @@ describe('DataController: Undo/Redo', () => {
         await data.undo();
 
         expect(data.getObject('b')).toMatchObject({ parent: 'root', number: 2 });
+        await whenSynced(data);
         expect(api.changesets[1].operations).toEqual([
             {
                 op: 'move',
@@ -129,6 +135,7 @@ describe('DataController: Undo/Redo', () => {
 
         await data.undo();
         expect(data.getObject(id)).toBeUndefined();
+        await whenSynced(data);
         expect(api.changesets[1].operations).toEqual([{ op: 'delete', id }]);
 
         await data.redo();
@@ -150,11 +157,14 @@ describe('DataController: Undo/Redo', () => {
         expect(data.getObject('a')).toEqual(objects[1]);
         expect(data.getObject('c')).toEqual(objects[3]);
         expect(data.getChildren('root').map((o) => o.id)).toEqual(['a', 'b']);
+        await whenSynced(data);
         // Родитель создаётся раньше потомка
+        await whenSynced(data);
         expect(api.changesets[1].operations.map((o) => `${o.op}:${o.id}`)).toEqual([
             'create:a',
             'create:c',
         ]);
+        await whenSynced(data);
         expect(api.changesets[1].operations[0]).toEqual({
             op: 'create',
             id: 'a',
@@ -209,8 +219,10 @@ describe('DataController: Undo/Redo', () => {
      */
     it('undo_rejectedChangeset_doesNotEnterStack', async () => {
         const { data, api } = await loaded();
+        await whenSynced(data);
         api.rejectNext(400, 'нельзя');
         await data.setProperty('a', 'title', 'X');
+        await whenSynced(data);
         expect(data.canUndo()).toBe(false);
     });
 
@@ -220,12 +232,12 @@ describe('DataController: Undo/Redo', () => {
     it('undo_oldNewConflict_stackAndModelUnchangedAndMessageShown', async () => {
         const { data, api } = await loaded();
         await data.setProperty('a', 'title', 'X');
+        await whenSynced(data);
         api.rejectNext(409, 'Значение изменено другим пользователем.');
 
-        const result = await data.undo();
+        await data.undo();
+        await whenSynced(data);
 
-        expect(result.ok).toBe(false);
-        expect(!result.ok && result.error).toContain('Значение изменено другим пользователем.');
         expect(data.getObject('a')?.properties.title).toBe('X');
         expect(data.canUndo()).toBe(true);
         expect(data.canRedo()).toBe(false);
@@ -242,11 +254,12 @@ describe('DataController: Undo/Redo', () => {
         const { data, api } = await loaded();
         await data.setProperty('a', 'title', 'X');
         await data.undo();
+        await whenSynced(data);
         api.rejectNext(409, 'конфликт');
 
-        const result = await data.redo();
+        await data.redo();
+        await whenSynced(data);
 
-        expect(result.ok).toBe(false);
         expect(data.canRedo()).toBe(true);
         expect(data.getObject('a')?.properties.title).toBe('A');
     });

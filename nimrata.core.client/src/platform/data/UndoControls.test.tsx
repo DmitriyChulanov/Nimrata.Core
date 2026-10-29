@@ -9,7 +9,7 @@ import { createMenuRegistry, createTabRegistry } from '@platform/tabs/registries
 import { createDataController } from './DataController';
 import { DataProvider } from './DataProvider';
 import { UndoControls } from './UndoControls';
-import { createFakeApi } from './fakeApi';
+import { createFakeApi, whenSynced } from './fakeApi';
 
 const types = [
     {
@@ -114,9 +114,11 @@ it('undoControls_conflict_showsMessageAndDataUnchanged', async () => {
     const user = userEvent.setup();
     const { data, api } = await setup();
     await act(() => data.setProperty('a', 'title', 'X'));
+    await act(() => whenSynced(data));
     api.rejectNext(409, 'Значение изменено в другом окне.');
 
     await user.keyboard('{Control>}z{/Control}');
+    await act(() => whenSynced(data));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Значение изменено в другом окне.');
     expect(data.getObject('a')?.properties.title).toBe('X');

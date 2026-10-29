@@ -6,7 +6,7 @@ import { createDataStore } from './dataStore';
 import { errorMessage } from './errorMessage';
 
 import type { GroupLaunch } from './actionRegistry';
-import type { DataStore, LocalEdit } from './dataStore';
+import type { DataStore, LocalEdit, StoreSnapshot } from './dataStore';
 import type { HistoryEntry, Operation } from './undoHistory';
 import { applyOperations, createUndoHistory, invertOperations, touchedIds } from './undoHistory';
 import { uuid7 } from './uuid7';
@@ -121,6 +121,12 @@ export interface OperationOptions {
      * По умолчанию хуки запускаются
      */
     hooks?: boolean;
+    /**
+     * `true` — итог ждёт ответа сервера (подтверждение или отказ набора). По умолчанию итог
+     * разрешается, как только набор применён локально и встал в очередь (работает и без сети);
+     * поздний отказ сервера откатывает набор с зависимыми и показывается сводным уведомлением
+     */
+    confirmed?: boolean;
 }
 
 /**
@@ -265,6 +271,8 @@ export type SyncPort = Pick<
     | 'reject'
     | 'applyRemote'
     | 'reset'
+    | 'restoreQueue'
+    | 'confirmedSnapshot'
 >;
 
 /**
@@ -303,6 +311,29 @@ export interface DataController {
      * подтверждённый слой заменяется, очередь неотправленных накладывается сверху
      */
     load(): Promise<void>;
+    /**
+     * Старт из кэша (офлайн): снимок кладётся в подтверждённый слой, очередь накладывается сверху,
+     * модель сразу готова. Сеть не трогается — затем вызывают `catchUp`
+     */
+    startFromCache(snapshot: StoreSnapshot): void;
+    /**
+     * Догон изменений сервера после курсора (`GET /api/changes`); после него push применяется.
+     * Без сети отказывает исключением, модель остаётся как была
+     */
+    catchUp(): Promise<void>;
+    /** Отправить неотправленные наборы сейчас (сеть вернулась), не дожидаясь задержки повтора */
+    kick(): void;
+    /**
+     * Освобождает контроллер (выход, истёкший вход): сетевая часть останавливается — таймеры,
+     * push, поздние ответы; локальная модель остаётся читаемой
+     */
+    dispose(): void;
+    /**
+     * Подписка на сводные уведомления об отказах наборов (отказ сервера с каскадом, отбрасывание
+     * при переналожении): итоги действий локальные, поэтому поздний отказ приходит только сюда
+     * (и в `DataSnapshot.error`)
+     */
+    onNotice(listener: (message: string) => void): () => void;
     /** Текущий снимок состояния модели */
     getSnapshot(): DataSnapshot;
     /** Подписка на любые изменения модели; возвращает функцию отписки */
@@ -790,15 +821,14 @@ export function createDataController(options: DataControllerOptions): DataContro
             history.record(entry);
             snapshot = { ...snapshot, error: null };
             const { outcome } = edit.commit(scope.operations);
-            return {
-                outcome: outcome.then((result) => {
-                    if (!result.ok) {
-                        history.discard(entry);
-                        publish({}, false);
-                    }
-                    return result;
-                }),
-            };
+            const settled = outcome.then((result) => {
+                if (!result.ok) {
+                    history.discard(entry);
+                    publish({}, false);
+                }
+                return result;
+            });
+            return opts?.confirmed ? { outcome: settled } : { result: { ok: true } };
         });
     }
 
@@ -871,14 +901,13 @@ export function createDataController(options: DataControllerOptions): DataContro
             else history.markRedone();
             snapshot = { ...snapshot, error: null };
             const { outcome } = edit.commit(operations);
-            return {
-                outcome: outcome.then((result): ChangeResult => {
-                    if (result.ok) return result;
-                    history.revert(kind, entry);
-                    publish({}, false);
-                    return { ok: false, error: `Не удалось ${verb}: ${result.error}` };
-                }),
-            };
+            // Итог локальный: поздний отказ сервера возвращает запись в стек и показан уведомлением
+            void outcome.then((result) => {
+                if (result.ok) return;
+                history.revert(kind, entry);
+                publish({}, false);
+            });
+            return { result: { ok: true } };
         });
     }
 
@@ -927,6 +956,15 @@ export function createDataController(options: DataControllerOptions): DataContro
                 publish({ status: 'error', error: errorMessage(error) }, false);
             }
         },
+        startFromCache(cache) {
+            store.reset(cache);
+            history.clear();
+            publish({ status: 'ready', error: null });
+        },
+        catchUp: () => link.catchUp(),
+        kick: () => link.kick(),
+        dispose: () => link.dispose(),
+        onNotice: (listener) => store.onNotice(listener),
         getSnapshot: () => snapshot,
         subscribe(listener) {
             listeners.add(listener);

@@ -38,6 +38,23 @@ export interface ExtensionLifecycleOptions {
     reveal?: (id: string) => void;
     /** Вызывается после перезагрузки данных при переключении: сбросить выделение недоступных объектов */
     onDataReloaded?: () => void;
+    /**
+     * Данные уже показаны из кэша (старт без сети): при запуске вместо полной загрузки — догон,
+     * его отказ (нет сети) не ошибка
+     */
+    cached?: boolean;
+    /** Кэш каталога расширений: без сети каталог берётся из него, загруженный — сохраняется */
+    catalogCache?: CatalogCache;
+}
+
+/**
+ * Кэш каталога расширений (IndexedDB пользователя)
+ */
+export interface CatalogCache {
+    /** Сохранённый каталог; `undefined` — нет */
+    read(): Promise<ExtensionInfo[] | undefined>;
+    /** Сохраняет каталог */
+    write(items: ExtensionInfo[]): void | Promise<void>;
 }
 
 /**
@@ -88,7 +105,7 @@ function connectedIds(items: ExtensionInfo[]): Set<string> {
  * @returns подключение с состоянием и операциями
  */
 export function createExtensionLifecycle(options: ExtensionLifecycleOptions): ExtensionLifecycle {
-    const { api, controller, registry, reveal } = options;
+    const { api, controller, registry, reveal, cached, catalogCache } = options;
     let onDataReloaded = options.onDataReloaded;
 
     let state: ExtensionLifecycleState = {
@@ -148,10 +165,15 @@ export function createExtensionLifecycle(options: ExtensionLifecycleOptions): Ex
         let items: ExtensionInfo[];
         try {
             items = await fetchExtensionCatalog(api);
+            void Promise.resolve(catalogCache?.write(items)).catch(() => undefined);
         } catch (e) {
+            const cachedItems = await catalogCache?.read().catch(() => undefined);
             if (cancelled()) return;
-            update({ error: messageOf(e), status: 'error' });
-            return;
+            if (!cachedItems) {
+                update({ error: messageOf(e), status: 'error' });
+                return;
+            }
+            items = cachedItems;
         }
         if (cancelled()) return;
 
@@ -159,8 +181,14 @@ export function createExtensionLifecycle(options: ExtensionLifecycleOptions): Ex
         syncRegistrations(connected);
         update({ catalog: items, activeIds: connected });
 
-        // ошибку загрузки данных показывает основной экран (с повтором)
-        const loaded = await reloadData(controller);
+        // ошибку загрузки данных показывает основной экран (с повтором); данные из кэша
+        // догоняются, без сети работа продолжается на кэше
+        const loaded: ChangeResult = cached
+            ? await controller.catchUp().then(
+                  () => ({ ok: true }) as const,
+                  () => ({ ok: true }) as const,
+              )
+            : await reloadData(controller);
         if (cancelled()) return;
         const startError = loaded.ok ? await startExtensions(connected) : null;
         if (cancelled()) return;

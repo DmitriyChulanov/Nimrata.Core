@@ -51,7 +51,9 @@ function descriptor(id: string, rootType: string, log: string[]): ExtensionDescr
             return ensureCreated(data, async () =>
                 data.getChildren(null).some((o) => o.type === rootType)
                     ? { ok: true }
-                    : data.perform((tx) => void tx.create({ type: rootType, parent: null })),
+                    : data.perform((tx) => void tx.create({ type: rootType, parent: null }), {
+                          confirmed: true,
+                      }),
             );
         },
         bindings: [() => <p>привязка {id}</p>],

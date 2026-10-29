@@ -5,7 +5,7 @@ import { applyOperations } from './undoHistory';
 
 import type { ApiClient } from '@platform/api/apiClient';
 import type { RuleObject, RuleType } from './changesetRules';
-import type { ChangesetResult, DataObject } from './DataController';
+import type { ChangesetResult, DataController, DataObject } from './DataController';
 import type { Operation } from './undoHistory';
 
 /**
@@ -168,6 +168,28 @@ interface AppliedChangeset {
     seq: number;
     /** Идентификаторы затронутых объектов */
     touched: string[];
+}
+
+/**
+ * Ждёт, пока очередь неподтверждённых наборов опустеет: итоги действий локальные, а тестам,
+ * которые смотрят на отправленное (`api.changesets`) или отказ сервера, нужен ответ сервера
+ *
+ * @param data - контроллер (или что-то с входом хранилища `sync`)
+ * @returns промис, разрешаемый при пустой очереди
+ */
+export function whenSynced(data: Pick<DataController, 'sync'>): Promise<void> {
+    return new Promise((resolve) => {
+        let unsubscribe: (() => void) | null = null;
+        let done = false;
+        const check = () => {
+            if (done || data.sync.pending().length > 0) return;
+            done = true;
+            unsubscribe?.();
+            resolve();
+        };
+        unsubscribe = data.sync.subscribePending(check);
+        check();
+    });
 }
 
 /**

@@ -58,7 +58,17 @@ export { useDataController } from './data/useDataController';
 export { useObject } from './data/useObject';
 export { useChildren } from './data/useChildren';
 export { shallowEqual, useQuery } from './data/useQuery';
-export type { PendingChangeset, RemoteChanges, StoreChange } from './data/dataStore';
+export type { PendingChangeset, RemoteChanges, StoreChange, StoreSnapshot } from './data/dataStore';
+export {
+    OFFLINE_ADOPT_INTERVAL_MS,
+    OFFLINE_SAVE_DELAY_MS,
+    createOfflineSync,
+} from './offline/offlineSync';
+export type { OfflineSync, OfflineSyncOptions } from './offline/offlineSync';
+export { deleteOfflineDb, offlineDbName, openOfflineDb } from './offline/offlineDb';
+export type { OfflineDb, OfflineDbOptions, OfflineState } from './offline/offlineDb';
+export { createMemoryLocks, createWebLocks } from './offline/tabLocks';
+export type { LockManagerLike, TabLocks } from './offline/tabLocks';
 export { UndoControls } from './data/UndoControls';
 export { ActionDialog } from './actions/ActionDialog';
 export type { ActionDialogProps } from './actions/ActionDialog';
@@ -90,7 +100,7 @@ export { TabsProvider } from './tabs/TabsProvider';
 export { useTabs } from './tabs/useTabs';
 export { TabContainer } from './tabs/TabContainer';
 export { MainMenu } from './tabs/MainMenu';
-export { useCurrentUser } from './auth/useCurrentUser';
+export { forgetRememberedUser, rememberedUser, useCurrentUser } from './auth/useCurrentUser';
 export type { CurrentUser } from './auth/useCurrentUser';
 export { UsersTab } from './users/UsersTab';
 export { registerUsersAdmin, USERS_TAB_ID } from './users/registerUsersAdmin';
@@ -107,6 +117,7 @@ export type {
 } from './extensionApi/registry';
 export { ExtensionsProvider } from './extensionCatalog/ExtensionsProvider';
 export type { ExtensionsProviderProps } from './extensionCatalog/ExtensionsProvider';
+export type { CatalogCache } from './extensionCatalog/extensionLifecycle';
 export { registerExtensionsEditor } from './extensionCatalog/registerExtensionsEditor';
 export { ExtensionsEditor } from './extensionCatalog/ExtensionsEditor';
 export { NoExtensionsNotice } from './extensionCatalog/NoExtensionsNotice';

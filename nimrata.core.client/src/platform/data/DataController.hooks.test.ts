@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDataController } from './DataController';
-import { createFakeApi } from './fakeApi';
+import { createFakeApi, whenSynced } from './fakeApi';
 
 const types = [
     {
@@ -60,6 +60,7 @@ describe('DataController: before-operation hooks', () => {
         const result = await data.setProperty('t1', 'status', 'done');
         expect(result).toEqual({ ok: false, error: 'Сначала заполните название.' });
         expect(data.getObject('t1')?.properties.status).toBe('new');
+        await whenSynced(data);
         expect(api.changesets).toEqual([]);
         // Другие свойства хук не трогает
         expect((await data.setProperty('t1', 'title', 'B')).ok).toBe(true);
@@ -86,6 +87,7 @@ describe('DataController: before-operation hooks', () => {
         });
         expect(await data.remove('t1')).toEqual({ ok: false, error: 'нельзя удалять' });
         expect(data.getObject('t1')?.parent).toBe('root');
+        await whenSynced(data);
         expect(api.changesets).toEqual([]);
     });
 
@@ -131,7 +133,9 @@ describe('DataController: after-operation hooks and shared changeset', () => {
         const result = await data.setProperty('t1', 'status', 'done');
         expect(result.ok).toBe(true);
         expect(data.getObject('t1')?.properties).toMatchObject({ status: 'done', log: 'изменён' });
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
+        await whenSynced(data);
         expect(api.changesets[0].operations).toEqual([
             { op: 'update', id: 't1', changes: { status: { old: 'new', new: 'done' } } },
             { op: 'update', id: 't1', changes: { log: { old: null, new: 'изменён' } } },
@@ -150,7 +154,9 @@ describe('DataController: after-operation hooks and shared changeset', () => {
         const result = await data.create({ type: 'Folder', parent: null });
         expect(result.ok).toBe(true);
         const folder = result.ok ? result.id : '';
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
+        await whenSynced(data);
         expect(api.changesets[0].operations.map((o) => o.op)).toEqual(['create', 'create', 'move']);
         expect(data.getObject('t1')?.parent).toBe(folder);
         expect(data.getChildren(folder)).toHaveLength(2);
@@ -165,7 +171,9 @@ describe('DataController: after-operation hooks and shared changeset', () => {
             ctx.tx.setProperty('root', 'x', 'удаляется ' + ctx.object.id);
         });
         await data.remove('t1');
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
+        await whenSynced(data);
         expect(api.changesets[0].operations.map((o) => o.op)).toEqual(['update', 'delete']);
     });
 
@@ -180,6 +188,7 @@ describe('DataController: after-operation hooks and shared changeset', () => {
         const result = await data.setProperty('t1', 'status', 'done');
         expect(result).toEqual({ ok: false, error: 'Объект не найден.' });
         expect(data.getObject('t1')?.properties.status).toBe('new');
+        await whenSynced(data);
         expect(api.changesets).toEqual([]);
     });
 
@@ -191,8 +200,9 @@ describe('DataController: after-operation hooks and shared changeset', () => {
         data.registerHook('Folder', 'create', 'after', (ctx) => {
             ctx.tx.move('t1', { parent: ctx.object.id });
         });
+        await whenSynced(data);
         api.rejectNext(400, 'отказ');
-        const result = await data.create({ type: 'Folder', parent: null });
+        const result = await data.create({ type: 'Folder', parent: null }, { confirmed: true });
         expect(result).toMatchObject({ ok: false, error: 'отказ' });
         expect(data.getObject('t1')?.parent).toBe('root');
         expect(data.getChildren(null)).toHaveLength(2);
@@ -231,7 +241,9 @@ describe('DataController: disabling hooks', () => {
         });
         expect((await data.setProperty('t1', 'status', 'done', { hooks: false })).ok).toBe(true);
         expect(calls).toBe(0);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
+        await whenSynced(data);
         expect(api.changesets[0].operations).toHaveLength(1);
     });
 
@@ -269,7 +281,9 @@ describe('DataController.perform: arbitrary changeset', () => {
         });
         expect(result.ok).toBe(true);
         expect(seen).toEqual(['title', 'status']);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
+        await whenSynced(data);
         expect(api.changesets[0].operations).toHaveLength(2);
     });
 
@@ -285,6 +299,7 @@ describe('DataController.perform: arbitrary changeset', () => {
         expect(failed.ok).toBe(false);
         expect(data.getObject('t1')?.properties.title).toBe('A');
         expect((await data.perform(() => {})).ok).toBe(true);
+        await whenSynced(data);
         expect(api.changesets).toEqual([]);
     });
 
@@ -302,6 +317,7 @@ describe('DataController.perform: arbitrary changeset', () => {
             throw new Error('упало');
         });
         expect(thrown).toEqual({ ok: false, error: 'упало' });
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
     });
 });
@@ -375,7 +391,9 @@ describe('DataController: actions', () => {
         const result = await data.runAction('j', 'finish');
         expect(result.ok).toBe(true);
         expect(data.getObject('j')?.properties.status).toBe('done');
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
+        await whenSynced(data);
         expect(api.changesets[0].operations.map((o) => o.op)).toEqual(['update', 'create']);
     });
 
@@ -451,6 +469,7 @@ describe('DataController: undo/redo and hooks', () => {
                 return { cancel: 'запрет' };
             });
         }
+        await whenSynced(data);
         const posted = api.changesets.length;
 
         expect((await data.undo()).ok).toBe(true);
@@ -458,6 +477,7 @@ describe('DataController: undo/redo and hooks', () => {
         expect((await data.redo()).ok).toBe(true);
         expect(data.getObject('t1')?.properties.status).toBe('done');
         expect(calls).toBe(0);
+        await whenSynced(data);
         expect(api.changesets.length).toBe(posted + 2);
     });
 

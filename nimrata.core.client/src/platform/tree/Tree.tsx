@@ -154,6 +154,7 @@ export function Tree() {
     const [clipboard, setClipboard] = useState<ClipboardNode[]>([]);
     const launcher = useActionLauncher();
 
+    // Итог создания локальный (не ждёт сервера): выделение и правка «Имени» — сразу, и без сети
     const createChild = async (parent: string, type: string) => {
         setError(null);
         const result = await data.create({ type, parent });
@@ -265,8 +266,7 @@ export function Tree() {
         const plan = planMove(data, id, target, position);
         if (!plan.ok) return;
         setError(null);
-        // Новый родитель раскрывается сразу: итог сервера приходит после окна отправки, а узел
-        // уже перенесён в видимой модели
+        // Новый родитель раскрывается сразу, вместе с переносом в видимой модели
         if (plan.parent !== null) setExpanded((prev) => new Set(prev).add(plan.parent!));
         const result = await applyNumberChanges(data, plan.changes);
         if (!result.ok) setError(result.error);

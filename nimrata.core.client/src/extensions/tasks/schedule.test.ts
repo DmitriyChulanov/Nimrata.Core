@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDataController } from '@platform';
-import { createFakeApi } from '@platform/data/fakeApi';
+import { createFakeApi, whenSynced } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { taskDate } from './tasks';
@@ -155,12 +155,14 @@ describe('Tracker: "Create schedule" command', () => {
      */
     it('createSchedule_startAfterEnd_returnsErrorCreatesNothing', async () => {
         const { api, data } = await start();
+        await whenSynced(data);
         const sent = api.changesets.length;
 
         const result = await run(data, { start: '2026-03-10', end: '2026-03-09' });
 
         expect(result).toEqual({ ok: false, error: 'Начало не может быть позже конца.' });
         expect(days(data)).toEqual([]);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(sent);
     });
 
@@ -180,9 +182,11 @@ describe('Tracker: "Create schedule" command', () => {
      */
     it('createSchedule_run_isOneChangesetAndOneUndoRevertsAll', async () => {
         const { api, data } = await start();
+        await whenSynced(data);
         const sent = api.changesets.length;
 
         await run(data, { start: '2026-03-04', end: '2026-05-10' });
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(sent + 1);
 
         await data.undo();
@@ -197,12 +201,14 @@ describe('Tracker: "Create schedule" command', () => {
     it('createSchedule_secondRun_createsNoDuplicatesAndSendsNothing', async () => {
         const { api, data } = await start();
         await run(data, { start: '2026-03-04', end: '2026-04-15' });
+        await whenSynced(data);
         const sent = api.changesets.length;
         const before = days(data).length;
 
         const again = await run(data, { start: '2026-03-04', end: '2026-04-15' });
 
         expect(again.ok).toBe(true);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(sent);
         expect(days(data)).toHaveLength(before);
 
@@ -364,11 +370,13 @@ describe('Tracker: "Create schedule" command', () => {
             const { api, data } = await start();
             await withRepeat(data, 'weekly');
             await run(data, { start: '2026-03-04', end: '2026-07-31' });
+            await whenSynced(data);
             const sent = api.changesets.length;
             const before = tasks(data, 'Повтор');
 
             await run(data, { start: '2026-03-04', end: '2026-07-31' });
 
+            await whenSynced(data);
             expect(api.changesets).toHaveLength(sent);
             expect(tasks(data, 'Повтор')).toEqual(before);
         });
@@ -387,9 +395,11 @@ describe('Tracker: "Create schedule" command', () => {
             expect(list).toHaveLength(22);
             expect(new Set(list).size).toBe(list.length);
 
+            await whenSynced(data);
             const sent = api.changesets.length;
             await run(data, { start: '2026-06-01', end: '2026-07-31' });
 
+            await whenSynced(data);
             expect(api.changesets).toHaveLength(sent);
             expect(tasks(data, 'Повтор')).toEqual(list);
         });
@@ -400,10 +410,12 @@ describe('Tracker: "Create schedule" command', () => {
         it('createSchedule_daysAndRepeats_areOneChangeset', async () => {
             const { api, data } = await start();
             await withRepeat(data, 'weekly');
+            await whenSynced(data);
             const sent = api.changesets.length;
 
             await run(data, { start: '2026-03-04', end: '2026-07-31' });
 
+            await whenSynced(data);
             expect(api.changesets).toHaveLength(sent + 1);
         });
     });

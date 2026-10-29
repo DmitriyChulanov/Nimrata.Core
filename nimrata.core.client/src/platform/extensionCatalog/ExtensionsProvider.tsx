@@ -11,6 +11,7 @@ import type { ApiClient } from '@platform/api/apiClient';
 import type { DataController } from '@platform/data/DataController';
 import type { ExtensionRegistry } from '@platform/extensionApi/registry';
 import type { ExtensionsValue } from './ExtensionsContext';
+import type { CatalogCache } from './extensionLifecycle';
 
 /**
  * Свойства компонента `ExtensionsProvider`
@@ -26,6 +27,10 @@ export interface ExtensionsProviderProps {
     userId: string;
     /** Показ объекта в дереве, передаётся расширениям при регистрации */
     reveal?: (id: string) => void;
+    /** Данные уже показаны из кэша: при запуске догон вместо полной загрузки */
+    cached?: boolean;
+    /** Кэш каталога расширений для старта без сети */
+    catalogCache?: CatalogCache;
     /** Вложенные элементы */
     children: ReactNode;
 }
@@ -46,6 +51,8 @@ export function ExtensionsProvider({
     registry,
     userId,
     reveal,
+    cached,
+    catalogCache,
     children,
 }: ExtensionsProviderProps) {
     const selection = useOptionalSelection();
@@ -66,8 +73,8 @@ export function ExtensionsProvider({
     }, [controller]);
 
     const lifecycle = useMemo(
-        () => createExtensionLifecycle({ api, controller, registry, reveal }),
-        [api, controller, registry, reveal],
+        () => createExtensionLifecycle({ api, controller, registry, reveal, cached, catalogCache }),
+        [api, controller, registry, reveal, cached, catalogCache],
     );
 
     useEffect(() => {

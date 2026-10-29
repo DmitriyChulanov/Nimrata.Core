@@ -290,14 +290,15 @@ describe('PropertyGrid: editing', () => {
      * Проверяет, что отказ сервера возвращает значение и показывает причину
      */
     it('propertyGrid_serverRejection_revertsValueAndShowsReason', async () => {
-        const { api } = await renderGrid();
+        const { api, controller: data } = await renderGrid();
         api.rejectNext(400, 'Название слишком длинное');
 
         const input = screen.getByLabelText('Название');
         await userEvent.clear(input);
         await userEvent.type(input, 'Новое{Enter}');
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('Название слишком длинное');
+        // Итог правки локальный: отказ сервера приходит сводным уведомлением контроллера
+        await waitFor(() => expect(data.getSnapshot().error).toBe('Название слишком длинное'));
         expect(screen.getByLabelText('Название')).toHaveValue('Первая');
     });
 
@@ -305,12 +306,12 @@ describe('PropertyGrid: editing', () => {
      * Проверяет, что при отказе сервера флажок возвращается в прежнее положение
      */
     it('propertyGrid_serverRejection_checkboxReturnsToPreviousPosition', async () => {
-        const { api } = await renderGrid();
+        const { api, controller: data } = await renderGrid();
         api.rejectNext(400, 'Нельзя завершить');
 
         await userEvent.click(screen.getByLabelText('Готово'));
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('Нельзя завершить');
+        await waitFor(() => expect(data.getSnapshot().error).toBe('Нельзя завершить'));
         expect(screen.getByLabelText('Готово')).not.toBeChecked();
     });
 

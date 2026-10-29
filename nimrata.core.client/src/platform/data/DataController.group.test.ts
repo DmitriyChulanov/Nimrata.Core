@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDataController } from './DataController';
-import { createFakeApi } from './fakeApi';
+import { createFakeApi, whenSynced } from './fakeApi';
 
 const types = [
     {
@@ -61,6 +61,7 @@ describe('DataController: group actions', () => {
 
         expect(result.ok).toBe(true);
         expect(visited).toEqual(['b', 'a']);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
         await data.undo();
         expect(data.getObject('a')?.properties.name).toBe('Первый');
@@ -81,6 +82,7 @@ describe('DataController: group actions', () => {
 
         expect(result).toEqual({ ok: false, error: 'Второй: не получилось' });
         expect(data.getObject('a')?.properties.name).toBe('Первый');
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(0);
     });
 

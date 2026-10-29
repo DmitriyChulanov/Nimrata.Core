@@ -317,3 +317,77 @@ describe('подписка', () => {
         expect(lifecycle.getState().status).toBe('ready');
     });
 });
+
+describe('офлайн: кэш каталога и данных', () => {
+    /**
+     * Проверяет старт без сети: каталог берётся из кэша, данные уже из кэша — вместо полной
+     * загрузки догон (его отказ не ошибка), расширения регистрируются и запускаются
+     */
+    it('initialize_offlineWithCache_usesCachedCatalogAndCatchUpInsteadOfLoad', async () => {
+        fetchCatalog.mockRejectedValue(new TypeError('Failed to fetch'));
+        const controller = {
+            ...fakeController(),
+            catchUp: vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
+        };
+        const registry = createExtensionRegistry();
+        const log: string[] = [];
+        registry.register({
+            id: 'a',
+            register: () => () => undefined,
+            ensureStart: async () => {
+                log.push('start:a');
+                return { ok: true };
+            },
+        });
+        const lifecycle = createExtensionLifecycle({
+            api: {} as ApiClient,
+            controller: controller as unknown as DataController,
+            registry,
+            cached: true,
+            catalogCache: { read: async () => [info('a', true)], write: vi.fn() },
+        });
+
+        await lifecycle.initialize();
+
+        expect(lifecycle.getState()).toMatchObject({ status: 'ready', error: null });
+        expect([...lifecycle.getState().activeIds]).toEqual(['a']);
+        expect(controller.load).not.toHaveBeenCalled();
+        expect(controller.catchUp).toHaveBeenCalled();
+        expect(log).toEqual(['start:a']);
+    });
+
+    /**
+     * Проверяет, что загруженный с сервера каталог сохраняется в кэш
+     */
+    it('initialize_catalogFetched_isWrittenToCache', async () => {
+        fetchCatalog.mockResolvedValue([info('a', true)]);
+        const write = vi.fn();
+        const lifecycle = createExtensionLifecycle({
+            api: {} as ApiClient,
+            controller: fakeController() as unknown as DataController,
+            registry: createExtensionRegistry(),
+            catalogCache: { read: async () => undefined, write },
+        });
+
+        await lifecycle.initialize();
+
+        expect(write).toHaveBeenCalledWith([info('a', true)]);
+    });
+
+    /**
+     * Проверяет, что без сети и без кэша каталога остаётся ошибка
+     */
+    it('initialize_offlineWithoutCachedCatalog_isError', async () => {
+        fetchCatalog.mockRejectedValue(new Error('сбой'));
+        const lifecycle = createExtensionLifecycle({
+            api: {} as ApiClient,
+            controller: fakeController() as unknown as DataController,
+            registry: createExtensionRegistry(),
+            catalogCache: { read: async () => undefined, write: vi.fn() },
+        });
+
+        await lifecycle.initialize();
+
+        expect(lifecycle.getState()).toMatchObject({ status: 'error', error: 'сбой' });
+    });
+});
