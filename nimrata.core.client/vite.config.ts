@@ -2,10 +2,13 @@ import { fileURLToPath, URL } from 'node:url';
 
 import { defineConfig } from 'vite';
 import plugin from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 import fs from 'fs';
 import path from 'path';
 import child_process from 'child_process';
 import { env } from 'process';
+
+import { pwaOptions } from './pwa.config.ts';
 
 const baseFolder =
     env.APPDATA !== undefined && env.APPDATA !== ''
@@ -47,7 +50,7 @@ const target = env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_H
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => ({
-    plugins: [plugin()],
+    plugins: [plugin(), VitePWA(pwaOptions)],
     resolve: {
         alias: {
             '@platform': fileURLToPath(new URL('./src/platform', import.meta.url)),

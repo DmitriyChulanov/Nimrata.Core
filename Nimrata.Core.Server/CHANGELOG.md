@@ -2,6 +2,9 @@
 
 ## Не выпущено
 
+### Добавлено (синхронизация: service worker)
+- Заголовки кэширования собранного клиента (`ClientCaching`, общие настройки для `UseStaticFiles` и SPA-fallback): `sw.js`, `registerSW.js` и `index.html` (в том числе отданный на клиентский маршрут) — `Cache-Control: no-cache`, чтобы новая версия service worker и оболочки подхватывалась; ассеты `/assets/*` с хэшем в имени — `public, max-age=31536000, immutable`. Тесты в `SpaHostingTests`.
+
 ### Добавлено (синхронизация: push по SignalR)
 - SignalR-хаб `/api/sync` (`Sync/SyncHub.cs`): соединение входит в группу `user:{id}`; клиент получает `changes` — формат догона с добавленным `fromSeq` (`ChangesPush`: `{ fromSeq, toSeq, changesetIds, upserts, deletes }`) — и `resync`. JWT из query `access_token` принимается только на пути хаба (`JwtBearerEvents.OnMessageReceived`); остальное API его из query не берёт.
 - `IChangeNotifier` и диспетчер `ChangeDispatcher` (внутри процесса): `ChangesetService.ApplyAsync` помечает автора «грязным» сразу после фиксации набора (повтор `duplicate` и отказ — нет). Первое уведомление открывает окно `Sync:PushWindow`, по его истечении журнал читается из БД после последнего отправленного `seq` через `SyncService.ReadChangesAsync` и рассылается группе одним сообщением. Наборов больше `Sync:ResyncThreshold` (в том числе когда рассылка отстала из-за медленного клиента) — вместо потока `resync`; ошибка рассылки — `resync` в следующем окне. Пользователи без соединений не учитываются.
