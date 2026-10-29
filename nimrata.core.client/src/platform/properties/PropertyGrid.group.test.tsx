@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -143,7 +143,7 @@ describe('PropertyGrid: group selection', () => {
 
         await userEvent.selectOptions(screen.getByLabelText('Приоритет'), 'high');
 
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         expect(data.getObject('a')?.properties.prio).toBe('high');
         expect(data.getObject('b')?.properties.prio).toBe('high');
         await data.undo();
@@ -161,6 +161,7 @@ describe('PropertyGrid: group selection', () => {
 
         expect(data.getObject('a')?.properties.done).toBe(true);
         expect(data.getObject('b')?.properties.done).toBe(true);
+        await waitFor(() => expect(api.changesets).not.toHaveLength(0));
         expect(api.changesets[0]?.operations).toHaveLength(1);
     });
 

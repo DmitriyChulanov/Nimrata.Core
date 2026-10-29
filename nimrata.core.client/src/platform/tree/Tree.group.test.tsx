@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -199,7 +199,7 @@ describe('Tree: selecting new node', () => {
         await user.click(screen.getByRole('menuitem', { name: 'Создать: Заметка' }));
 
         const created = controller.getChildren('g')[0];
-        expect(selected()).toBe(created.id);
+        await waitFor(() => expect(selected()).toBe(created.id));
         expect(primary()).toBe(created.id);
         expect(screen.getByRole('heading', { level: 2, name: 'Заметка' })).toBeInTheDocument();
     });
@@ -307,7 +307,7 @@ describe('Tree: copy and paste', () => {
         await rightClick(user, 'Другая');
         await user.click(screen.getByRole('menuitem', { name: 'Вставить' }));
 
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         const [copy] = controller.getChildren('g');
         expect(copy).toMatchObject({ type: 'Folder', properties: { name: 'Папка' } });
         expect(copy.id).not.toBe('f');
@@ -397,11 +397,13 @@ describe('Tree: copy and paste', () => {
         const copies = controller.getChildren('g');
         expect(copies.map((c) => c.type)).toEqual(['Folder', 'Note']);
         expect(controller.getChildren(copies[0].id)).toHaveLength(2);
-        expect(selected()).toBe(
-            copies
-                .map((c) => c.id)
-                .sort()
-                .join(','),
+        await waitFor(() =>
+            expect(selected()).toBe(
+                copies
+                    .map((c) => c.id)
+                    .sort()
+                    .join(','),
+            ),
         );
     });
 });
@@ -492,7 +494,7 @@ describe('Tree: commands for a group', () => {
         expect(dialog).toHaveTextContent('(2)');
         await user.click(within(dialog).getByRole('button', { name: 'Удалить' }));
 
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         expect(controller.getObject('f')).toBeUndefined();
         expect(controller.getObject('a')).toBeUndefined();
         expect(controller.getObject('l')).toBeUndefined();

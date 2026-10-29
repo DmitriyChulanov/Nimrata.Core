@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { ApiError, menuRegistry, tabRegistry, useExtensions } from '@platform';
+import { ApiError, SYNC_WINDOW_MS, menuRegistry, tabRegistry, useExtensions } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import { App } from './App';
@@ -99,7 +99,7 @@ it('extensions_firstLoginWithoutRoots_createsEachExtensionStartStructureInItsOwn
 
     expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     expect(screen.getByRole('treeitem', { name: /Задачи/ })).toBeInTheDocument();
-    expect(api.changesets).toHaveLength(2);
+    await waitFor(() => expect(api.changesets).toHaveLength(2));
 });
 
 /**
@@ -172,7 +172,7 @@ it('extensions_tasksDisconnected_noRootsNoNotificationsAndConnectingStartsThem',
     expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     expect(screen.queryByRole('treeitem', { name: /Задачи/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Включить уведомления' })).not.toBeInTheDocument();
-    expect(api.changesets).toHaveLength(1);
+    await waitFor(() => expect(api.changesets).toHaveLength(1));
 
     await openProbe();
     await act(async () => {
@@ -192,6 +192,8 @@ it('extensions_disconnectAndReconnect_hidesAndRestoresTreeWithoutDuplicates', as
     render(<App />);
     expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     await openProbe();
+    // Стартовые структуры обоих расширений дошли до сервера
+    await waitFor(() => expect(api.changesets).toHaveLength(2));
 
     await act(async () => {
         expect(await probe.value!.setConnected('notes', false)).toEqual({ ok: true });
@@ -210,6 +212,8 @@ it('extensions_disconnectAndReconnect_hidesAndRestoresTreeWithoutDuplicates', as
 
     expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     expect(screen.getAllByRole('treeitem', { name: /Заметки/ })).toHaveLength(1);
+    // Лишний набор ушёл бы на сервер после окна отправки
+    await act(() => new Promise((resolve) => setTimeout(resolve, SYNC_WINDOW_MS * 2)));
     expect(api.changesets).toHaveLength(sent);
 });
 

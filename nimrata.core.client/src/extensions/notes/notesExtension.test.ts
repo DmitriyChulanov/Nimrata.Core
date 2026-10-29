@@ -120,11 +120,11 @@ describe('Notes: start structure under race', () => {
     });
 
     /**
-     * Проверяет, что сбой запроса возвращается без повтора, а следующий запуск создаёт структуру
+     * Проверяет, что отказ сервера возвращается без повтора, а следующий запуск создаёт структуру
      */
-    it('startStructure_requestFailure_returnedWithoutRetryAndNextStartCreates', async () => {
+    it('startStructure_serverRejection_returnedWithoutRetryAndNextStartCreates', async () => {
         const { api, data } = await start();
-        api.rejectNext(500, 'сбой');
+        api.rejectNext(422, 'сбой');
 
         expect((await ensureNotesStart(data)).ok).toBe(false);
         expect(api.changesets).toHaveLength(0);

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -138,7 +138,7 @@ describe('Reference property: selection in dialog', () => {
         await userEvent.click(within(dialog).getByRole('treeitem', { name: 'Пётр' }));
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выбрать' }));
 
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         expect(api.changesets[0].operations[0]).toMatchObject({
             op: 'update',
             id: 't',
@@ -162,6 +162,7 @@ describe('Reference property: selection in dialog', () => {
         await userEvent.click(within(dialog).getByRole('treeitem', { name: 'Глубокий' }));
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выбрать' }));
 
+        await waitFor(() => expect(api.changesets).not.toHaveLength(0));
         expect(api.changesets[0].operations[0]).toMatchObject({ changes: { any: { new: 'p3' } } });
     });
 
@@ -194,6 +195,7 @@ describe('Reference property: selection in dialog', () => {
         await userEvent.click(within(dialog).getByRole('treeitem', { name: 'Люди' }));
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выбрать' }));
 
+        await waitFor(() => expect(api.changesets).not.toHaveLength(0));
         expect(api.changesets[0].operations[0]).toMatchObject({ changes: { any: { new: 'f' } } });
     });
 
@@ -218,6 +220,7 @@ describe('Reference property: selection in dialog', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'Очистить: Владелец' }));
 
+        await waitFor(() => expect(api.changesets).not.toHaveLength(0));
         expect(api.changesets[0].operations[0]).toMatchObject({
             changes: { owner: { new: null, old: 'p1' } },
         });
