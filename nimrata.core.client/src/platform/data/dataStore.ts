@@ -89,7 +89,10 @@ export interface LocalEdit {
  * Хранилище модели клиента
  */
 export interface DataStore {
-    /** Заменяет оба слоя снимком сервера; очередь очищается */
+    /**
+     * Заменяет подтверждённый слой снимком сервера и заново накладывает очередь: наборы, невалидные
+     * относительно снимка, убираются с одним сводным уведомлением
+     */
     reset(snapshot: StoreSnapshot): void;
     /** Курсор подтверждённого состояния */
     getSeq(): number;
@@ -120,6 +123,8 @@ export interface DataStore {
     subscribeObject(id: string, listener: () => void): () => void;
     /** Подписка на изменения детей родителя (`null` — корень) */
     subscribeChildren(parent: string | null, listener: () => void): () => void;
+    /** Подписка на сдвиг курсора подтверждённого состояния */
+    subscribeSeq(listener: () => void): () => void;
     /** Подписка на изменение очереди (новый набор, подтверждение, отказ) */
     subscribePending(listener: () => void): () => void;
     /** Подписка на сводные уведомления об отказах (одно на каждое применение) */
@@ -217,6 +222,7 @@ export function createDataStore(options: DataStoreOptions = {}): DataStore {
     const objectListeners = new Map<string, Set<() => void>>();
     const childrenListeners = new Map<string | null, Set<() => void>>();
     const pendingListeners = new Set<() => void>();
+    const seqListeners = new Set<() => void>();
     const noticeListeners = new Set<(message: string) => void>();
 
     // Открытая локальная правка: состояние затронутых объектов до неё; `undefined` — не было
@@ -282,6 +288,17 @@ export function createDataStore(options: DataStoreOptions = {}): DataStore {
         for (const id of change.ids) call(objectListeners.get(id));
         for (const parent of change.parents) call(childrenListeners.get(parent));
         for (const listener of [...listeners]) listener(change);
+    }
+
+    /**
+     * Сдвигает курсор и сообщает подписчикам курсора
+     *
+     * @param next - новый курсор
+     */
+    function moveSeq(next: number) {
+        if (next === seq) return;
+        seq = next;
+        for (const listener of [...seqListeners]) listener();
     }
 
     /**
@@ -410,22 +427,18 @@ export function createDataStore(options: DataStoreOptions = {}): DataStore {
     return {
         reset(snapshot) {
             whenIdle(() => {
-                seq = snapshot.seq;
                 types = new Map(snapshot.types.map((t) => [t.id, t]));
                 confirmed = new Map(snapshot.objects.map((o) => [o.id, { ...o }]));
-                const ids = new Set([...visible.keys(), ...confirmed.keys()]);
-                const parents = new Set<string | null>([null]);
-                for (const o of [...visible.values(), ...confirmed.values()]) parents.add(o.parent);
-                visible = new Map(confirmed);
-                const dropped = queue;
-                queue = [];
-                for (const entry of dropped) {
-                    entry.settle({ ok: false, error: 'Данные загружены заново.' });
-                }
+                const candidates = new Set([...visible.keys(), ...confirmed.keys()]);
+                // Типы могли смениться (подключено или отключено расширение): индекс детей целиком
                 fullRebuild = true;
                 indexStale = true;
-                notify({ ids, parents });
-                if (dropped.length > 0) notifyPending();
+                const dropped = rebase(candidates);
+                // Общие подписчики узнают о загрузке, даже если объекты не изменились (могли смениться типы)
+                for (const listener of [...listeners])
+                    listener({ ids: new Set(), parents: new Set() });
+                moveSeq(snapshot.seq);
+                settleDropped(dropped, false);
             });
         },
         getSeq: () => seq,
@@ -529,7 +542,7 @@ export function createDataStore(options: DataStoreOptions = {}): DataStore {
                 if (!entry) return;
                 queue = queue.filter((e) => e !== entry);
                 applyOperations(confirmed, entry.operations);
-                if (confirmedSeq === seq + 1) seq = confirmedSeq;
+                if (confirmedSeq === seq + 1) moveSeq(confirmedSeq);
                 const dropped = rebase(touchedIds(entry.operations));
                 entry.settle({ ok: true });
                 notifyPending();
@@ -557,7 +570,7 @@ export function createDataStore(options: DataStoreOptions = {}): DataStore {
                     confirmed.delete(objectId);
                     candidates.add(objectId);
                 }
-                seq = changes.toSeq;
+                moveSeq(changes.toSeq);
                 const own = new Set(changes.changesetIds);
                 const echoed = queue.filter((e) => own.has(e.id));
                 queue = queue.filter((e) => !own.has(e.id));
@@ -584,6 +597,12 @@ export function createDataStore(options: DataStoreOptions = {}): DataStore {
         },
         subscribeChildren(parent, listener) {
             return addTo(childrenListeners, parent, listener);
+        },
+        subscribeSeq(listener) {
+            seqListeners.add(listener);
+            return () => {
+                seqListeners.delete(listener);
+            };
         },
         subscribePending(listener) {
             pendingListeners.add(listener);

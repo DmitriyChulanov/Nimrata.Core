@@ -40,6 +40,9 @@ builder.Services.AddSingleton<TypesService>();
 builder.Services.AddSingleton<ExtensionsService>();
 builder.Services.AddOptions<SyncOptions>().BindConfiguration(SyncOptions.Section).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddSingleton<SyncService>();
+builder.Services.AddSingleton<ChangeDispatcher>();
+builder.Services.AddSingleton<IChangeNotifier>(sp => sp.GetRequiredService<ChangeDispatcher>());
+builder.Services.AddSignalR();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -54,6 +57,20 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             RoleClaimType = System.Security.Claims.ClaimTypes.Role,
             NameClaimType = "sub",
             ClockSkew = TimeSpan.FromSeconds(30),
+        };
+        // Браузер не передаёт заголовок Authorization в WebSocket: для хаба синхронизации (и только для него)
+        // токен берётся из query access_token
+        o.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.HttpContext.Request.Path.StartsWithSegments(SyncHub.Path)
+                    && context.Request.Query["access_token"] is { Count: > 0 } token)
+                {
+                    context.Token = token;
+                }
+                return Task.CompletedTask;
+            },
         };
     });
 // Всё API закрыто по умолчанию; открытые маршруты помечаются AllowAnonymous
@@ -87,6 +104,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<SyncHub>(SyncHub.Path);
 
 app.MapGet("/health", async (CancellationToken cancellationToken) =>
 {

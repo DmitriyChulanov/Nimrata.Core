@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Nimrata.Core.Server.Auth;
 using Nimrata.Core.Server.Controllers.Requests;
 using Nimrata.Core.Server.Extensions;
+using Nimrata.Core.Server.Sync;
 
 namespace Nimrata.Core.Server.Controllers;
 
@@ -9,9 +10,10 @@ namespace Nimrata.Core.Server.Controllers;
 /// Каталог расширений и подключения вошедшего пользователя
 /// </summary>
 /// <param name="extensionsService">Сервис каталога и подключений</param>
+/// <param name="notifier">Push: смена подключения рассылается клиентам пользователя как <c>resync</c></param>
 [ApiController]
 [Route("api/extensions")]
-public sealed class ExtensionsController(ExtensionsService extensionsService) : ControllerBase
+public sealed class ExtensionsController(ExtensionsService extensionsService, IChangeNotifier notifier) : ControllerBase
 {
     /// <summary>
     /// Расширения из манифестов с состоянием подключения текущего пользователя
@@ -35,8 +37,14 @@ public sealed class ExtensionsController(ExtensionsService extensionsService) : 
     public async Task<ActionResult<ExtensionInfo>> SetConnection(
         string id, SetConnectionRequest request, CancellationToken cancellationToken)
     {
-        var extension = await extensionsService.SetConnectionAsync(
-            User.GetUserId(), id, request.Connected!.Value, cancellationToken);
-        return extension is null ? NotFound() : Ok(extension);
+        var userId = User.GetUserId();
+        var extension = await extensionsService.SetConnectionAsync(userId, id, request.Connected!.Value, cancellationToken);
+        if (extension is null)
+        {
+            return NotFound();
+        }
+        // Видимость объектов и типов изменилась: открытые вкладки перечитывают данные целиком
+        notifier.Resync(userId);
+        return Ok(extension);
     }
 }

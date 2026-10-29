@@ -23,6 +23,8 @@ export interface AuthSession {
     subscribe(listener: () => void): () => void;
     /** Заголовки с access-токеном для API-клиента (пусто, пока не вошли) */
     getHeaders(): Record<string, string>;
+    /** Access-токен (для push-соединения, где заголовков нет); `null`, пока не вошли */
+    getAccessToken(): string | null;
     /** Входит по адресу и паролю; при отказе бросает `ApiError` */
     login(email: string, password: string): Promise<void>;
     /** Восстанавливает сессию по refresh-cookie (при загрузке страницы) */
@@ -90,6 +92,7 @@ export function createAuthSession({ api }: AuthSessionOptions): AuthSession {
         },
         getHeaders: (): Record<string, string> =>
             accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+        getAccessToken: () => accessToken,
         async login(email, password) {
             const { accessToken: token } = await api.post<TokenResponse>('/auth/login', {
                 email,

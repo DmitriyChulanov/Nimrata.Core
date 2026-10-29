@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
     AuthProvider,
@@ -19,6 +19,7 @@ import {
     UndoControls,
     Workspace,
     createDataController,
+    createSignalRChannel,
     createRevealBridge,
     extensionRegistry,
     menuRegistry,
@@ -30,6 +31,7 @@ import {
     tabRegistry,
     useAuth,
     useApi,
+    useAuthContext,
     useCurrentUser,
     useDataController,
     useQuery,
@@ -111,7 +113,21 @@ interface ApplicationProps {
  */
 function Application({ userId }: ApplicationProps) {
     const api = useApi();
+    const { session } = useAuthContext();
     const [controller] = useState(() => createDataController({ api }));
+
+    // Push-синхронизация: соединение живёт, пока смонтирован экран пользователя
+    useEffect(
+        () =>
+            controller.connectPush(
+                createSignalRChannel({
+                    getAccessToken: session.getAccessToken,
+                    subscribeToken: session.subscribe,
+                    refreshToken: session.refresh,
+                }),
+            ),
+        [controller, session],
+    );
 
     return (
         <DataProvider controller={controller}>

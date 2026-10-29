@@ -52,7 +52,7 @@ function setup() {
     let counter = 0;
     const store = createDataStore({ newChangesetId: () => `cs-${++counter}` });
     store.reset({ seq: 0, types, objects: structuredClone(objects) });
-    const dispose = createSyncEngine(api)(store);
+    const { dispose } = createSyncEngine(api)(store);
     return { api, store, requests, dispose };
 }
 

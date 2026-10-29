@@ -5,6 +5,7 @@ export type { AuthSession, AuthState, AuthStatus } from './auth/authSession';
 export { AuthProvider } from './auth/AuthProvider';
 export { useAuth } from './auth/useAuth';
 export { useApi } from './auth/useApi';
+export { useAuthContext } from './auth/useAuthContext';
 export { LoginScreen } from './auth/LoginScreen';
 export { ResetPasswordScreen } from './auth/ResetPasswordScreen';
 export { TypesProvider } from './types/TypesProvider';
@@ -12,12 +13,16 @@ export { useTypes } from './types/useTypes';
 export type { TypesContextValue, TypesStatus } from './types/TypesContext';
 export { createDataController } from './data/DataController';
 export {
+    SYNC_CATCHUP_DELAY_MS,
     SYNC_MAX_OPERATIONS,
     SYNC_RETRY_BASE_MS,
     SYNC_RETRY_MAX_MS,
     SYNC_WINDOW_MS,
     createSyncEngine,
 } from './sync/syncEngine';
+export type { PushChanges, PushChannel, PushHandlers, SyncEngineOptions } from './sync/syncEngine';
+export { SYNC_HUB_URL, createSignalRChannel } from './sync/signalrChannel';
+export type { HubConnectionLike, SignalRChannelOptions } from './sync/signalrChannel';
 export type {
     ActionContext,
     ActionRegistrationOptions,
@@ -43,6 +48,7 @@ export type {
     HookResult,
     MoveInput,
     OperationOptions,
+    SyncLink,
     SyncPort,
     TitleFormatter,
 } from './data/DataController';

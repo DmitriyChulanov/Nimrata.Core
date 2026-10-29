@@ -42,6 +42,7 @@ describe('AuthSession', () => {
         });
         expect(session.getState().status).toBe('authenticated');
         expect(session.getHeaders()).toEqual({ Authorization: 'Bearer tok-1' });
+        expect(session.getAccessToken()).toBe('tok-1');
         expect(JSON.stringify({ ...localStorage })).not.toContain('tok-1');
         expect(JSON.stringify({ ...sessionStorage })).not.toContain('tok-1');
     });
@@ -58,6 +59,7 @@ describe('AuthSession', () => {
 
         expect(session.getState().status).toBe('anonymous');
         expect(session.getHeaders()).toEqual({});
+        expect(session.getAccessToken()).toBeNull();
     });
 
     /**

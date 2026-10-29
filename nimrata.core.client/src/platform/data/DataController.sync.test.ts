@@ -210,4 +210,22 @@ describe('DataController: undo checks current value', () => {
         expect(await data.undo()).toEqual({ ok: true });
         expect(data.getObject('a')?.properties).toEqual({ title: 'A', done: true });
     });
+
+    /**
+     * Проверяет, что повторная загрузка не отбрасывает неотправленную правку: она уходит на
+     * сервер и видна поверх снимка (раньше отклонялась «Данные загружены заново.»)
+     */
+    it('load_withUnsentEdit_keepsEditAndSendsIt', async () => {
+        const api = createFakeApi(types, structuredClone(objects), { extensions: [] });
+        const data = createDataController({ api });
+        await data.load();
+        const outcome = data.setProperty('a', 'title', 'Mine');
+
+        await data.load();
+
+        await expect(outcome).resolves.toEqual({ ok: true });
+        expect(api.changesets).toHaveLength(1);
+        expect(data.getObject('a')?.properties.title).toBe('Mine');
+        expect(data.sync.pending()).toEqual([]);
+    });
 });

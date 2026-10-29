@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Dapper;
+using Nimrata.Core.Server.Sync;
 using Npgsql;
 
 namespace Nimrata.Core.Server.Objects;
@@ -10,7 +11,9 @@ namespace Nimrata.Core.Server.Objects;
 /// структурных инвариантов по типам, запись в журнал с курсором <c>seq</c>. Значения свойств и положение
 /// объекта решаются по LWW: «было» клиента не сверяется
 /// </summary>
-public sealed class ChangesetService(NpgsqlDataSource dataSource)
+/// <param name="dataSource">Источник соединений с БД</param>
+/// <param name="notifier">Push: после фиксации набора его автор помечается для рассылки</param>
+public sealed class ChangesetService(NpgsqlDataSource dataSource, IChangeNotifier notifier)
 {
     private sealed record TypeRow(string Id, string? ExtensionId, JsonElement Definition);
 
@@ -76,6 +79,7 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource)
         {
             var seq = await ApplyOperationsAsync(connection, transaction, userId, submission, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            notifier.Changed(userId, seq);
             return ChangesetResult.Applied(submission.Id, seq);
         }
         catch (ChangesetRejectedException rejection)

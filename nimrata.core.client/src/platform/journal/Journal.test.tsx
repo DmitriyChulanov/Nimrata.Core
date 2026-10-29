@@ -201,6 +201,38 @@ describe('JournalView', () => {
     });
 
     /**
+     * Проверяет, что сдвиг курсора синхронизации перечитывает первую страницу, не стирая
+     * показанные записи на время загрузки
+     */
+    it('journal_cursorMoved_rereadsFirstPage', async () => {
+        const path = 'journal?objectId=t1&skip=0&take=50';
+        const pages: Record<string, JournalPage> = {
+            [path]: {
+                total: 1,
+                items: [entry({ id: 1, property: 'title', old: 'a', new: 'Старое' })],
+            },
+        };
+        const { api, get } = fakeJournalApi(pages);
+        const { rerender } = render(
+            <JournalView api={api} selectedId="t1" resolver={resolver} cursor={1} />,
+        );
+        await screen.findByText('Старое');
+
+        pages[path] = {
+            total: 2,
+            items: [
+                entry({ id: 2, changesetId: 'c2', property: 'title', old: 'Старое', new: 'Новое' }),
+                entry({ id: 1, property: 'title', old: 'a', new: 'Старое' }),
+            ],
+        };
+        rerender(<JournalView api={api} selectedId="t1" resolver={resolver} cursor={2} />);
+
+        expect(screen.queryByText('Загрузка…')).not.toBeInTheDocument();
+        expect(await screen.findByText('Новое')).toBeInTheDocument();
+        expect(get).toHaveBeenCalledTimes(2);
+    });
+
+    /**
      * Проверяет, что переключатель «Все мои изменения» показывает общий список
      */
     it('journal_allMyChangesToggle_showsCommonList', async () => {
