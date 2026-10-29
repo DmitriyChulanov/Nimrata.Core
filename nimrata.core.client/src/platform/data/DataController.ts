@@ -1,10 +1,12 @@
 import { ApiError } from '@platform/api/apiClient';
 
 import { createActionRegistry } from './actionRegistry';
+import { createDataStore } from './dataStore';
 import { errorMessage } from './errorMessage';
 
 import type { GroupLaunch } from './actionRegistry';
-import type { Operation } from './undoHistory';
+import type { DataStore, LocalEdit, PendingChangeset, StoreSnapshot } from './dataStore';
+import type { HistoryEntry, Operation } from './undoHistory';
 import { applyOperations, createUndoHistory, invertOperations, touchedIds } from './undoHistory';
 import { uuid7 } from './uuid7';
 
@@ -43,10 +45,11 @@ export interface DataSnapshot {
     status: DataStatus;
     /** Версия модели: растёт при каждом изменении (удобно для `useSyncExternalStore`) */
     version: number;
-    /** Причина последней ошибки загрузки или отказа сервера; `null`, если всё в порядке */
+    /**
+     * Причина последней ошибки загрузки или сводное уведомление об отказе наборов (одно на
+     * применение); `null`, если всё в порядке
+     */
     error: string | null;
-    /** Данные разошлись с сервером: нужно вызвать `reload()` */
-    needsReload: boolean;
 }
 
 /**
@@ -241,25 +244,52 @@ export interface DataControllerOptions {
     api: ApiClient;
     /** Генератор идентификаторов новых объектов (по умолчанию UUIDv7) */
     newId?: () => string;
+    /**
+     * Сетевая часть: отправляет наборы очереди и пишет итоги и входящие изменения в хранилище.
+     * По умолчанию — `createDirectTransport(api)` (каждый набор отдельным запросом, по одному)
+     */
+    transport?: ChangesetTransport;
 }
+
+/**
+ * Вход хранилища для сетевой части (SyncEngine): очередь, итоги наборов, входящие изменения
+ */
+export type SyncPort = Pick<
+    DataStore,
+    'getSeq' | 'pending' | 'subscribePending' | 'confirm' | 'reject' | 'applyRemote' | 'reset'
+>;
+
+/**
+ * Сетевая часть контроллера: подключается к хранилищу и возвращает функцию отключения
+ */
+export type ChangesetTransport = (port: SyncPort) => () => void;
 
 /**
  * Контроллер данных: модель типов и объектов, изменения, хуки, действия и отмена
  */
 export interface DataController {
-    /** Загружает типы и объекты пользователя, заменяя модель */
+    /** Загружает снимок сервера (`GET /api/snapshot`: курсор, типы, объекты), заменяя модель */
     load(): Promise<void>;
     /** Текущий снимок состояния модели */
     getSnapshot(): DataSnapshot;
-    /** Подписка на изменения модели; возвращает функцию отписки */
+    /** Подписка на любые изменения модели; возвращает функцию отписки */
     subscribe(listener: () => void): () => void;
+    /** Подписка на изменения одного объекта (в том числе появление и удаление) */
+    subscribeObject(id: string, listener: () => void): () => void;
+    /** Подписка на изменения детей родителя (`null` — корень): состав, порядок, сами дети */
+    subscribeChildren(parent: string | null, listener: () => void): () => void;
     /** Тип по идентификатору */
     getType(id: string): TypeDefinition | undefined;
     /** Все загруженные типы */
     getTypes(): TypeDefinition[];
     getObject(id: string): DataObject | undefined;
-    /** Потомки родителя по возрастанию номера; `null` — корневые объекты */
-    getChildren(parent: string | null): DataObject[];
+    /**
+     * Потомки родителя по возрастанию номера; `null` — корневые объекты. Ссылка на список
+     * сохраняется, пока дети не изменились
+     */
+    getChildren(parent: string | null): readonly DataObject[];
+    /** Вход хранилища для сетевой части: очередь, итоги наборов и входящие изменения */
+    readonly sync: SyncPort;
     /** Создаёт объект (одно действие — один набор изменений) */
     create(input: CreateInput, options?: OperationOptions): Promise<CreateResult>;
     /** Меняет свойство; `null` удаляет значение */
@@ -272,7 +302,11 @@ export interface DataController {
     move(id: string, to: MoveInput, options?: OperationOptions): Promise<ChangeResult>;
     /** Удаляет объект вместе с потомками одним набором */
     remove(id: string, options?: OperationOptions): Promise<ChangeResult>;
-    /** Отменяет последнее действие (обратным набором, без хуков); при отказе сервера стек не меняется */
+    /**
+     * Отменяет последнее действие (обратным набором, без хуков); при отказе сервера стек не меняется.
+     * Если текущие значения уже не те, что ставило действие (их изменили в другом месте), отмена
+     * отклоняется с уведомлением, а запись убирается из стека
+     */
     undo(): Promise<ChangeResult>;
     /** Повторяет последнее отменённое действие (без хуков) */
     redo(): Promise<ChangeResult>;
@@ -414,81 +448,141 @@ interface HookEntry {
 }
 
 /**
- * Создаёт контроллер данных
- *
- * @param options - API-клиент и генератор идентификаторов
- * @returns контроллер с пустой моделью; данные загружает `load`
- */
-/**
  * Номер для нового объекта среди соседей: максимальный плюс 1, а в пустой коллекции — 1
+ *
+ * @param siblings - соседи нового объекта
+ * @returns номер нового объекта
  */
 function nextNumber(siblings: readonly DataObject[]): number {
     return siblings.reduce((max, o) => Math.max(max, o.number), 0) + 1;
 }
 
+/**
+ * Совпадают ли значения свойства (значения из JSON сравниваются по содержимому)
+ *
+ * @param a - первое значение
+ * @param b - второе значение
+ * @returns `true`, если значения равны
+ */
+function sameValue(a: unknown, b: unknown): boolean {
+    return a === b || JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+/**
+ * Сетевая часть по умолчанию: каждый набор очереди уходит отдельным запросом пакетной записи,
+ * запросы — строго по одному в порядке очереди. Итог `applied`/`duplicate` подтверждает набор,
+ * `rejected` и ошибка запроса — отклоняют. Пакетирование и повторы — задача SyncEngine
+ *
+ * @param api - API-клиент
+ * @returns сетевая часть для `DataControllerOptions.transport`
+ */
+export function createDirectTransport(api: ApiClient): ChangesetTransport {
+    return (port) => {
+        const sent = new Set<string>();
+        let chain: Promise<void> = Promise.resolve();
+        let disposed = false;
+
+        const send = async (changeset: PendingChangeset) => {
+            // Набор могли убрать из очереди каскадом, пока он ждал отправки
+            if (disposed || !port.pending().some((c) => c.id === changeset.id)) return;
+            try {
+                const [result] = await api.post<ChangesetResult[]>('changesets', {
+                    changesets: [{ id: changeset.id, operations: changeset.operations }],
+                });
+                if (!result) {
+                    port.reject(changeset.id, { error: 'Сервер не вернул итог набора.' });
+                } else if (result.status === 'rejected') {
+                    port.reject(changeset.id, {
+                        error: result.detail ?? 'Набор изменений отклонён.',
+                        status: 422,
+                        ...(result.code ? { code: result.code } : {}),
+                    });
+                } else {
+                    port.confirm(changeset.id, result.seq ?? 0);
+                }
+            } catch (error) {
+                port.reject(
+                    changeset.id,
+                    error instanceof ApiError
+                        ? {
+                              error: error.message,
+                              status: error.status,
+                              ...(error.code ? { code: error.code } : {}),
+                          }
+                        : { error: errorMessage(error) },
+                );
+            }
+        };
+
+        const pump = () => {
+            for (const changeset of port.pending()) {
+                if (sent.has(changeset.id)) continue;
+                sent.add(changeset.id);
+                chain = chain.then(() => send(changeset));
+            }
+        };
+        const unsubscribe = port.subscribePending(pump);
+        return () => {
+            disposed = true;
+            unsubscribe();
+        };
+    };
+}
+
+/**
+ * Итог шага локальной очереди: готовый результат либо ожидание итога набора на сервере
+ */
+type StepResult = { result: ChangeResult } | { outcome: Promise<ChangeResult> };
+
+/**
+ * Создаёт контроллер данных
+ *
+ * @param options - API-клиент, генератор идентификаторов и сетевая часть
+ * @returns контроллер с пустой моделью; данные загружает `load`
+ */
 export function createDataController(options: DataControllerOptions): DataController {
     const { api } = options;
 
-    let types = new Map<string, TypeDefinition>();
-    let objects = new Map<string, DataObject>();
-    let snapshot: DataSnapshot = { status: 'idle', version: 0, error: null, needsReload: false };
+    const store = createDataStore();
+    let snapshot: DataSnapshot = { status: 'idle', version: 0, error: null };
     const listeners = new Set<() => void>();
     const hookEntries: HookEntry[] = [];
     const titleFormatters = new Map<string, TitleFormatter>();
-    // Индекс «родитель → потомки по порядку»: строится по требованию, сбрасывается при любом
-    // изменении модели (в том числе внутри набора, между его операциями)
-    let childrenIndex: Map<string | null, DataObject[]> | null = null;
 
+    /**
+     * Обновляет снимок состояния и уведомляет подписчиков
+     *
+     * @param patch - изменённые поля снимка
+     * @param model - изменилась ли модель (растёт версия)
+     */
     function publish(patch: Partial<DataSnapshot>, model = true) {
         snapshot = { ...snapshot, ...patch, version: snapshot.version + (model ? 1 : 0) };
-        childrenIndex = null;
         for (const listener of [...listeners]) listener();
     }
+    store.subscribe(() => publish({}));
+    store.onNotice((message) => publish({ error: message }, false));
 
-    function putObject(object: DataObject) {
-        objects.set(object.id, object);
-        childrenIndex = null;
-    }
-
-    function dropObject(id: string) {
-        objects.delete(id);
-        childrenIndex = null;
-    }
-
-    function getChildren(parent: string | null, exclude?: string): DataObject[] {
-        if (!childrenIndex) {
-            const index = new Map<string | null, DataObject[]>();
-            for (const o of objects.values()) {
-                const list = index.get(o.parent);
-                if (list) list.push(o);
-                else index.set(o.parent, [o]);
-            }
-            for (const list of index.values()) {
-                list.sort((a, b) => a.number - b.number || (a.id < b.id ? -1 : 1));
-            }
-            childrenIndex = index;
-        }
-        const list = childrenIndex.get(parent) ?? [];
-        return exclude === undefined ? [...list] : list.filter((o) => o.id !== exclude);
-    }
+    const getChildren = (parent: string | null) => store.getChildren(parent);
 
     const newId = options.newId ?? uuid7;
     const history = createUndoHistory();
+    (options.transport ?? createDirectTransport(api))(store);
+
+    // Локальная часть наборов (хуки, обработчики, применение к модели) выполняется строго по
+    // очереди; ответа сервера следующее действие не ждёт
+    let localQueue: Promise<unknown> = Promise.resolve();
 
     /**
-     * Отправляет операции одним набором пакетной записи; отказ набора сервером приходит как
-     * `ApiError` с кодом 422 и машинным кодом причины, как прежде
+     * Ставит шаг в локальную очередь и возвращает итог действия
+     *
+     * @param step - шаг: локальное применение и, если набор не пуст, ожидание его итога
+     * @returns итог действия
      */
-    async function submit(operations: readonly Operation[]): Promise<void> {
-        const [result] = await api.post<ChangesetResult[]>('changesets', {
-            changesets: [{ id: uuid7(), operations }],
-        });
-        if (result?.status === 'rejected') {
-            throw new ApiError(422, result.detail ?? 'Набор изменений отклонён.', result.code);
-        }
+    function enqueueLocal(step: () => Promise<StepResult>): Promise<ChangeResult> {
+        const done = localQueue.then(step);
+        localQueue = done.catch(() => undefined);
+        return done.then((s) => ('result' in s ? s.result : s.outcome));
     }
-    // Наборы выполняются строго по очереди, чтобы откат одного не затирал соседние
-    let queue: Promise<unknown> = Promise.resolve();
 
     function descendantsFirst(id: string): string[] {
         const result: string[] = [];
@@ -501,17 +595,10 @@ export function createDataController(options: DataControllerOptions): DataContro
         return { ...object, properties: { ...object.properties } };
     }
 
-    function touch(scope: Scope, id: string) {
+    function touch(scope: Scope, edit: LocalEdit, id: string) {
         if (scope.before.has(id)) return;
-        const o = objects.get(id);
+        const o = edit.get(id);
         scope.before.set(id, o && snapshotOf(o));
-    }
-
-    function rollback(scope: Scope) {
-        for (const [id, o] of scope.before) {
-            if (o) putObject(o);
-            else dropObject(id);
-        }
     }
 
     function refuse(scope: Scope, error: string): { ok: false; error: string } {
@@ -556,15 +643,15 @@ export function createDataController(options: DataControllerOptions): DataContro
         }
     }
 
-    function makeScope(hooks: boolean): { scope: Scope; tx: ChangeScope } {
+    function makeScope(hooks: boolean, edit: LocalEdit): { scope: Scope; tx: ChangeScope } {
         const scope: Scope = { operations: [], before: new Map(), hooks, depth: 0, error: null };
 
         const tx: ChangeScope = {
             create(input) {
-                const type = types.get(input.type);
+                const type = store.getType(input.type);
                 if (!type) return refuse(scope, `Тип "${input.type}" неизвестен.`);
                 const parent = input.parent ?? null;
-                if (parent !== null && !objects.has(parent)) {
+                if (parent !== null && !edit.get(parent)) {
                     return refuse(scope, 'Родитель не найден.');
                 }
                 const id = newId();
@@ -581,8 +668,8 @@ export function createDataController(options: DataControllerOptions): DataContro
                 const cancelled = runHooks(scope, tx, 'create', 'before', { object });
                 if (cancelled !== null) return refuse(scope, cancelled);
 
-                touch(scope, id);
-                putObject(object);
+                touch(scope, edit, id);
+                edit.put(object);
                 scope.operations.push({
                     op: 'create',
                     id,
@@ -599,7 +686,7 @@ export function createDataController(options: DataControllerOptions): DataContro
             },
 
             setProperty(id, property, value) {
-                const object = objects.get(id);
+                const object = edit.get(id);
                 if (!object) return refuse(scope, 'Объект не найден.');
                 const oldValue = object.properties[property] ?? null;
                 const newValue = value ?? null;
@@ -609,13 +696,13 @@ export function createDataController(options: DataControllerOptions): DataContro
                 if (cancelled !== null) return refuse(scope, cancelled);
 
                 // Хук «до» мог изменить объект: берём актуальную версию
-                const current = objects.get(id);
+                const current = edit.get(id);
                 if (!current) return refuse(scope, 'Объект не найден.');
-                touch(scope, id);
+                touch(scope, edit, id);
                 const properties = { ...current.properties };
                 if (newValue === null) delete properties[property];
                 else properties[property] = newValue;
-                putObject({ ...current, properties });
+                edit.put({ ...current, properties });
                 scope.operations.push({
                     op: 'update',
                     id,
@@ -624,21 +711,21 @@ export function createDataController(options: DataControllerOptions): DataContro
 
                 const failed = runHooks(scope, tx, 'setProperty', 'after', {
                     ...context,
-                    object: snapshotOf(objects.get(id) ?? current),
+                    object: snapshotOf(edit.get(id) ?? current),
                 });
                 return failed !== null ? refuse(scope, failed) : { ok: true };
             },
 
             move(id, to) {
-                const object = objects.get(id);
+                const object = edit.get(id);
                 if (!object) return refuse(scope, 'Объект не найден.');
                 const parent = to.parent === undefined ? object.parent : to.parent;
                 if (parent !== null) {
-                    if (!objects.has(parent)) return refuse(scope, 'Родитель не найден.');
+                    if (!edit.get(parent)) return refuse(scope, 'Родитель не найден.');
                     for (
                         let p: string | null = parent;
                         p !== null;
-                        p = objects.get(p)?.parent ?? null
+                        p = edit.get(p)?.parent ?? null
                     ) {
                         if (p === id) {
                             return refuse(
@@ -659,34 +746,34 @@ export function createDataController(options: DataControllerOptions): DataContro
                 const cancelled = runHooks(scope, tx, 'move', 'before', context);
                 if (cancelled !== null) return refuse(scope, cancelled);
 
-                const current = objects.get(id);
+                const current = edit.get(id);
                 if (!current) return refuse(scope, 'Объект не найден.');
                 const operation: Extract<Operation, { op: 'move' }> = { op: 'move', id };
                 if (parent !== from.parent) operation.parent = { old: from.parent, new: parent };
                 if (number !== from.number) operation.number = { old: from.number, new: number };
-                touch(scope, id);
-                putObject({ ...current, parent, number });
+                touch(scope, edit, id);
+                edit.put({ ...current, parent, number });
                 scope.operations.push(operation);
 
                 const failed = runHooks(scope, tx, 'move', 'after', {
                     ...context,
-                    object: snapshotOf(objects.get(id) ?? current),
+                    object: snapshotOf(edit.get(id) ?? current),
                 });
                 return failed !== null ? refuse(scope, failed) : { ok: true };
             },
 
             remove(id) {
-                const object = objects.get(id);
+                const object = edit.get(id);
                 if (!object) return refuse(scope, 'Объект не найден.');
                 const removed = snapshotOf(object);
 
                 const cancelled = runHooks(scope, tx, 'remove', 'before', { object: removed });
                 if (cancelled !== null) return refuse(scope, cancelled);
 
-                if (!objects.has(id)) return refuse(scope, 'Объект не найден.');
+                if (!edit.get(id)) return refuse(scope, 'Объект не найден.');
                 for (const x of descendantsFirst(id)) {
-                    touch(scope, x);
-                    dropObject(x);
+                    touch(scope, edit, x);
+                    edit.drop(x);
                     scope.operations.push({ op: 'delete', id: x });
                 }
 
@@ -698,100 +785,127 @@ export function createDataController(options: DataControllerOptions): DataContro
     }
 
     /**
-     * Выполняет набор: локально применяет операции, отправляет их на сервер одним запросом;
-     * при отказе (в том числе вложенной операции или сервера) возвращает модель как была
+     * Выполняет набор: локально применяет операции и ставит набор в очередь хранилища (видно
+     * сразу); итог — подтверждение или отказ сервера. При локальном отказе (в том числе вложенной
+     * операции) модель возвращается как была, при отказе сервера набор откатывает хранилище
      */
     function execute(
         run: (tx: ChangeScope, scope: Scope) => void | Promise<void>,
         opts: OperationOptions | undefined,
     ): Promise<ChangeResult> {
-        const step = async (): Promise<ChangeResult> => {
-            if (snapshot.needsReload) {
-                return { ok: false, error: 'Данные разошлись с сервером: перезагрузите данные.' };
-            }
-            const { scope, tx } = makeScope(opts?.hooks !== false);
+        return enqueueLocal(async () => {
+            const edit = store.beginLocal();
+            const { scope, tx } = makeScope(opts?.hooks !== false, edit);
             try {
                 await run(tx, scope);
             } catch (error) {
                 scope.error ??= errorMessage(error);
             }
             if (scope.error !== null) {
-                const touched = scope.before.size > 0;
-                rollback(scope);
-                if (touched) publish({});
-                return { ok: false, error: scope.error };
+                edit.abort();
+                return { result: { ok: false, error: scope.error } };
             }
-            if (scope.operations.length === 0) return { ok: true };
+            if (scope.operations.length === 0) {
+                edit.commit([]);
+                return { result: { ok: true } };
+            }
+            const entry: HistoryEntry = {
+                forward: scope.operations,
+                inverse: invertOperations(scope.operations, scope.before),
+            };
+            history.record(entry);
+            snapshot = { ...snapshot, error: null };
+            const { outcome } = edit.commit(scope.operations);
+            return {
+                outcome: outcome.then((result) => {
+                    if (!result.ok) {
+                        history.discard(entry);
+                        publish({}, false);
+                    }
+                    return result;
+                }),
+            };
+        });
+    }
 
-            publish({ error: null });
-            try {
-                await submit(scope.operations);
-                history.record({
-                    forward: scope.operations,
-                    inverse: invertOperations(scope.operations, scope.before),
-                });
-                publish({}, false);
-                return { ok: true };
-            } catch (error) {
-                rollback(scope);
-                publish({
-                    error: errorMessage(error),
-                    needsReload: error instanceof ApiError && error.status === 409,
-                });
-                return error instanceof ApiError
-                    ? { ok: false, error: error.message, status: error.status, code: error.code }
-                    : { ok: false, error: errorMessage(error) };
+    /**
+     * Ищет расхождение текущей модели с тем, что ожидает набор отмены или повтора: значения
+     * «было» у свойств и положения, существование объектов
+     *
+     * @param operations - операции набора
+     * @returns `true`, если модель изменилась в другом месте
+     */
+    function hasConflict(operations: readonly Operation[]): boolean {
+        const view = new Map<string, DataObject>();
+        for (const id of touchedIds(operations)) {
+            const object = store.getObject(id);
+            if (object) view.set(id, object);
+        }
+        for (const operation of operations) {
+            const current = view.get(operation.id);
+            switch (operation.op) {
+                case 'create':
+                    if (current) return true;
+                    break;
+                case 'delete':
+                    if (!current) return true;
+                    break;
+                case 'update':
+                    if (!current) return true;
+                    for (const [name, change] of Object.entries(operation.changes)) {
+                        if (!sameValue(current.properties[name], change.old)) return true;
+                    }
+                    break;
+                case 'move':
+                    if (!current) return true;
+                    if (operation.parent && current.parent !== operation.parent.old) return true;
+                    if (operation.number && current.number !== operation.number.old) return true;
+                    break;
             }
-        };
-        const result = queue.then(step);
-        queue = result;
-        return result;
+            applyOperations(view, [operation]);
+        }
+        return false;
     }
 
     /**
      * Отмена и повтор: применяют сохранённый набор напрямую к модели, минуя `makeScope`,
-     * поэтому хуки не вызываются; идут через ту же очередь. При отказе стек остаётся прежним
+     * поэтому хуки не вызываются; идут через ту же очередь. Перед применением текущие значения
+     * сверяются со своими. При отказе сервера стек остаётся прежним
      */
     function replay(kind: 'undo' | 'redo'): Promise<ChangeResult> {
-        const step = async (): Promise<ChangeResult> => {
-            if (snapshot.needsReload) {
-                return { ok: false, error: 'Данные разошлись с сервером: перезагрузите данные.' };
-            }
+        const verb = kind === 'undo' ? 'отменить' : 'повторить';
+        return enqueueLocal(async () => {
             const entry = kind === 'undo' ? history.peekUndo() : history.peekRedo();
             if (!entry) {
                 return {
-                    ok: false,
-                    error: kind === 'undo' ? 'Нечего отменять.' : 'Нечего повторять.',
+                    result: {
+                        ok: false,
+                        error: kind === 'undo' ? 'Нечего отменять.' : 'Нечего повторять.',
+                    },
                 };
             }
             const operations = kind === 'undo' ? entry.inverse : entry.forward;
-            const before = new Map(
-                touchedIds(operations).map((id) => {
-                    const o = objects.get(id);
-                    return [id, o && snapshotOf(o)] as const;
-                }),
-            );
-            applyOperations(objects, operations);
-            publish({ error: null });
-            const verb = kind === 'undo' ? 'отменить' : 'повторить';
-            try {
-                await submit(operations);
-                if (kind === 'undo') history.markUndone();
-                else history.markRedone();
-                publish({}, false);
-                return { ok: true };
-            } catch (error) {
-                for (const [id, o] of before) {
-                    if (o) putObject(o);
-                    else dropObject(id);
-                }
-                publish({ error: errorMessage(error) });
-                return { ok: false, error: `Не удалось ${verb}: ${errorMessage(error)}` };
+            if (hasConflict(operations)) {
+                history.discard(entry);
+                const error = `Не удалось ${verb}: данные изменены в другом месте.`;
+                publish({ error }, false);
+                return { result: { ok: false, error } };
             }
-        };
-        const result = queue.then(step);
-        queue = result;
-        return result;
+            const edit = store.beginLocal();
+            for (const operation of operations) edit.apply(operation);
+            if (kind === 'undo') history.markUndone();
+            else history.markRedone();
+            snapshot = { ...snapshot, error: null };
+            const { outcome } = edit.commit(operations);
+            return {
+                outcome: outcome.then((result): ChangeResult => {
+                    if (result.ok) return result;
+                    history.revert(kind, entry);
+                    publish({}, false);
+                    return { ok: false, error: `Не удалось ${verb}: ${result.error}` };
+                }),
+            };
+        });
     }
 
     function registerHook(
@@ -821,8 +935,8 @@ export function createDataController(options: DataControllerOptions): DataContro
 
     const registry = createActionRegistry({
         reader: {
-            getObject: (id) => objects.get(id),
-            getType: (id) => types.get(id),
+            getObject: (id) => store.getObject(id),
+            getType: (id) => store.getType(id),
             getTitle,
         },
         execute,
@@ -832,14 +946,10 @@ export function createDataController(options: DataControllerOptions): DataContro
         async load() {
             publish({ status: 'loading', error: null }, false);
             try {
-                const [loadedTypes, loadedObjects] = await Promise.all([
-                    api.get<TypeDefinition[]>('types'),
-                    api.get<DataObject[]>('objects'),
-                ]);
-                types = new Map(loadedTypes.map((t) => [t.id, t]));
-                objects = new Map(loadedObjects.map((o) => [o.id, { ...o }]));
+                const loaded = await api.get<StoreSnapshot>('snapshot');
                 history.clear();
-                publish({ status: 'ready', error: null, needsReload: false });
+                store.reset(loaded);
+                publish({ status: 'ready', error: null });
             } catch (error) {
                 publish({ status: 'error', error: errorMessage(error) }, false);
             }
@@ -851,10 +961,13 @@ export function createDataController(options: DataControllerOptions): DataContro
                 listeners.delete(listener);
             };
         },
-        getType: (id) => types.get(id),
-        getTypes: () => [...types.values()],
-        getObject: (id) => objects.get(id),
-        getChildren: (parent) => getChildren(parent),
+        subscribeObject: (id, listener) => store.subscribeObject(id, listener),
+        subscribeChildren: (parent, listener) => store.subscribeChildren(parent, listener),
+        getType: (id) => store.getType(id),
+        getTypes: () => store.getTypes(),
+        getObject: (id) => store.getObject(id),
+        getChildren,
+        sync: store,
         async create(input, opts) {
             let created: CreateResult = { ok: false, error: 'Объект не создан.' };
             const result = await execute((tx) => {

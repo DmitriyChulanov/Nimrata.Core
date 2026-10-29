@@ -10,7 +10,7 @@ export { ResetPasswordScreen } from './auth/ResetPasswordScreen';
 export { TypesProvider } from './types/TypesProvider';
 export { useTypes } from './types/useTypes';
 export type { TypesContextValue, TypesStatus } from './types/TypesContext';
-export { createDataController } from './data/DataController';
+export { createDataController, createDirectTransport } from './data/DataController';
 export type {
     ActionContext,
     ActionRegistrationOptions,
@@ -22,6 +22,7 @@ export type {
     CommandHandler,
     CommandRegistrationOptions,
     CreateInput,
+    ChangesetTransport,
     CreateResult,
     DataController,
     DataControllerOptions,
@@ -35,10 +36,16 @@ export type {
     HookResult,
     MoveInput,
     OperationOptions,
+    SyncPort,
     TitleFormatter,
 } from './data/DataController';
 export { DataProvider } from './data/DataProvider';
 export { useData } from './data/useData';
+export { useDataController } from './data/useDataController';
+export { useObject } from './data/useObject';
+export { useChildren } from './data/useChildren';
+export { shallowEqual, useQuery } from './data/useQuery';
+export type { PendingChangeset, RemoteChanges, StoreChange } from './data/dataStore';
 export { UndoControls } from './data/UndoControls';
 export { ActionDialog } from './actions/ActionDialog';
 export type { ActionDialogProps } from './actions/ActionDialog';

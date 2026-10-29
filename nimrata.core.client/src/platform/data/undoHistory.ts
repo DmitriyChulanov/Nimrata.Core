@@ -44,6 +44,13 @@ export interface UndoHistory {
     markUndone(): void;
     /** Переносит верхнее действие из стека повторов в стек отмены */
     markRedone(): void;
+    /** Убирает действие из обоих стеков (его набор не состоялся или отмена отклонена) */
+    discard(entry: HistoryEntry): void;
+    /**
+     * Возвращает действие на прежний стек после неудачной отмены (`undo`) или повтора (`redo`);
+     * если стеки за это время сменились и действия там нет, ничего не делает
+     */
+    revert(kind: 'undo' | 'redo', entry: HistoryEntry): void;
     canUndo(): boolean;
     canRedo(): boolean;
     clear(): void;
@@ -71,6 +78,18 @@ export function createUndoHistory(): UndoHistory {
         markRedone() {
             const entry = redo.pop();
             if (entry) undo.push(entry);
+        },
+        discard(entry) {
+            undo = undo.filter((e) => e !== entry);
+            redo = redo.filter((e) => e !== entry);
+        },
+        revert(kind, entry) {
+            // Неудачная отмена: действие уже на стеке повторов — возвращаем его на стек отмены
+            const [from, to] = kind === 'undo' ? [redo, undo] : [undo, redo];
+            const index = from.lastIndexOf(entry);
+            if (index < 0) return;
+            from.splice(index, 1);
+            to.push(entry);
         },
         canUndo: () => undo.length > 0,
         canRedo: () => redo.length > 0,
@@ -150,9 +169,14 @@ export function invertOperations(
 }
 
 /**
+ * Изменяемая модель объектов по идентификатору (`Map` или его обёртка)
+ */
+export type ObjectMap = Pick<Map<string, DataObject>, 'get' | 'set' | 'delete'>;
+
+/**
  * Применяет операции набора к модели (без хуков и без обращения к серверу)
  */
-export function applyOperations(objects: Map<string, DataObject>, operations: Operation[]): void {
+export function applyOperations(objects: ObjectMap, operations: readonly Operation[]): void {
     for (const operation of operations) {
         const id = operation.id;
         const existing = objects.get(id);
@@ -196,6 +220,6 @@ export function applyOperations(objects: Map<string, DataObject>, operations: Op
 /**
  * Идентификаторы объектов, которых касаются операции (без повторов)
  */
-export function touchedIds(operations: Operation[]): string[] {
+export function touchedIds(operations: readonly Operation[]): string[] {
     return [...new Set(operations.map((o) => o.id))];
 }

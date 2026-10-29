@@ -1,8 +1,10 @@
 import { ApiError } from '@platform/api/apiClient';
 
+import { checkChangeset } from './changesetRules';
 import { applyOperations } from './undoHistory';
 
 import type { ApiClient } from '@platform/api/apiClient';
+import type { RuleObject, RuleType } from './changesetRules';
 import type { ChangesetResult, DataObject } from './DataController';
 import type { Operation } from './undoHistory';
 
@@ -34,7 +36,8 @@ export interface FakeApiOptions {
 }
 
 /**
- * Поддельный API-клиент в памяти для тестов `DataController`: отдаёт типы и объекты, записывает наборы изменений
+ * Поддельный API-клиент в памяти для тестов `DataController`: отдаёт типы, объекты, снимок
+ * (`GET /snapshot`) и догон (`GET /changes?since=N`), записывает наборы изменений
  */
 export interface FakeApi extends ApiClient {
     types: unknown[];
@@ -52,166 +55,9 @@ export interface FakeApi extends ApiClient {
 }
 
 /**
- * Известный подставному API объект: тип, родитель, порядок и свойства
- */
-interface Known {
-    type: string;
-    /** Идентификатор родителя; `null` — корень */
-    parent: string | null;
-    number: number;
-    properties: Record<string, unknown>;
-}
-
-/**
- * Описание свойства типа, нужное проверке значения
- */
-interface PropertyLike {
-    id: string;
-    name?: string;
-    kind: string;
-    category?: string;
-    readOnly?: boolean;
-    hidden?: boolean;
-    /** Допустимые значения перечисления */
-    values?: { value: string }[];
-    /** Допустимые типы объекта-цели ссылки; отсутствие — любые */
-    targetTypes?: string[];
-}
-
-/**
- * Часть описания типа, нужная проверкам подставного API
- */
-interface TypeLike {
-    id: string;
-    /** Допустимые типы потомков; отсутствие — без ограничений */
-    allowedChildren?: string[];
-    /** Расширение-владелец типа; отсутствие — тип платформы */
-    extension?: string;
-    /** Не более одного объекта типа у родителя */
-    singleton?: boolean;
-    /** Свойства типа; отсутствие — свойств нет */
-    properties?: PropertyLike[];
-}
-
-/**
- * Проверка допустимости родителя так же, как на сервере: пустой список `allowedChildren` —
- * запрет любых потомков, отсутствие поля — без ограничений, корень допустим для любого типа
- */
-function checkParent(
-    types: Map<string, TypeLike>,
-    childType: string,
-    parentType: string | undefined,
-): void {
-    if (parentType === undefined) return;
-    const allowed = types.get(parentType)?.allowedChildren;
-    if (allowed && !allowed.includes(childType)) {
-        throw new ApiError(
-            422,
-            `тип "${childType}" нельзя разместить внутри типа "${parentType}".`,
-        );
-    }
-}
-
-/**
- * Отказ набора (HTTP 422), как `ChangesetRejectedException` сервера
- */
-const rejected = (message: string, code?: string): ApiError => new ApiError(422, message, code);
-
-/**
- * «Номер» — целое число не меньше 1
- */
-function checkNumber(value: unknown): number {
-    if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
-        throw rejected('number должен быть целым числом не меньше 1.');
-    }
-    return value;
-}
-
-/**
- * Набор из тела пакетной записи `POST /changesets`
- */
-interface SubmittedChangeset {
-    id: string;
-    operations: Record<string, unknown>[];
-}
-
-/**
- * Итог отклонённого набора по ошибке проверки
- */
-function rejectedResult(id: string, error: ApiError): ChangesetResult {
-    const result: ChangesetResult = { id, status: 'rejected', detail: error.message };
-    if (error.code) result.code = error.code;
-    return result;
-}
-
-const isRealDate = (text: string): boolean => {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
-    if (!match) return false;
-    const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
-    const date = new Date(Date.UTC(year, month - 1, day));
-    return (
-        date.getUTCFullYear() === year &&
-        date.getUTCMonth() === month - 1 &&
-        date.getUTCDate() === day
-    );
-};
-
-/**
- * Проверка значения свойства так же, как `ValidateValueAsync` сервера: вид, перечисление, ссылка и её `targetTypes`
- */
-function checkValue(
-    types: Map<string, TypeLike>,
-    known: Map<string, Known>,
-    typeId: string,
-    name: string,
-    value: unknown,
-): void {
-    const descriptor = types.get(typeId)?.properties?.find((p) => p.id === name);
-    if (!descriptor) throw rejected(`у типа "${typeId}" нет свойства "${name}".`);
-    if (value === null) return;
-    const isValid = (() => {
-        switch (descriptor.kind) {
-            case 'string':
-            case 'text':
-                return typeof value === 'string';
-            case 'integer':
-                return typeof value === 'number' && Number.isInteger(value);
-            case 'boolean':
-                return typeof value === 'boolean';
-            case 'date':
-                return typeof value === 'string' && isRealDate(value);
-            case 'time':
-                return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
-            case 'enum':
-                return (
-                    typeof value === 'string' &&
-                    (descriptor.values ?? []).some((v) => v.value === value)
-                );
-            case 'reference':
-                // Идентификаторы в тестах не обязаны быть GUID: несуществующую цель отклонит проверка ниже
-                return typeof value === 'string';
-            default:
-                return false;
-        }
-    })();
-    if (!isValid) {
-        throw rejected(`значение свойства "${name}" не подходит под вид "${descriptor.kind}".`);
-    }
-    if (descriptor.kind === 'reference') {
-        const target = known.get(value as string);
-        if (!target) throw rejected(`свойство "${name}" ссылается на несуществующий объект.`);
-        if (descriptor.targetTypes && !descriptor.targetTypes.includes(target.type)) {
-            throw rejected(
-                `свойство "${name}" не может ссылаться на объект типа "${target.type}".`,
-            );
-        }
-    }
-}
-
-/**
  * Платформенные типы без расширения (как в миграциях сервера `0023`, `0024`), которые есть у каждого пользователя
  */
-const PLATFORM_TYPES: (TypeLike & Record<string, unknown>)[] = [
+const PLATFORM_TYPES: ({ id: string } & Record<string, unknown>)[] = [
     {
         id: 'SettingsRoot',
         name: 'Настройки',
@@ -255,8 +101,14 @@ const PLATFORM_TYPES: (TypeLike & Record<string, unknown>)[] = [
     },
 ];
 
+/**
+ * Добавляет к типам теста платформенные типы, которых среди них нет
+ *
+ * @param types - типы теста
+ * @returns типы вместе с платформенными
+ */
 function withPlatformTypes(types: unknown[]): unknown[] {
-    const known = new Set((types as TypeLike[]).map((t) => t.id));
+    const known = new Set((types as RuleType[]).map((t) => t.id));
     return [...types, ...PLATFORM_TYPES.filter((t) => !known.has(t.id))];
 }
 
@@ -283,7 +135,44 @@ export async function postChangeset(
 }
 
 /**
+ * Набор из тела пакетной записи `POST /changesets`
+ */
+interface SubmittedChangeset {
+    /** Идентификатор набора */
+    id: string;
+    /** Операции набора */
+    operations: Record<string, unknown>[];
+}
+
+/**
+ * Итог отклонённого набора
+ *
+ * @param id - идентификатор набора
+ * @param error - причина отказа
+ * @param code - машинный код отказа
+ * @returns итог `rejected`
+ */
+function rejectedResult(id: string, error: string, code?: string): ChangesetResult {
+    const result: ChangesetResult = { id, status: 'rejected', detail: error };
+    if (code) result.code = code;
+    return result;
+}
+
+/**
+ * Применённый подставным API набор: курсор и затронутые объекты (для `GET /changes`)
+ */
+interface AppliedChangeset {
+    /** Идентификатор набора */
+    id: string;
+    /** Курсор набора */
+    seq: number;
+    /** Идентификаторы затронутых объектов */
+    touched: string[];
+}
+
+/**
  * Подставной API-клиент для тестов: хранит типы и объекты в памяти и применяет наборы изменений
+ * общими правилами контракта (`checkChangeset`)
  *
  * @param types - описания типов, отдаваемые по `/types`
  * @param objects - объекты, отдаваемые по `/objects`
@@ -298,145 +187,43 @@ export function createFakeApi(
     let rejection: ApiError | null = null;
     const serverMode = options.extensions !== undefined;
     // Состояние объектов после принятых наборов: поверх исходных `objects`; `null` — удалён
-    const accepted = new Map<string, Known | null>();
-    const typeMap = () => new Map((api.types as TypeLike[]).map((t) => [t.id, t]));
+    const accepted = new Map<string, RuleObject | null>();
+    const typeMap = () => new Map((api.types as RuleType[]).map((t) => [t.id, t]));
     const isDisabled = (type: string | undefined): boolean => {
         const owner = type === undefined ? undefined : typeMap().get(type)?.extension;
         return owner !== undefined && api.extensions.some((e) => e.id === owner && !e.connected);
     };
-    const validate = (operations: Record<string, unknown>[]): Map<string, Known> => {
-        const typesById = typeMap();
-        const known = new Map<string, Known>();
-        for (const o of api.objects as {
-            id: string;
-            type: string;
-            parent: string | null;
-            number?: number;
-            properties?: Record<string, unknown>;
-        }[]) {
-            known.set(o.id, {
-                type: o.type,
+    // Текущее состояние объектов «на сервере»: исходные объекты с принятыми наборами
+    const current = (): Map<string, DataObject> => {
+        const known = new Map<string, DataObject>();
+        for (const o of api.objects as Partial<DataObject>[]) {
+            const id = o.id as string;
+            known.set(id, {
+                id,
+                type: o.type as string,
                 parent: o.parent ?? null,
                 number: o.number ?? 1,
                 properties: o.properties ?? {},
             });
         }
         for (const [id, value] of accepted) {
-            if (value) known.set(id, value);
+            if (value) known.set(id, { id, ...value });
             else known.delete(id);
-        }
-        const disabledGuard = (type: string | undefined) => {
-            if (isDisabled(type)) {
-                throw rejected('Расширение отключено.', 'extension_disabled');
-            }
-        };
-        const singletonGuard = (typeId: string, parent: string | null, selfId: string) => {
-            if (!typesById.get(typeId)?.singleton) return;
-            for (const [otherId, other] of known) {
-                if (otherId !== selfId && other.type === typeId && other.parent === parent) {
-                    throw rejected('Такой объект уже есть у этого родителя.', 'singleton_exists');
-                }
-            }
-        };
-        // Проверка нового родителя: существует, расширение подключено, тип потомка допустим
-        const parentGuard = (childType: string, parent: string | null) => {
-            if (parent === null) return;
-            const parentRow = known.get(parent);
-            if (!parentRow) throw rejected(`родитель ${parent} не найден.`);
-            disabledGuard(parentRow.type);
-            checkParent(typesById, childType, parentRow.type);
-        };
-        const targetOf = (id: string): Known => {
-            const target = known.get(id);
-            if (!target) throw rejected(`объект ${id} не найден.`);
-            disabledGuard(target.type);
-            return target;
-        };
-        for (const op of operations) {
-            const id = op.id as string;
-            if (op.op === 'create') {
-                const typeId = op.type as string;
-                const type = typesById.get(typeId);
-                if (!type) throw rejected(`тип "${typeId}" неизвестен.`);
-                disabledGuard(typeId);
-                if (known.has(id)) throw rejected(`идентификатор ${id} уже занят.`);
-                const parent = (op.parent as string | null | undefined) ?? null;
-                parentGuard(typeId, parent);
-                singletonGuard(typeId, parent, id);
-                const properties: Record<string, unknown> = {};
-                for (const [name, value] of Object.entries(
-                    (op.properties as Record<string, unknown> | undefined) ?? {},
-                )) {
-                    checkValue(typesById, known, typeId, name, value);
-                    if (value !== null) properties[name] = value;
-                }
-                known.set(id, {
-                    type: typeId,
-                    parent,
-                    number: op.number === undefined ? 1 : checkNumber(op.number),
-                    properties,
-                });
-            } else if (op.op === 'update') {
-                const target = targetOf(id);
-                const properties = { ...target.properties };
-                const changes = (op.changes ?? {}) as Record<
-                    string,
-                    { old?: unknown; new?: unknown }
-                >;
-                for (const [name, change] of Object.entries(changes)) {
-                    // LWW: «было» не сверяется, нужно только «стало»
-                    if (!('new' in change)) {
-                        throw rejected(`для свойства "${name}" нужно значение new (стало).`);
-                    }
-                    checkValue(typesById, known, target.type, name, change.new);
-                    if (change.new === null || change.new === undefined) delete properties[name];
-                    else properties[name] = change.new;
-                }
-                known.set(id, { ...target, properties });
-            } else if (op.op === 'move') {
-                const target = targetOf(id);
-                const parentChange = op.parent as { old?: string | null; new: string | null };
-                const numberChange = op.number as { old?: number; new: number } | undefined;
-                let { parent, number } = target;
-                if (parentChange) {
-                    if (parentChange.new !== null) {
-                        for (
-                            let ancestor: string | null = parentChange.new;
-                            ancestor !== null;
-                            ancestor = known.get(ancestor)?.parent ?? null
-                        ) {
-                            if (ancestor === id) {
-                                throw rejected(
-                                    'нельзя переместить объект в самого себя или в своего потомка (получится цикл).',
-                                );
-                            }
-                        }
-                    }
-                    parentGuard(target.type, parentChange.new);
-                    singletonGuard(target.type, parentChange.new, id);
-                    parent = parentChange.new;
-                }
-                if (numberChange) number = checkNumber(numberChange.new);
-                known.set(id, { ...target, parent, number });
-            } else if (op.op === 'delete') {
-                targetOf(id);
-                for (const other of known.values()) {
-                    if (other.parent === id) {
-                        throw rejected(
-                            `у объекта ${id} остались потомки: перечислите в наборе все удаляемые объекты, потомков раньше родителей.`,
-                        );
-                    }
-                }
-                known.delete(id);
-            }
         }
         return known;
     };
+    const visibleObjects = () =>
+        (api.objects as { type: string }[]).filter((o) => !isDisabled(o.type));
     // Применённые наборы: идентификатор → курсор (повтор отвечает `duplicate` с прежним курсором)
     const appliedSeq = new Map<string, number>();
+    const journal: AppliedChangeset[] = [];
     let lastSeq = 0;
+
     /**
      * Применяет один набор пакета атомарно, как сервер: отказ не меняет данных и не влияет на соседние наборы
+     *
+     * @param changeset - набор из тела запроса
+     * @returns итог набора
      */
     function applyChangeset(changeset: SubmittedChangeset): ChangesetResult {
         const { id } = changeset;
@@ -445,31 +232,51 @@ export function createFakeApi(
         if (rejection) {
             const error = rejection;
             rejection = null;
-            return rejectedResult(id, error);
+            return rejectedResult(id, error.message, error.code);
         }
         const operations = changeset.operations;
-        try {
-            const result = validate(operations);
-            if (serverMode) {
-                const map = new Map((api.objects as DataObject[]).map((o) => [o.id, { ...o }]));
-                applyOperations(map, operations as unknown as Operation[]);
-                api.objects = [...map.values()];
-            } else {
-                accepted.clear();
-                for (const [objectId, value] of result) accepted.set(objectId, value);
-                for (const o of api.objects as { id: string }[]) {
-                    if (!result.has(o.id)) accepted.set(o.id, null);
-                }
-            }
-        } catch (error) {
-            if (error instanceof ApiError) return rejectedResult(id, error);
-            throw error;
+        const check = checkChangeset(typeMap(), current(), operations, { isDisabled });
+        if (!check.ok) return rejectedResult(id, check.error, check.code);
+        if (serverMode) {
+            const map = new Map((api.objects as DataObject[]).map((o) => [o.id, { ...o }]));
+            applyOperations(map, operations as unknown as Operation[]);
+            api.objects = [...map.values()];
+        } else {
+            for (const [objectId, value] of check.changes) accepted.set(objectId, value);
         }
         lastSeq += 1;
         appliedSeq.set(id, lastSeq);
+        journal.push({ id, seq: lastSeq, touched: [...check.changes.keys()] });
         api.changesets.push(changeset);
         return { id, status: 'applied', seq: lastSeq };
     }
+
+    /**
+     * Догон `GET /changes?since=N`: финальное состояние объектов, затронутых наборами после `N`
+     *
+     * @param since - курсор клиента
+     * @returns пакет догона либо `{ resync: true }`, если курсор впереди журнала
+     */
+    function changesSince(since: number): unknown {
+        if (since > lastSeq) return { resync: true };
+        const after = journal.filter((c) => c.seq > since);
+        const state = current();
+        const touched = new Set(after.flatMap((c) => c.touched));
+        const upserts: DataObject[] = [];
+        const deletes: string[] = [];
+        for (const id of touched) {
+            const object = state.get(id);
+            if (object && !isDisabled(object.type)) upserts.push(object);
+            else deletes.push(id);
+        }
+        return {
+            toSeq: after.length > 0 ? lastSeq : since,
+            changesetIds: after.map((c) => c.id),
+            upserts,
+            deletes,
+        };
+    }
+
     const catalogItem = (e: Required<FakeExtension>) => ({ ...e });
     const api: FakeApi = {
         types: withPlatformTypes(types),
@@ -488,12 +295,17 @@ export function createFakeApi(
         },
         get: (path) => {
             if (path === 'types') return Promise.resolve(api.types as never);
-            if (path === 'objects') {
-                const visible = (api.objects as { type: string }[]).filter(
-                    (o) => !isDisabled(o.type),
-                );
-                return Promise.resolve(visible as never);
+            if (path === 'objects') return Promise.resolve(visibleObjects() as never);
+            // Снимок отдаёт те же объекты, что `GET /objects`, и курсор последнего набора
+            if (path === 'snapshot') {
+                return Promise.resolve({
+                    seq: lastSeq,
+                    types: api.types,
+                    objects: visibleObjects(),
+                } as never);
             }
+            const changes = /^changes\?since=(\d+)$/.exec(path);
+            if (changes) return Promise.resolve(changesSince(Number(changes[1])) as never);
             if (path === 'extensions' && serverMode) {
                 return Promise.resolve(api.extensions.map(catalogItem) as never);
             }

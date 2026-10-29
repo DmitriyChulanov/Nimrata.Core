@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { useData } from '@platform/data/useData';
+import { useDataController } from '@platform/data/useDataController';
 
 import { ActionDialog } from './ActionDialog';
 
@@ -51,7 +51,7 @@ interface Pending {
  * «Команды» делят один диалог параметров
  */
 export function useActionLauncher(): ActionLauncher {
-    const data = useData();
+    const data = useDataController();
     const [pending, setPending] = useState<Pending | null>(null);
     const [error, setError] = useState<string | null>(null);
 

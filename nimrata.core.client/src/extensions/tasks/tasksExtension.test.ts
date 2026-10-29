@@ -134,17 +134,17 @@ describe('Tasks: start structure under race', () => {
     });
 
     /**
-     * Проверяет, что 409 без кода перезагружает данные и повторяет создание один раз
+     * Проверяет, что сбой запроса возвращается без повтора, а следующий запуск создаёт структуру
      */
-    it('startStructure_conflictWithoutCode_reloadsAndRetriesOnce', async () => {
+    it('startStructure_requestFailure_returnedWithoutRetryAndNextStartCreates', async () => {
         const { api, data } = await start();
-        api.rejectNext(409, 'расхождение');
+        api.rejectNext(500, 'сбой');
 
-        const result = await ensureTasksStart(data);
+        expect((await ensureTasksStart(data)).ok).toBe(false);
+        expect(api.changesets).toHaveLength(0);
 
-        expect(result.ok).toBe(true);
+        expect((await ensureTasksStart(data)).ok).toBe(true);
         expect(api.changesets).toHaveLength(1);
-        expect(data.getChildren(null)).toHaveLength(2);
     });
 });
 

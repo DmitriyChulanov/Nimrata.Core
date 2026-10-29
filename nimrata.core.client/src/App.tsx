@@ -31,7 +31,8 @@ import {
     useAuth,
     useApi,
     useCurrentUser,
-    useData,
+    useDataController,
+    useQuery,
     useTabs,
 } from '@platform';
 
@@ -51,9 +52,13 @@ registerTheme(menuRegistry);
  * @returns индикатор загрузки, сообщение об ошибке с повтором или рабочая область
  */
 function Main() {
-    const data = useData();
+    const data = useDataController();
     const { widths, setWidths } = useTabs();
-    const { status, error } = data.getSnapshot();
+    // Основной экран зависит только от состояния загрузки, а не от каждой правки модели
+    const { status, error } = useQuery((d) => {
+        const { status, error } = d.getSnapshot();
+        return { status, error };
+    }, []);
     const [everReady, setEverReady] = useState(false);
 
     if (status === 'error') {
