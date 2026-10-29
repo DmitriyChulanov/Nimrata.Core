@@ -25,12 +25,16 @@ function isTextInput(target: EventTarget | null): boolean {
 
 /**
  * Отмена и повтор для пользователя: пункты «Правка → Отменить / Повторить» в реестре меню,
- * горячие клавиши (Ctrl/Cmd+Z, Ctrl+Y, Ctrl/Cmd+Shift+Z) и сообщение об отказе сервера.
+ * горячие клавиши (Ctrl/Cmd+Z, Ctrl+Y, Ctrl/Cmd+Shift+Z) и сообщение об отказе: отмены или
+ * сводное уведомление об отказе сервера по любому набору.
  * В полях ввода клавиши остаются за браузером
  */
 export function UndoControls({ registry }: { registry: MenuRegistry }) {
     const data = useDataController();
     const [notice, setNotice] = useState<string | null>(null);
+
+    // Поздние отказы сервера: итог действия уже разрешён локально, причина приходит уведомлением
+    useEffect(() => data.onNotice(setNotice), [data]);
 
     useEffect(() => {
         const run = async (action: () => Promise<ChangeResult>) => {

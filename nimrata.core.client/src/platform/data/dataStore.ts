@@ -129,6 +129,15 @@ export interface DataStore {
     subscribePending(listener: () => void): () => void;
     /** Подписка на сводные уведомления об отказах (одно на каждое применение) */
     onNotice(listener: (message: string) => void): () => void;
+    /**
+     * Восстанавливает сохранённые наборы (очередь после перезагрузки или закрытой вкладки) в конец
+     * очереди без локальной правки: итогов никто не ждёт, хуки не запускаются, наборы с известным
+     * id пропускаются. Восстановленный набор, неприменимый к подтверждённому слою (его могли уже
+     * применить на сервере), без сервера не отбрасывается: он не накладывается и ждёт итога
+     */
+    restoreQueue(changesets: readonly PendingChangeset[]): void;
+    /** Подтверждённый слой для сохранения в кэш: курсор, типы и объекты */
+    confirmedSnapshot(): StoreSnapshot;
 }
 
 /**
@@ -145,6 +154,10 @@ export interface DataStoreOptions {
 interface QueueEntry extends PendingChangeset {
     /** Разрешает итог набора */
     settle: (result: ChangeResult) => void;
+    /** Набор восстановлен из сохранённой очереди: неприменимый ждёт итога сервера, а не отбрасывается */
+    restored?: boolean;
+    /** Восстановленный набор при последнем наложении не применился (ждёт итога сервера) */
+    skipped?: boolean;
 }
 
 /**
@@ -370,11 +383,18 @@ export function createDataStore(options: DataStoreOptions = {}): DataStore {
                 next,
                 entry.operations as unknown as Record<string, unknown>[],
             );
+            if (!check.ok && entry.restored) {
+                // Возможно, уже применён на сервере: решит итог (`duplicate` или отказ)
+                entry.skipped = true;
+                kept.push(entry);
+                continue;
+            }
             if (!check.ok) {
                 drop(entry, { error: check.error, ...(check.code ? { code: check.code } : {}) });
                 continue;
             }
             applyOperations(next, entry.operations);
+            entry.skipped = false;
             kept.push(entry);
         }
         queue = kept;
@@ -540,10 +560,25 @@ export function createDataStore(options: DataStoreOptions = {}): DataStore {
             whenIdle(() => {
                 const entry = queue.find((e) => e.id === id);
                 if (!entry) return;
-                queue = queue.filter((e) => e !== entry);
-                applyOperations(confirmed, entry.operations);
+                // Частый случай — подтверждён первый применённый набор очереди: видимая модель
+                // (подтверждённый слой + очередь) от этого не меняется, переналожение не нужно.
+                // Это держит стоимость подтверждения O(операций), а не O(очередь × модель)
+                const head = queue[0] === entry && !entry.skipped && confirmedSeq > seq;
+                queue = head ? queue.slice(1) : queue.filter((e) => e !== entry);
+                // Набор с seq не больше курсора уже входит в подтверждённое состояние
+                if (confirmedSeq > seq) applyOperations(confirmed, entry.operations);
+                if (head) {
+                    // Одна ссылка на совпадающий объект в обоих слоях: следующее переналожение
+                    // копирует подтверждённый слой и не должно молча подменить объекты видимой модели
+                    for (const objectId of touchedIds(entry.operations)) {
+                        const shown = visible.get(objectId);
+                        if (shown && sameObject(confirmed.get(objectId), shown)) {
+                            confirmed.set(objectId, shown);
+                        }
+                    }
+                }
                 if (confirmedSeq === seq + 1) moveSeq(confirmedSeq);
-                const dropped = rebase(touchedIds(entry.operations));
+                const dropped = head ? [] : rebase(touchedIds(entry.operations));
                 entry.settle({ ok: true });
                 notifyPending();
                 settleDropped(dropped, false);
@@ -585,6 +620,33 @@ export function createDataStore(options: DataStoreOptions = {}): DataStore {
                 settleDropped(dropped, false);
             });
         },
+
+        restoreQueue(changesets) {
+            whenIdle(() => {
+                const known = new Set(queue.map((e) => e.id));
+                const added: QueueEntry[] = [];
+                for (const { id, operations } of changesets) {
+                    if (known.has(id)) continue;
+                    known.add(id);
+                    added.push({
+                        id,
+                        operations: [...operations],
+                        settle: () => {},
+                        restored: true,
+                    });
+                }
+                if (added.length === 0) return;
+                queue = [...queue, ...added];
+                const dropped = rebase([]);
+                notifyPending();
+                settleDropped(dropped, false);
+            });
+        },
+        confirmedSnapshot: () => ({
+            seq,
+            types: [...types.values()],
+            objects: [...confirmed.values()],
+        }),
 
         subscribe(listener) {
             listeners.add(listener);

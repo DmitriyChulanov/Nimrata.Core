@@ -265,6 +265,34 @@ describe('Tree: context menu', () => {
     });
 
     /**
+     * Проверяет, что выделение и правка «Имени» нового объекта не ждут сервера: без сети
+     * (запрос не отвечает) они наступают сразу после локального применения
+     */
+    it('tree_create_offline_selectsNewObjectAndRequestsNameEditWithoutServer', async () => {
+        const user = userEvent.setup();
+        const { api, controller } = await renderTree(family);
+        api.post = () => new Promise<never>(() => {});
+
+        await user.pointer({
+            keys: '[MouseRight]',
+            target: screen.getByRole('treeitem', { name: 'Папка' }),
+        });
+        await user.click(screen.getByRole('menuitem', { name: 'Создать: Заметка' }));
+
+        const created = await waitFor(() => {
+            const id = controller
+                .getChildren('f')
+                .find((o) => o.type === 'Note' && o.id !== 'a')?.id;
+            expect(id).toBeDefined();
+            return id ?? '';
+        });
+        await waitFor(() => expect(screen.getByLabelText('выделено')).toHaveTextContent(created));
+        expect(screen.getByLabelText('правка имени')).toHaveTextContent(created);
+        expect(controller.sync.pending()).toHaveLength(1);
+        controller.dispose();
+    });
+
+    /**
      * Проверяет, что удаление просит подтверждения, а отмена ничего не меняет
      */
     it('tree_delete_asksConfirmationCancelChangesNothing', async () => {
@@ -312,7 +340,7 @@ describe('Tree: context menu', () => {
      */
     it('tree_serverRejection_isShownAsMessageAndTreeReturnsToPreviousView', async () => {
         const user = userEvent.setup();
-        const { api } = await renderTree(family);
+        const { api, controller } = await renderTree(family);
         api.rejectNext(400, 'Нельзя удалить');
 
         await user.pointer({
@@ -324,7 +352,8 @@ describe('Tree: context menu', () => {
             within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Удалить' }),
         );
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('Нельзя удалить');
+        // Итог удаления локальный: отказ сервера приходит сводным уведомлением контроллера
+        await waitFor(() => expect(controller.getSnapshot().error).toBe('Нельзя удалить'));
         expect(names()).toEqual(['Папка', 'Лист']);
     });
 

@@ -132,4 +132,43 @@ describe('AuthSession', () => {
 
         expect(listener).toHaveBeenCalled();
     });
+
+    /**
+     * Проверяет, что обновление без сети (вход мог истечь, проверить нельзя) даёт «офлайн», а не
+     * «не вошли»: работа продолжается локально; токена при этом нет
+     */
+    it('refresh_networkFailure_becomesOfflineWithoutToken', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(jsonResponse({ accessToken: 'tok-1' }))
+            .mockRejectedValue(new TypeError('Failed to fetch'));
+        const session = setup(fetchMock);
+        await session.login('a@b.test', 'password1');
+
+        expect(await session.refresh()).toBe(false);
+
+        expect(session.getState().status).toBe('offline');
+        expect(session.getAccessToken()).toBeNull();
+    });
+
+    /**
+     * Проверяет, что после возвращения сети успешное обновление снова даёт «вошли», а отказ
+     * сервера (вход истёк) — «не вошли»
+     */
+    it('refresh_afterOffline_serverDecides', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+            .mockResolvedValueOnce(jsonResponse({ accessToken: 'tok-2' }))
+            .mockResolvedValueOnce(new Response(null, { status: 401 }));
+        const session = setup(fetchMock);
+        await session.restore();
+        expect(session.getState().status).toBe('offline');
+
+        expect(await session.refresh()).toBe(true);
+        expect(session.getState().status).toBe('authenticated');
+
+        expect(await session.refresh()).toBe(false);
+        expect(session.getState().status).toBe('anonymous');
+    });
 });

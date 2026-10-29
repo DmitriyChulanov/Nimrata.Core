@@ -194,12 +194,13 @@ describe('Tree: move by dragging', () => {
      * Проверяет, что отказ сервера возвращает дерево и показывает сообщение
      */
     it('treeDnd_serverRejection_restoresTreeAndShowsMessage', async () => {
-        const { api } = await renderTree(scene());
+        const { api, controller } = await renderTree(scene());
         api.rejectNext(400, 'Сервер отказал');
 
         drag('Заметка', 'Папка', 12);
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('Сервер отказал');
+        // Итог переноса локальный: отказ сервера приходит сводным уведомлением контроллера
+        await waitFor(() => expect(controller.getSnapshot().error).toBe('Сервер отказал'));
         expect(names()).toEqual(['Папка', 'Группа', 'Заметка', 'Лист']);
     });
 });

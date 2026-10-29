@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { CUSTOM_COMMAND, createDataController, readCustomParams } from '@platform';
-import { createFakeApi } from '@platform/data/fakeApi';
+import { createFakeApi, whenSynced } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { ensureNotesStart, registerNotes } from './notesExtension';
@@ -214,12 +214,14 @@ describe('Notes: quick access commands', () => {
         const { api, data, notesRoot } = await start();
         const note = await addNote(data, notesRoot.id, 'Одна');
         await data.runAction(note.id, CREATE);
+        await whenSynced(data);
         const sent = api.changesets.length;
 
         const result = await data.remove(note.id);
 
         expect(result.ok).toBe(true);
         expect(commands(data)).toHaveLength(0);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(sent + 1);
     });
 
@@ -235,12 +237,14 @@ describe('Notes: quick access commands', () => {
         for (const id of [group.id, inner.id, deep.id, other.id]) {
             await data.runAction(id, CREATE);
         }
+        await whenSynced(data);
         const sent = api.changesets.length;
 
         const result = await data.remove(group.id);
 
         expect(result.ok).toBe(true);
         expect(commands(data).map((c) => readCustomParams(c).target)).toEqual([other.id]);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(sent + 1);
     });
 

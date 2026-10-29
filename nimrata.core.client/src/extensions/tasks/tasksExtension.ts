@@ -104,15 +104,23 @@ export async function ensureTasksStart(data: DataController): Promise<ChangeResu
         const hasGroup =
             settings && data.getChildren(settings.id).some((o) => o.type === CATEGORY_TEMPLATES);
         if (hasTasks && hasGroup) return { ok: true };
-        return data.perform((tx) => {
-            if (!hasTasks) {
-                const tasks = createNode(tx, null, TASKS_ROOT);
-                createNode(tx, tasks, CURRENT_TASKS_ROOT);
-                createNode(tx, tasks, COMPLETED_TASKS_ROOT);
-            }
-            if (!hasGroup)
-                createNode(tx, ensureSettingsNode(data, tx, TASKS_SETTINGS), CATEGORY_TEMPLATES);
-        });
+        return data.perform(
+            (tx) => {
+                if (!hasTasks) {
+                    const tasks = createNode(tx, null, TASKS_ROOT);
+                    createNode(tx, tasks, CURRENT_TASKS_ROOT);
+                    createNode(tx, tasks, COMPLETED_TASKS_ROOT);
+                }
+                if (!hasGroup)
+                    createNode(
+                        tx,
+                        ensureSettingsNode(data, tx, TASKS_SETTINGS),
+                        CATEGORY_TEMPLATES,
+                    );
+                // Итог сервера нужен ensureCreated: отказ singleton_exists — «уже есть»
+            },
+            { confirmed: true },
+        );
     });
     if (!created.ok) return created;
     return ensureRepeats(data);

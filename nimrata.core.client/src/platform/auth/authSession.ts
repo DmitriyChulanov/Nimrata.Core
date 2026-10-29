@@ -1,9 +1,13 @@
+import { ApiError } from '@platform/api/apiClient';
+
 import type { ApiClient } from '@platform/api/apiClient';
 
 /**
- * Состояние входа: идёт восстановление, не вошли, вошли
+ * Состояние входа: идёт восстановление, не вошли, вошли, офлайн. «Офлайн» — обновить вход не
+ * удалось из-за сети (сервер недоступен): истёк ли вход, неизвестно, работа продолжается локально
+ * без токена; решит следующее обновление, когда сеть вернётся
  */
-export type AuthStatus = 'loading' | 'anonymous' | 'authenticated';
+export type AuthStatus = 'loading' | 'anonymous' | 'authenticated' | 'offline';
 
 /**
  * Снимок состояния входа
@@ -60,9 +64,9 @@ export function createAuthSession({ api }: AuthSessionOptions): AuthSession {
     let inflightRefresh: Promise<boolean> | null = null;
     const listeners = new Set<() => void>();
 
-    function setSession(token: string | null) {
+    function setSession(token: string | null, offline = false) {
         accessToken = token;
-        state = { status: token ? 'authenticated' : 'anonymous' };
+        state = { status: token ? 'authenticated' : offline ? 'offline' : 'anonymous' };
         listeners.forEach((listener) => listener());
     }
 
@@ -71,8 +75,9 @@ export function createAuthSession({ api }: AuthSessionOptions): AuthSession {
             const { accessToken: token } = await api.post<TokenResponse>('/auth/refresh');
             setSession(token);
             return true;
-        } catch {
-            setSession(null);
+        } catch (error) {
+            // Ответ сервера (401 и т. п.) — вход недействителен; сбой сети — проверить нельзя
+            setSession(null, !(error instanceof ApiError));
             return false;
         }
     }

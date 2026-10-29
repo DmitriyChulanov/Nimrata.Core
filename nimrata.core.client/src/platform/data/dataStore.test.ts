@@ -422,3 +422,143 @@ describe('dataStore: reset and cursor', () => {
         expect(seen).toEqual([11, 15, 30]);
     });
 });
+
+const createN: Operation = {
+    op: 'create',
+    id: 'n',
+    type: 'Note',
+    parent: 'root',
+    number: 3,
+    properties: { name: 'N' },
+};
+
+/**
+ * Восстановление сохранённой очереди (офлайн): наборы без локальной правки и без ожидающих итогов
+ */
+describe('dataStore: restored queue', () => {
+    /**
+     * Проверяет, что восстановленные наборы встают в очередь и видны в модели, а подписчики
+     * очереди и объектов узнают об этом
+     */
+    it('restoreQueue_appendsChangesetsAndAppliesThemToVisibleModel', () => {
+        const store = loaded();
+        let pendingCalls = 0;
+        let objectCalls = 0;
+        store.subscribePending(() => pendingCalls++);
+        store.subscribeObject('a', () => objectCalls++);
+
+        store.restoreQueue([{ id: 'saved1', operations: [rename('a', 'A', 'X')] }]);
+
+        expect(store.pending().map((c) => c.id)).toEqual(['saved1']);
+        expect(store.getObject('a')?.properties.name).toBe('X');
+        expect(store.getConfirmedObject('a')?.properties.name).toBe('A');
+        expect(pendingCalls).toBe(1);
+        expect(objectCalls).toBe(1);
+    });
+
+    /**
+     * Проверяет, что уже стоящий в очереди набор с тем же id не дублируется
+     */
+    it('restoreQueue_knownId_isSkipped', () => {
+        const store = loaded();
+        edit(store, [rename('a', 'A', 'X')]);
+
+        store.restoreQueue([
+            { id: 'cs1', operations: [rename('a', 'A', 'X')] },
+            { id: 'saved2', operations: [rename('b', 'B', 'Y')] },
+        ]);
+
+        expect(store.pending().map((c) => c.id)).toEqual(['cs1', 'saved2']);
+    });
+
+    /**
+     * Проверяет, что восстановленный набор, неприменимый к подтверждённому слою (например, уже
+     * применён на сервере, а снимок новее очереди), не отбрасывается без сервера: он ждёт итога
+     * и уходит из очереди по подтверждению (`duplicate`), не трогая подтверждённый слой
+     */
+    it('restoreQueue_alreadyAppliedChangeset_waitsForServerInsteadOfBeingDropped', () => {
+        const store = createDataStore();
+        const notices: string[] = [];
+        store.onNotice((m) => notices.push(m));
+        // Снимок уже содержит созданную набором заметку `n` с более поздним именем (seq 11)
+        store.reset({
+            seq: 11,
+            types,
+            objects: [
+                { id: 'root', type: 'Folder', parent: null, number: 1, properties: {} },
+                note('n', 'root', 'Later', 3),
+            ],
+        });
+
+        store.restoreQueue([{ id: 'saved1', operations: [createN] }]);
+
+        expect(store.pending().map((c) => c.id)).toEqual(['saved1']);
+        expect(notices).toEqual([]);
+        // Видимая модель — подтверждённый слой: неприменимый набор не накладывается
+        expect(store.getObject('n')?.properties.name).toBe('Later');
+
+        store.confirm('saved1', 11);
+
+        expect(store.pending()).toEqual([]);
+        expect(store.getConfirmedObject('n')?.properties.name).toBe('Later');
+        expect(store.getSeq()).toBe(11);
+        expect(notices).toEqual([]);
+    });
+
+    /**
+     * Проверяет, что отказ сервера по восстановленному набору убирает его и зависимые с одним
+     * сводным уведомлением
+     */
+    it('restoreQueue_rejectedByServer_dropsWithDependentsAndSingleNotice', () => {
+        const store = loaded();
+        const notices: string[] = [];
+        store.onNotice((m) => notices.push(m));
+        store.restoreQueue([
+            { id: 'saved1', operations: [createN] },
+            { id: 'saved2', operations: [rename('n', 'N', 'M')] },
+        ]);
+        expect(store.getObject('n')?.properties.name).toBe('M');
+
+        store.reject('saved1', { error: 'Родитель не найден.' });
+
+        expect(store.pending()).toEqual([]);
+        expect(store.getObject('n')).toBeUndefined();
+        expect(notices).toEqual(['Родитель не найден. Отменены также зависимые изменения: 1.']);
+    });
+
+    /**
+     * Проверяет, что подтверждение набора, уже вошедшего в подтверждённое состояние (seq не больше
+     * курсора), не накладывает его операции повторно поверх более поздних изменений
+     */
+    it('confirm_seqNotAfterCursor_doesNotReapplyOperations', () => {
+        const store = loaded();
+        edit(store, [rename('a', 'A', 'X')]);
+        // Догон уже принёс более позднее значение (курсор 12), а свой набор (seq 11) в нём не узнан
+        store.applyRemote({
+            toSeq: 12,
+            upserts: [note('a', 'root', 'Z', 1)],
+            deletes: [],
+            changesetIds: [],
+        });
+
+        store.confirm('cs1', 11);
+
+        expect(store.getConfirmedObject('a')?.properties.name).toBe('Z');
+        expect(store.getObject('a')?.properties.name).toBe('Z');
+    });
+
+    /**
+     * Проверяет снимок подтверждённого слоя для сохранения в кэш
+     */
+    it('confirmedSnapshot_returnsCursorTypesAndConfirmedObjects', () => {
+        const store = loaded();
+        edit(store, [rename('a', 'A', 'X')]);
+
+        const snapshot = store.confirmedSnapshot();
+
+        expect(snapshot.seq).toBe(10);
+        expect(snapshot.types).toEqual(types);
+        expect(snapshot.objects.find((o) => o.id === 'a')?.properties.name).toBe('A');
+        expect(snapshot.objects).toHaveLength(3);
+    });
+});

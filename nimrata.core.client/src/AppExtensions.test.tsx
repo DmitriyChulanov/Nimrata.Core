@@ -158,7 +158,10 @@ it('extensions_serverRejectsRepeatsTopUp_showsErrorToUser', async () => {
     api.rejectNext(422, 'сервер недоступен для достройки');
     render(<App />);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('сервер недоступен для достройки');
+    // Итог достройки локальный: отказ сервера приходит позже сводным уведомлением
+    expect(await screen.findByRole('alert', {}, { timeout: 5000 })).toHaveTextContent(
+        'сервер недоступен для достройки',
+    );
 });
 
 /**

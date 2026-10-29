@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDataController } from './DataController';
-import { createFakeApi, postChangeset } from './fakeApi';
+import { createFakeApi, postChangeset, whenSynced } from './fakeApi';
 
 import type { RemoteChanges } from './dataStore';
 
@@ -91,6 +91,7 @@ describe('DataController: two layers and sync', () => {
         release();
         expect(await first).toEqual({ ok: true });
         expect(await second).toEqual({ ok: true });
+        await whenSynced(data);
         expect(data.sync.pending()).toEqual([]);
         expect(api.changesets).toHaveLength(2);
     });
@@ -101,6 +102,7 @@ describe('DataController: two layers and sync', () => {
     it('confirm_advancesCursor_catchUpRecognizesOwnChangeset', async () => {
         const { api, data } = await loaded();
         await data.setProperty('a', 'title', 'X');
+        await whenSynced(data);
         expect(data.sync.getSeq()).toBe(1);
 
         await catchUp(api, data);
@@ -149,17 +151,18 @@ describe('DataController: two layers and sync', () => {
         const errors: (string | null)[] = [];
         data.subscribe(() => errors.push(data.getSnapshot().error));
 
-        const created = await Promise.race([
-            data.create({ type: 'Note', parent: 'root', properties: { title: 'Новая' } }),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 0)),
-        ]);
-        expect(created).toBeNull();
-        const id = data.getChildren('root').find((o) => o.properties.title === 'Новая')?.id ?? '';
-        const edit = data.setProperty(id, 'title', 'Правка');
+        // Итоги действий локальные: сервер ещё не ответил
+        const created = await data.create({
+            type: 'Note',
+            parent: 'root',
+            properties: { title: 'Новая' },
+        });
+        const id = created.ok ? created.id : '';
+        expect(await data.setProperty(id, 'title', 'Правка')).toEqual({ ok: true });
         api.rejectNext(422, 'нельзя создать');
         release();
+        await whenSynced(data);
 
-        expect(await edit).toMatchObject({ ok: false });
         expect(data.getObject(id)).toBeUndefined();
         expect(api.changesets).toHaveLength(0);
         expect(new Set(errors.filter((e) => e !== null))).toEqual(
@@ -179,6 +182,8 @@ describe('DataController: undo checks current value', () => {
     it('undo_valueChangedElsewhere_refusedWithNoticeAndEntryDropped', async () => {
         const { api, data } = await loaded();
         await data.setProperty('a', 'title', 'Своё');
+        await whenSynced(data);
+        await whenSynced(data);
         await postChangeset(api, [
             { op: 'update', id: 'a', changes: { title: { old: 'Своё', new: 'Чужое' } } },
         ]);
@@ -224,6 +229,7 @@ describe('DataController: undo checks current value', () => {
         await data.load();
 
         await expect(outcome).resolves.toEqual({ ok: true });
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
         expect(data.getObject('a')?.properties.title).toBe('Mine');
         expect(data.sync.pending()).toEqual([]);

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDataController } from '../data/DataController';
-import { createFakeApi } from '../data/fakeApi';
+import { createFakeApi, whenSynced } from '../data/fakeApi';
 import { ensureCreated } from './ensureStart';
 
 import type { ChangeResult } from '../data/DataController';
@@ -17,7 +17,7 @@ const hasRoot = (data: ReturnType<typeof createDataController>) =>
 const createRoot = (data: ReturnType<typeof createDataController>) => () =>
     hasRoot(data)
         ? Promise.resolve<ChangeResult>({ ok: true })
-        : data.perform((tx) => void tx.create({ type: 'Root', parent: null }));
+        : data.perform((tx) => void tx.create({ type: 'Root', parent: null }), { confirmed: true });
 
 async function loaded() {
     const api = createFakeApi(types, []);
@@ -95,6 +95,7 @@ describe('ensureCreated', () => {
         const result = await ensureCreated(data, createRoot(data));
 
         expect(result).toEqual({ ok: true });
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
         expect(hasRoot(data)).toBe(true);
     });

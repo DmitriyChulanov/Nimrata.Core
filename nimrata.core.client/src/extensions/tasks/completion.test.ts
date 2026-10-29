@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDataController } from '@platform';
-import { createFakeApi } from '@platform/data/fakeApi';
+import { createFakeApi, whenSynced } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { ensureTasksStart, registerTasks } from './tasksExtension';
@@ -189,10 +189,12 @@ describe('Tracker: complete and postpone', () => {
         it('complete_task_runsInSingleChangeset', async () => {
             const { api, data } = await start();
             await createTask(data, { name: 'Одна', date: '2026-03-05', category: 'Дом' });
+            await whenSynced(data);
             const before = api.changesets.length;
 
             await run(data, task(data, 'Одна'), 'complete');
 
+            await whenSynced(data);
             expect(api.changesets.length - before).toBe(1);
         });
 
@@ -317,9 +319,11 @@ describe('Tracker: complete and postpone', () => {
             const { api, data } = await start();
             await createTask(data, { name: 'Дело', category: 'Работа' });
             const before = path(data, task(data, 'Дело'));
+            await whenSynced(data);
             const count = api.changesets.length;
 
             await run(data, task(data, 'Дело'), 'postpone', { date: '2026-05-01' });
+            await whenSynced(data);
             expect(api.changesets.length - count).toBe(1);
             await data.undo();
 
@@ -336,6 +340,7 @@ describe('Tracker: complete and postpone', () => {
         it('postpone_sameDate_changesNothing', async () => {
             const { api, data } = await start();
             await createTask(data, { name: 'Дело', category: 'Работа' });
+            await whenSynced(data);
             const count = api.changesets.length;
             const before = path(data, task(data, 'Дело'));
 
@@ -343,6 +348,7 @@ describe('Tracker: complete and postpone', () => {
 
             expect(result.ok).toBe(true);
             expect(path(data, task(data, 'Дело'))).toEqual(before);
+            await whenSynced(data);
             expect(api.changesets.length).toBe(count);
         });
 
@@ -494,6 +500,7 @@ describe('Tracker: complete and postpone', () => {
                 properties: { name: 'Пусто' },
             });
             if (!created.ok) throw new Error(created.error);
+            await whenSynced(data);
             const count = api.changesets.length;
 
             const result = await run(data, data.getObject(created.id)!, 'postpone', {
@@ -502,6 +509,7 @@ describe('Tracker: complete and postpone', () => {
 
             expect(result.ok).toBe(true);
             expect(data.getObject(created.id)).toBeDefined();
+            await whenSynced(data);
             expect(api.changesets.length).toBe(count);
         });
 
@@ -514,9 +522,11 @@ describe('Tracker: complete and postpone', () => {
             await createTask(data, { name: 'Б', category: 'Работа' });
             const before = [path(data, task(data, 'А')), path(data, task(data, 'Б'))];
             const category = task(data, 'А').parent!;
+            await whenSynced(data);
             const count = api.changesets.length;
 
             await run(data, data.getObject(category)!, 'postpone', { date: '2026-05-01' });
+            await whenSynced(data);
             expect(api.changesets.length - count).toBe(1);
             await data.undo();
 
@@ -601,9 +611,11 @@ describe('Tracker: complete and postpone', () => {
             const { api, data } = await start();
             await createTask(data, { name: 'Дело', category: 'Работа' });
             const before = path(data, task(data, 'Дело'));
+            await whenSynced(data);
             const count = api.changesets.length;
 
             await data.remove(task(data, 'Дело').id);
+            await whenSynced(data);
             expect(api.changesets.length - count).toBe(1);
             await data.undo();
 
