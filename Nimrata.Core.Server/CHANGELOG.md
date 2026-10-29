@@ -2,6 +2,12 @@
 
 ## Не выпущено
 
+### Исправлено (синхронизация: замечания ревью)
+- Медленный клиент больше не тормозит остальные вкладки: `ChangeDispatcher` учитывает соединения пользователя (вместо группы `user:{id}`) и отправляет каждому отдельно, не дожидаясь отправки соседям; у каждого соединения свой курсор. Соединение, которому предыдущая отправка ещё не завершилась, пропускает окна и копит наборы; освободившись, получает накопленное одним сообщением или `resync` сверх порога `Sync:ResyncThreshold`. Неудачная отправка (в том числе самого `resync`) больше не теряется: соединению в следующем окне уходит `resync`. Имена сообщений — константы `ChangeDispatcher.ChangesMessage` / `ResyncMessage`.
+- Итог набора `POST /api/changesets` у `applied` и `duplicate` несёт `prevSeq` — курсор предыдущего набора того же пользователя (читается под той же advisory-блокировкой): `seq` глобальный, и по `prevSeq` клиент видит, нет ли между подтверждениями наборов других вкладок. `IChangeNotifier.Changed` принимает `prevSeq`, первое сообщение push начинается с него (`fromSeq`), а не с `seq − 1`.
+- Набор, который не принимает БД (`PostgresException` класса SQLSTATE 22 или 23, например U+0000 в jsonb или `id` набора, одновременно занятый другим пользователем), отклоняется с кодом `invalid_data` вместо 5xx, остальные наборы пакета применяются; сбои соединения по-прежнему 5xx. Занятый чужим набором `id` тоже отвечает `invalid_data`.
+- `ChangesetStatus` — enum в своём файле (в JSON прежние строки `applied` / `duplicate` / `rejected`), `RejectionCodes` — в своём файле; `ChangesPush` наследует `ChangesBatch` (JSON прежний, плоский); документированы параметры `SyncService`, `ReadNewParentAsync`, `ReadNewNumber`; `[ProducesResponseType]` у `GET /api/snapshot`, у `GET /api/changes` пояснено, почему `IActionResult`. Тесты: `SyncHubTests` (медленное соединение, сбой отправки, `fromSeq` через чужие наборы — через тестовый `GatedHubContext`), `ChangesetBatchTests` (`prevSeq`, `invalid_data`); тестовые соединения хаба проходят согласование, чтобы идентификатор соединения совпадал с серверным. ADR 0006 обновлён.
+
 ### Добавлено (синхронизация: service worker)
 - Заголовки кэширования собранного клиента (`ClientCaching`, общие настройки для `UseStaticFiles` и SPA-fallback): `sw.js`, `registerSW.js` и `index.html` (в том числе отданный на клиентский маршрут) — `Cache-Control: no-cache`, чтобы новая версия service worker и оболочки подхватывалась; ассеты `/assets/*` с хэшем в имени — `public, max-age=31536000, immutable`. Тесты в `SpaHostingTests`.
 

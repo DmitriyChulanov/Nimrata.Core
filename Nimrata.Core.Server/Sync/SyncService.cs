@@ -10,6 +10,8 @@ namespace Nimrata.Core.Server.Sync;
 /// Чтение для синхронизации: догон с курсора и согласованная полная загрузка. Источник изменений — журнал
 /// (<c>changesets</c>/<c>changeset_entries</c>), финальное состояние — таблица <c>objects</c>
 /// </summary>
+/// <param name="dataSource">Источник соединений с БД</param>
+/// <param name="options">Порог resync для догона</param>
 public sealed class SyncService(NpgsqlDataSource dataSource, IOptions<SyncOptions> options)
 {
     /// <summary>

@@ -2,7 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Channels;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
+using Nimrata.Core.Server.Sync;
 using static Nimrata.Core.Server.Tests.ChangesetApi;
 using static Nimrata.Core.Server.Tests.DemoServer;
 
@@ -267,6 +270,151 @@ public sealed class SyncHubTests(ServerFactory factory) : IClassFixture<ServerFa
 
         Assert.Equal("resync", (await mine.NextAsync()).Name);
         await others.AssertSilentAsync();
+    }
+
+    /// <summary>
+    /// Сервер, у которого отправки соединениям проходят через <see cref="GatedHubContext"/>
+    /// </summary>
+    /// <returns>Запущенный сервер и его контекст хаба</returns>
+    private async Task<(DemoServer Server, GatedHubContext Hub)> StartGatedServerAsync()
+    {
+        var server = new DemoServer(
+            factory,
+            new Dictionary<string, string?>
+            {
+                ["Sync:PushWindow"] = "00:00:00.300",
+                ["Sync:ResyncThreshold"] = "3",
+            },
+            services => services
+                .AddSingleton<GatedHubContext>()
+                .AddSingleton<IHubContext<SyncHub>>(sp => sp.GetRequiredService<GatedHubContext>()));
+        _wideServers.Add(server);
+        await server.StartAsync();
+        return (server, server.Services.GetRequiredService<GatedHubContext>());
+    }
+
+    /// <summary>
+    /// Проверяет, что медленное соединение не задерживает остальные вкладки пользователя: они получают поток
+    /// дальше, а освободившемуся соединению после зависшего сообщения уходит resync (наборов больше порога)
+    /// </summary>
+    [Fact]
+    public async Task Push_SlowConnection_OthersKeepStreamingAndSlowGetsResync()
+    {
+        var (server, hub) = await StartGatedServerAsync();
+        var slow = await ConnectAsync(server.MeToken, server);
+        var fast = await ConnectAsync(server.MeToken, server);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var slowId = slow.Connection.ConnectionId;
+        hub.BeforeSend = (connectionId, _) => connectionId == slowId ? release.Task : Task.CompletedTask;
+
+        // Первое сообщение медленному соединению зависает, быстрое получает каждое окно
+        var first = await ApplyAsync(server.Me, Create(Guid.CreateVersion7(), "Item", null, "0"));
+        Assert.Equal([first.Id], Ids((await fast.NextAsync()).Payload.GetProperty("changesetIds")));
+        for (var i = 1; i <= 4; i++)
+        {
+            var next = await ApplyAsync(server.Me, Create(Guid.CreateVersion7(), "Item", null, $"{i}"));
+            var message = await fast.NextAsync();
+            Assert.Equal("changes", message.Name);
+            Assert.Equal([next.Id], Ids(message.Payload.GetProperty("changesetIds")));
+        }
+        await slow.AssertSilentAsync();
+
+        release.SetResult();
+
+        // Зависшее сообщение доходит, затем вместо 4 накопившихся наборов (порог 3) — resync
+        var stuck = await slow.NextAsync();
+        Assert.Equal("changes", stuck.Name);
+        Assert.Equal([first.Id], Ids(stuck.Payload.GetProperty("changesetIds")));
+        Assert.Equal("resync", (await slow.NextAsync()).Name);
+        await fast.AssertSilentAsync();
+    }
+
+    /// <summary>
+    /// Проверяет, что соединение, освободившееся до порога, получает накопленные наборы одним сообщением
+    /// с курсора последнего доставленного ему
+    /// </summary>
+    [Fact]
+    public async Task Push_SlowConnectionBelowThreshold_GetsAccumulatedChanges()
+    {
+        var (server, hub) = await StartGatedServerAsync();
+        var slow = await ConnectAsync(server.MeToken, server);
+        var fast = await ConnectAsync(server.MeToken, server);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var slowId = slow.Connection.ConnectionId;
+        hub.BeforeSend = (connectionId, _) => connectionId == slowId ? release.Task : Task.CompletedTask;
+
+        var first = await ApplyAsync(server.Me, Create(Guid.CreateVersion7(), "Item", null, "0"));
+        await fast.NextAsync();
+        var second = await ApplyAsync(server.Me, Create(Guid.CreateVersion7(), "Item", null, "1"));
+        await fast.NextAsync();
+
+        release.SetResult();
+
+        Assert.Equal([first.Id], Ids((await slow.NextAsync()).Payload.GetProperty("changesetIds")));
+        var accumulated = await slow.NextAsync();
+        Assert.Equal("changes", accumulated.Name);
+        Assert.Equal(first.Seq, accumulated.Payload.GetProperty("fromSeq").GetInt64());
+        Assert.Equal([second.Id], Ids(accumulated.Payload.GetProperty("changesetIds")));
+    }
+
+    /// <summary>
+    /// Проверяет, что неудачная отправка resync не теряется: в следующем окне соединение получает его снова
+    /// </summary>
+    [Fact]
+    public async Task Push_ResyncSendFails_ResentInNextWindow()
+    {
+        var (server, hub) = await StartGatedServerAsync();
+        var tab = await ConnectAsync(server.MeToken, server);
+        var failures = 0;
+        hub.BeforeSend = (_, method) =>
+            method == "resync" && Interlocked.Increment(ref failures) == 1
+                ? Task.FromException(new IOException("Сбой отправки"))
+                : Task.CompletedTask;
+
+        var response = await server.Me.PutAsJsonAsync("/api/extensions/demo/connection", new { connected = false });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        Assert.Equal("resync", (await tab.NextAsync()).Name);
+        Assert.Equal(2, Volatile.Read(ref failures));
+        await tab.AssertSilentAsync();
+    }
+
+    /// <summary>
+    /// Проверяет, что неудачная отправка changes заменяется resync в следующем окне
+    /// </summary>
+    [Fact]
+    public async Task Push_ChangesSendFails_ResyncInNextWindow()
+    {
+        var (server, hub) = await StartGatedServerAsync();
+        var tab = await ConnectAsync(server.MeToken, server);
+        var failures = 0;
+        hub.BeforeSend = (_, method) =>
+            method == "changes" && Interlocked.Increment(ref failures) == 1
+                ? Task.FromException(new IOException("Сбой отправки"))
+                : Task.CompletedTask;
+
+        await ApplyAsync(server.Me, Create(Guid.CreateVersion7(), "Item", null, "a"));
+
+        Assert.Equal("resync", (await tab.NextAsync()).Name);
+        await tab.AssertSilentAsync();
+    }
+
+    /// <summary>
+    /// Проверяет, что fromSeq первого сообщения — предыдущий набор пользователя, а не seq − 1: наборы другого
+    /// пользователя между ними не дают клиенту ложного разрыва курсора
+    /// </summary>
+    [Fact]
+    public async Task Push_OtherUsersChangesetsInBetween_FromSeqIsOwnPreviousSeq()
+    {
+        var before = await ApplyAsync(_server.Me, Create(Guid.CreateVersion7(), "Item", null, "a"));
+        await ApplyAsync(_server.Other, Create(Guid.CreateVersion7(), "Item", null, "b"));
+        var tab = await ConnectAsync(_server.MeToken);
+
+        var after = await ApplyAsync(_server.Me, Create(Guid.CreateVersion7(), "Item", null, "c"));
+
+        var message = await tab.NextAsync();
+        Assert.Equal(before.Seq, message.Payload.GetProperty("fromSeq").GetInt64());
+        Assert.Equal(after.Seq, message.Payload.GetProperty("toSeq").GetInt64());
     }
 
     /// <summary>

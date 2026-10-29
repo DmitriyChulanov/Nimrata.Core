@@ -10,9 +10,10 @@ namespace Nimrata.Core.Server.Tests;
 /// <param name="Id">Идентификатор набора, присланный клиентом</param>
 /// <param name="Status">Итог: <c>applied</c>, <c>duplicate</c> или <c>rejected</c></param>
 /// <param name="Seq">Курсор применённого набора; у отклонённого отсутствует</param>
+/// <param name="PrevSeq">Курсор предыдущего набора того же пользователя; у отклонённого отсутствует</param>
 /// <param name="Code">Машинный код отказа, если он есть</param>
 /// <param name="Detail">Причина отказа для пользователя</param>
-public sealed record ChangesetOutcome(Guid Id, string Status, long? Seq, string? Code, string? Detail)
+public sealed record ChangesetOutcome(Guid Id, string Status, long? Seq, long? PrevSeq, string? Code, string? Detail)
 {
     /// <summary>
     /// Набор применён сервером

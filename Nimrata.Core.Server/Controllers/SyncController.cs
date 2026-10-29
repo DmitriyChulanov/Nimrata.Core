@@ -22,6 +22,11 @@ public sealed class SyncController(SyncService syncService) : ControllerBase
     /// <see cref="ChangesBatch"/> (<c>toSeq</c>, <c>changesetIds</c>, <c>upserts</c>, <c>deletes</c>) либо
     /// <c>{ resync: true }</c>, если клиенту нужно перечитать данные через <c>GET /api/snapshot</c>
     /// </returns>
+    /// <remarks>
+    /// Возвращает <see cref="IActionResult"/>, а не <c>ActionResult&lt;T&gt;</c>: у кода 200 два разных тела
+    /// (<see cref="ChangesBatch"/> и <see cref="ResyncResponse"/>), общего типа у них нет; оба объявлены
+    /// через <see cref="ProducesResponseTypeAttribute"/>
+    /// </remarks>
     [HttpGet("api/changes")]
     [ProducesResponseType<ChangesBatch>(StatusCodes.Status200OK)]
     [ProducesResponseType<ResyncResponse>(StatusCodes.Status200OK)]
@@ -39,6 +44,7 @@ public sealed class SyncController(SyncService syncService) : ControllerBase
     /// <param name="cancellationToken">Токен отмены запроса</param>
     /// <returns>Курсор снимка, все типы и видимые объекты пользователя</returns>
     [HttpGet("api/snapshot")]
+    [ProducesResponseType<SyncSnapshot>(StatusCodes.Status200OK)]
     public async Task<ActionResult<SyncSnapshot>> Snapshot(CancellationToken cancellationToken) =>
         Ok(await syncService.ReadSnapshotAsync(User.GetUserId(), cancellationToken));
 }

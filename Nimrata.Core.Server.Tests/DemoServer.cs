@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Nimrata.Core.Server.Auth;
@@ -16,7 +17,11 @@ namespace Nimrata.Core.Server.Tests;
 /// </summary>
 /// <param name="factory">Общий стенд с контейнером Postgres</param>
 /// <param name="settings">Дополнительные настройки сервера (например, секция <c>Sync</c>)</param>
-public sealed class DemoServer(ServerFactory factory, IReadOnlyDictionary<string, string?>? settings = null) : IAsyncDisposable
+/// <param name="services">Подмена сервисов сервера теста; <c>null</c> — без подмен</param>
+public sealed class DemoServer(
+    ServerFactory factory,
+    IReadOnlyDictionary<string, string?>? settings = null,
+    Action<IServiceCollection>? services = null) : IAsyncDisposable
 {
     private const string Manifest = """
         {
@@ -84,7 +89,9 @@ public sealed class DemoServer(ServerFactory factory, IReadOnlyDictionary<string
         {
             configuration[key] = value;
         }
-        _server = factory.WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(configuration)));
+        _server = factory.WithWebHostBuilder(b => b
+            .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(configuration))
+            .ConfigureTestServices(s => services?.Invoke(s)));
         (Me, MeToken) = await LoginAsync(ServerFactory.AdminEmail, ServerFactory.AdminPassword);
         await _server.Services.GetRequiredService<AuthService>().CreateUserAsync(OtherEmail, OtherPassword, false);
         (Other, OtherToken) = await LoginAsync(OtherEmail, OtherPassword);
@@ -108,7 +115,8 @@ public sealed class DemoServer(ServerFactory factory, IReadOnlyDictionary<string
             .WithUrl(url, o =>
             {
                 o.Transports = HttpTransportType.WebSockets;
-                o.SkipNegotiation = true;
+                // Согласование через сервер теста: идентификатор соединения у клиента совпадает с серверным
+                o.HttpMessageHandlerFactory = _ => _server.Server.CreateHandler();
                 o.WebSocketFactory = async (context, cancellationToken) =>
                     await _server.Server.CreateWebSocketClient().ConnectAsync(context.Uri, cancellationToken);
             })
