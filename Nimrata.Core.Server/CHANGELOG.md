@@ -2,6 +2,16 @@
 
 ## Не выпущено
 
+### Изменено (синхронизация: курсор, пакетная запись, LWW, догон)
+- Миграция `0026_changesets_seq.sql`: `changesets.seq bigint generated always as identity` с уникальным индексом и индексом `(user_id, seq)`. Идентификатор набора теперь присылает клиент.
+- `POST /api/changesets` принимает пакет `{ changesets: [{ id, operations }] }` и всегда отвечает 200 списком `[{ id, status: applied | duplicate | rejected, seq?, code?, detail? }]` в порядке пакета. Каждый набор — своя транзакция, отказ одного не откатывает остальные. Повтор известного `id` того же пользователя — `duplicate` с прежним `seq`, без повторного применения; `id` чужого набора — `rejected`. 400 — только ошибка формата пакета (нет `changesets`, у набора нет `id`-GUID или непустого `operations`), 401 — без токена. Прежних ответов 409/422 на набор больше нет.
+- Наборы пользователя применяются под `pg_advisory_xact_lock` по пользователю: порядок `seq` совпадает с порядком фиксации, курсор не проскакивает незафиксированный набор. Отдельная блокировка singleton убрана, её покрывает блокировка пользователя.
+- LWW: `update` (свойства) и `move` (`parent`, `number`) больше не сверяют «было», `old` необязательно; в журнал пишется фактическое прежнее значение. Отказом остаются структурные инварианты (существование объекта и родителя, `allowedChildren`, цикл, singleton, включённое расширение, дети удаляемого, занятый `id` при `create`, значение свойства). `ChangesetRejectedException.Conflict` удалено.
+- Новое: `GET /api/changes?since=N` (`SyncController`, `SyncService.ReadChangesAsync`) — `{ toSeq, changesetIds, upserts, deletes }` в одном снимке `repeatable read`: `upserts` — финальное состояние видимых затронутых объектов, `deletes` — удалённые или скрытые отключённым расширением; `{ resync: true }`, если наборов после курсора больше `Sync:ResyncThreshold` или курсор новее последнего набора пользователя. Неверный `since` — 400.
+- Новое: `GET /api/snapshot` — `{ seq, types, objects }` в одной транзакции `repeatable read`; `seq` — курсор последнего набора пользователя (0 — наборов нет). `GET /api/objects` и `GET /api/types` остаются.
+- Секция настроек `Sync` (`SyncOptions`: `ResyncThreshold` = 5000, `PushWindow` = 100 мс) с проверкой при старте; описана в `docs/configuration.md`.
+- Контракт `contracts/changeset/` пересмотрен под LWW: сценарии `was.json` с несовпавшим «было» теперь принимаются, добавлены сценарии без «было» и без «стало»; признак `conflict` из сценариев убран. Тесты переведены на пакетный формат (`ChangesetApi`, `DemoServer`), добавлены `ChangesetBatchTests`, `SyncTests`, `SyncOptionsTests`.
+
 ### Изменено («Номер» объекта)
 - Миграция `0025_objects_number.sql`: `objects.sort_order` (double) заменено целым `number` (`NOT NULL DEFAULT 1`, проверка `>= 1`). `ObjectRecord.Order` → `Number`. В операциях набора изменений `create` и `move` поле `order` стало `number`: целое ≥ 1, иначе отказ 422; без `number` при создании — 1; `move` проверяет «было» по `number` (409 при расхождении). `GET api/objects` сортирует по `number`. Обновлены контрактные сценарии `contracts/changeset/` и тесты.
 

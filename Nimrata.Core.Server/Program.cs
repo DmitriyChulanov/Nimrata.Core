@@ -8,6 +8,7 @@ using Nimrata.Core.Server.Auth;
 using Nimrata.Core.Server.Data;
 using Nimrata.Core.Server.Extensions;
 using Nimrata.Core.Server.Objects;
+using Nimrata.Core.Server.Sync;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -37,6 +38,8 @@ builder.Services.AddSingleton<ObjectsService>();
 builder.Services.AddSingleton<JournalService>();
 builder.Services.AddSingleton<TypesService>();
 builder.Services.AddSingleton<ExtensionsService>();
+builder.Services.AddOptions<SyncOptions>().BindConfiguration(SyncOptions.Section).ValidateDataAnnotations().ValidateOnStart();
+builder.Services.AddSingleton<SyncService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)

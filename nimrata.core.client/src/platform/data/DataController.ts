@@ -65,6 +65,22 @@ export interface ChangeFailure {
     code?: string;
 }
 /**
+ * Итог одного набора в ответе пакетной записи `POST /api/changesets`
+ */
+export interface ChangesetResult {
+    /** Идентификатор набора, присланный клиентом */
+    id: string;
+    /** Применён, повтор уже применённого или отклонён целиком */
+    status: 'applied' | 'duplicate' | 'rejected';
+    /** Курсор набора; у отклонённого отсутствует */
+    seq?: number;
+    /** Машинный код отказа (`singleton_exists`, `extension_disabled`) */
+    code?: string;
+    /** Причина отказа для пользователя */
+    detail?: string;
+}
+
+/**
  * Результат создания объекта: идентификатор нового объекта либо причина отказа
  */
 export type CreateResult = { ok: true; id: string } | ChangeFailure;
@@ -458,6 +474,19 @@ export function createDataController(options: DataControllerOptions): DataContro
 
     const newId = options.newId ?? uuid7;
     const history = createUndoHistory();
+
+    /**
+     * Отправляет операции одним набором пакетной записи; отказ набора сервером приходит как
+     * `ApiError` с кодом 422 и машинным кодом причины, как прежде
+     */
+    async function submit(operations: readonly Operation[]): Promise<void> {
+        const [result] = await api.post<ChangesetResult[]>('changesets', {
+            changesets: [{ id: uuid7(), operations }],
+        });
+        if (result?.status === 'rejected') {
+            throw new ApiError(422, result.detail ?? 'Набор изменений отклонён.', result.code);
+        }
+    }
     // Наборы выполняются строго по очереди, чтобы откат одного не затирал соседние
     let queue: Promise<unknown> = Promise.resolve();
 
@@ -696,7 +725,7 @@ export function createDataController(options: DataControllerOptions): DataContro
 
             publish({ error: null });
             try {
-                await api.post('changesets', { operations: scope.operations });
+                await submit(scope.operations);
                 history.record({
                     forward: scope.operations,
                     inverse: invertOperations(scope.operations, scope.before),
@@ -746,7 +775,7 @@ export function createDataController(options: DataControllerOptions): DataContro
             publish({ error: null });
             const verb = kind === 'undo' ? 'отменить' : 'повторить';
             try {
-                await api.post('changesets', { operations });
+                await submit(operations);
                 if (kind === 'undo') history.markUndone();
                 else history.markRedone();
                 publish({}, false);

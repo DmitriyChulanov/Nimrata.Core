@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { ApiError } from '@platform/api/apiClient';
-
 import { createFakeApi } from './fakeApi';
+
+import type { ChangesetResult } from './DataController';
 
 /**
  * Сценарий контракта Набора изменений (формат — `contracts/changeset/README.md`)
@@ -13,7 +13,7 @@ interface Scenario {
     extensionEnabled?: boolean;
     objects: Record<string, unknown>[];
     operations: Record<string, unknown>[];
-    expect: { ok: boolean; code?: string; conflict?: boolean };
+    expect: { ok: boolean; code?: string };
 }
 
 interface TypesFile {
@@ -61,19 +61,19 @@ describe('fakeApi: контракт Набора изменений совпад
                         ],
                     });
 
-                    let actual: { ok: boolean; code?: string; conflict?: boolean };
-                    try {
-                        await api.post('changesets', {
-                            operations: structuredClone(scenario.operations),
-                        });
-                        actual = { ok: true };
-                    } catch (error) {
-                        if (!(error instanceof ApiError)) throw error;
-                        actual = { ok: false };
-                        if (error.code) actual.code = error.code;
-                        if (error.status === 409) actual.conflict = true;
-                    }
+                    const [result] = await api.post<ChangesetResult[]>('changesets', {
+                        changesets: [
+                            {
+                                id: '00000000-0000-7000-8000-000000000001',
+                                operations: structuredClone(scenario.operations),
+                            },
+                        ],
+                    });
 
+                    const actual: { ok: boolean; code?: string } = {
+                        ok: result?.status === 'applied',
+                    };
+                    if (!actual.ok && result?.code) actual.code = result.code;
                     expect(actual).toEqual(scenario.expect);
                 });
             }

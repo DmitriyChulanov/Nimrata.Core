@@ -1,13 +1,12 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Nimrata.Core.Server.Auth;
-using Nimrata.Core.Server.Controllers.Responses;
 using Nimrata.Core.Server.Objects;
 
 namespace Nimrata.Core.Server.Controllers;
 
 /// <summary>
-/// Объекты пользователя и применение наборов изменений
+/// Объекты пользователя и пакетное применение наборов изменений
 /// </summary>
 /// <param name="objectsService">Сервис чтения объектов</param>
 /// <param name="changesetService">Сервис применения наборов изменений</param>
@@ -24,37 +23,25 @@ public sealed class ObjectsController(ObjectsService objectsService, ChangesetSe
         Ok(await objectsService.LoadAsync(User.GetUserId(), cancellationToken));
 
     /// <summary>
-    /// Применяет набор изменений целиком или отклоняет его с причиной
+    /// Применяет пакет наборов изменений <c>{ changesets: [{ id, operations }] }</c>: каждый набор атомарно
+    /// и независимо от остальных, отказ одного не откатывает другие
     /// </summary>
-    /// <param name="body">Набор изменений в JSON</param>
+    /// <param name="body">Пакет наборов в JSON</param>
     /// <param name="cancellationToken">Токен отмены запроса</param>
     /// <returns>
-    /// Идентификатор применённого набора, 409 при конфликте или 422 при отклонении; у отказов, которые клиент
-    /// различает, в теле есть поле <c>code</c> (<see cref="RejectionCodes"/>)
+    /// Итог каждого набора в порядке пакета (<c>applied</c>, <c>duplicate</c>, <c>rejected</c>);
+    /// 400 — только при ошибке формата пакета
     /// </returns>
     [HttpPost("api/changesets")]
-    [ProducesResponseType<ChangesetResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
-    public async Task<ActionResult<ChangesetResponse>> Apply(
+    [ProducesResponseType<IReadOnlyList<ChangesetResult>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<ChangesetResult>>> Apply(
         [FromBody] JsonElement body, CancellationToken cancellationToken)
     {
-        try
+        if (!ChangesetSubmission.TryParseBatch(body, out var submissions, out var error))
         {
-            var id = await changesetService.ApplyAsync(User.GetUserId(), body, cancellationToken);
-            return new ChangesetResponse(id);
+            return Problem(detail: error, statusCode: StatusCodes.Status400BadRequest);
         }
-        catch (ChangesetRejectedException rejection)
-        {
-            var statusCode = rejection.Conflict
-                ? StatusCodes.Status409Conflict
-                : StatusCodes.Status422UnprocessableEntity;
-            var problem = ProblemDetailsFactory.CreateProblemDetails(HttpContext, statusCode, detail: rejection.Message);
-            if (rejection.Code is not null)
-            {
-                problem.Extensions["code"] = rejection.Code;
-            }
-            return new ObjectResult(problem) { StatusCode = statusCode };
-        }
+        return Ok(await changesetService.ApplyBatchAsync(User.GetUserId(), submissions, cancellationToken));
     }
 }
