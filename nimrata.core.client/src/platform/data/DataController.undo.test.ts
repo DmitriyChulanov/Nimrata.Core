@@ -230,7 +230,6 @@ describe('DataController: Undo/Redo', () => {
         expect(data.canUndo()).toBe(true);
         expect(data.canRedo()).toBe(false);
         expect(data.getSnapshot().error).toContain('Значение изменено другим пользователем.');
-        expect(data.getSnapshot().needsReload).toBe(false);
         // После конфликта отмену можно повторить
         expect(await data.undo()).toEqual({ ok: true });
         expect(data.getObject('a')?.properties.title).toBe('A');

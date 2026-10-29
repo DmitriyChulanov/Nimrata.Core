@@ -9,7 +9,7 @@ import type { ObjectReader } from '@platform/objectQueries/objectQueries';
  */
 export interface TreeReader extends ObjectReader {
     /** Потомки родителя; `null` — корень */
-    getChildren(parent: string | null): DataObject[];
+    getChildren(parent: string | null): readonly DataObject[];
 }
 
 /**

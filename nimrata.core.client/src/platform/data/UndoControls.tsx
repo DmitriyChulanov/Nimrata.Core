@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { Button } from '@platform/ui';
 
-import { useData } from './useData';
+import { useDataController } from './useDataController';
 
 import type { MenuRegistry } from '@platform/tabs/registries';
 import type { ChangeResult } from './DataController';
@@ -29,7 +29,7 @@ function isTextInput(target: EventTarget | null): boolean {
  * В полях ввода клавиши остаются за браузером
  */
 export function UndoControls({ registry }: { registry: MenuRegistry }) {
-    const data = useData();
+    const data = useDataController();
     const [notice, setNotice] = useState<string | null>(null);
 
     useEffect(() => {

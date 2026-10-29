@@ -204,7 +204,6 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         expect(result).toMatchObject({ ok: false, error: 'Операция 1: значение не подходит.' });
         expect(data.getObject('a')?.properties).toEqual({ title: 'A' });
         expect(data.getSnapshot().error).toBe('Операция 1: значение не подходит.');
-        expect(data.getSnapshot().needsReload).toBe(false);
         expect(seen).toBe('Операция 1: значение не подходит.');
     });
 
@@ -243,18 +242,18 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
     });
 
     /**
-     * Проверяет, что 409 из-за расхождения старого значения требует перезагрузки и блокирует правки
+     * Проверяет, что после отказа сервера правки не блокируются: следующая уходит на сервер
      */
-    it('rejection_409OldMismatch_setsReloadNeededAndBlocksEdits', async () => {
+    it('rejection_afterRequestFailure_editsAreNotBlocked', async () => {
         const { api, data } = await loaded();
-        api.rejectNext(409, 'свойство изменилось с момента загрузки');
+        api.rejectNext(409, 'сбой');
         await data.setProperty('a', 'title', 'X');
-        expect(data.getSnapshot().needsReload).toBe(true);
         expect(data.getObject('a')?.properties).toEqual({ title: 'A' });
 
-        const blocked = await data.setProperty('a', 'title', 'Z');
-        expect(blocked.ok).toBe(false);
-        expect(api.changesets).toHaveLength(0);
+        const next = await data.setProperty('a', 'title', 'Z');
+        expect(next.ok).toBe(true);
+        expect(api.changesets).toHaveLength(1);
+        expect(data.getObject('a')?.properties).toEqual({ title: 'Z' });
     });
 
     /**
@@ -280,21 +279,17 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
     });
 
     /**
-     * Проверяет, что перезагрузка заменяет модель данными сервера и снимает признак
+     * Проверяет, что перезагрузка заменяет модель данными сервера и снимает ошибку
      */
-    it('reload_replacesModelWithServerDataAndClearsFlag', async () => {
+    it('reload_replacesModelWithServerDataAndClearsError', async () => {
         const { api, data } = await loaded();
-        api.rejectNext(409, 'расхождение');
+        api.rejectNext(422, 'нет');
         await data.setProperty('a', 'title', 'X');
         api.objects = [
-            { id: 'z', type: 'Note', parent: null, number: 0, properties: { title: 'Z' } },
+            { id: 'z', type: 'Note', parent: null, number: 1, properties: { title: 'Z' } },
         ];
         await data.load();
-        expect(data.getSnapshot()).toMatchObject({
-            status: 'ready',
-            needsReload: false,
-            error: null,
-        });
+        expect(data.getSnapshot()).toMatchObject({ status: 'ready', error: null });
         expect(data.getObject('a')).toBeUndefined();
         expect(data.getObject('z')?.properties).toEqual({ title: 'Z' });
         expect((await data.setProperty('z', 'title', 'Q')).ok).toBe(true);

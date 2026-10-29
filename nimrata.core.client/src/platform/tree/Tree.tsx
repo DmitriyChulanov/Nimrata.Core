@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
-import { useData } from '@platform/data/useData';
-import { Icon } from '@platform/icons/Icon';
+import { useDataController } from '@platform/data/useDataController';
+import { useQuery } from '@platform/data/useQuery';
 import { objectLabel } from '@platform/objectQueries/objectQueries';
 import { Button, ContextMenu, Dialog } from '@platform/ui';
 
-import { TypeIcon } from './TypeIcon';
+import { TreeItem } from './TreeItem';
 import { useSelection } from '@platform/selection/useSelection';
 
 import { canPaste, copySubtrees, pasteSubtrees, topLevelIds } from './clipboard';
@@ -20,7 +20,6 @@ import {
     flatten,
     visibleChildren,
 } from './treeModel';
-import { colorPresentation, resolveRuleColor } from './colorRules';
 import './ruleColors.css';
 
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
@@ -29,6 +28,8 @@ import type { ContextMenuSeparator, MenuEntry } from '@platform/ui';
 import type { ActionDefinition, TypeDefinition } from '@platform/types/types';
 import type { ClipboardNode } from './clipboard';
 import type { DropPosition } from './planMove';
+import type { TreeRow } from './treeModel';
+import type { TreeItemHandlers } from './TreeItem';
 
 /**
  * Высота строки дерева в пикселях
@@ -53,10 +54,33 @@ function creatableTypes(data: DataController, parent: DataObject): TypeDefinitio
 }
 
 /**
+ * Совпадают ли видимые строки дерева: те же объекты, названия, уровни и признаки потомков
+ *
+ * @param a - прежние строки
+ * @param b - новые строки
+ * @returns `true`, если перерисовка не нужна
+ */
+function sameRows(a: readonly TreeRow[], b: readonly TreeRow[]): boolean {
+    return (
+        a.length === b.length &&
+        a.every((row, i) => {
+            const other = b[i];
+            return (
+                other !== undefined &&
+                row.object === other.object &&
+                row.title === other.title &&
+                row.level === other.level &&
+                row.hasChildren === other.hasChildren
+            );
+        })
+    );
+}
+
+/**
  * Универсальное дерево: строится по типам и объектам `DataController`, не зная о расширениях
  */
 export function Tree() {
-    const data = useData();
+    const data = useDataController();
     const {
         selectedId,
         selectedIds,
@@ -70,10 +94,9 @@ export function Tree() {
     // Опорная строка для выделения диапазона Shift+клик
     const anchor = useRef<string | null>(null);
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-    const version = data.getSnapshot().version;
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- модель меняется по `version`
-    const rows = useMemo(() => flatten(data, expanded), [data, expanded, version]);
+    // Видимые строки: дерево перерисовывается, только когда они меняются (правка внутри свёрнутого
+    // узла его не трогает), а строки мемоизированы по объекту
+    const rows = useQuery((d) => flatten(d, expanded), [expanded], sameRows);
 
     const toggle = (id: string) =>
         setExpanded((prev) => {
@@ -267,6 +290,66 @@ export function Tree() {
         if (target) void moveTo(object.id, target.id, position);
     };
 
+    // Обработчики строк читаются через ссылку: объект `handlers` стабилен и не сбивает мемоизацию строк
+    const rowHandlers: TreeItemHandlers = {
+        onToggle: toggle,
+        onSelect: selectRow,
+        onKeyDown: (e, object) => onMoveKey(e, object),
+        onContextMenu: (e, id) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Правый клик внутри выделения работает на всю группу, вне — на один узел
+            const inGroup = selectedSet.has(id);
+            if (!inGroup) {
+                anchor.current = id;
+                select(id);
+            }
+            setMenu({ ids: inGroup ? [...selectedIds] : [id], x: e.clientX, y: e.clientY });
+        },
+        onDragStart: (e, id) => {
+            e.dataTransfer?.setData('text/plain', id);
+            setDrag({ id, target: null, position: 'inside', valid: false });
+        },
+        onDragOver: (e, id) => {
+            if (!drag) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const position = positionInRow(e.clientY - rect.top, ROW_HEIGHT);
+            const valid = planMove(data, drag.id, id, position).ok;
+            if (valid) e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = valid ? 'move' : 'none';
+            if (drag.target !== id || drag.position !== position || drag.valid !== valid) {
+                setDrag({ ...drag, target: id, position, valid });
+            }
+        },
+        onDrop: (e, id) => {
+            if (!drag) return;
+            e.preventDefault();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const position = positionInRow(e.clientY - rect.top, ROW_HEIGHT);
+            const dragged = drag.id;
+            setDrag(null);
+            void moveTo(dragged, id, position);
+        },
+        onDragEnd: () => setDrag(null),
+    };
+    const latestHandlers = useRef(rowHandlers);
+    useLayoutEffect(() => {
+        latestHandlers.current = rowHandlers;
+    });
+    const handlers = useMemo<TreeItemHandlers>(
+        () => ({
+            onToggle: (id) => latestHandlers.current.onToggle(id),
+            onSelect: (e, id) => latestHandlers.current.onSelect(e, id),
+            onKeyDown: (e, object) => latestHandlers.current.onKeyDown(e, object),
+            onContextMenu: (e, id) => latestHandlers.current.onContextMenu(e, id),
+            onDragStart: (e, id) => latestHandlers.current.onDragStart(e, id),
+            onDragOver: (e, id) => latestHandlers.current.onDragOver(e, id),
+            onDrop: (e, id) => latestHandlers.current.onDrop(e, id),
+            onDragEnd: () => latestHandlers.current.onDragEnd(),
+        }),
+        [],
+    );
+
     const deletingObjects = (deleting ?? []).flatMap((id) => data.getObject(id) ?? []);
 
     /**
@@ -378,128 +461,33 @@ export function Tree() {
                 onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
             >
                 <div style={{ height: rows.length * ROW_HEIGHT, position: 'relative' }}>
-                    {rows.slice(first, last).map(({ object, title, level, hasChildren }, i) => {
-                        const isOpen = expanded.has(object.id);
-                        const { paletteColor, cssColor } = colorPresentation(
-                            resolveRuleColor(
-                                data.getType(object.type)?.colorRules,
-                                object.properties,
-                            ),
-                        );
-                        return (
-                            <div
-                                key={object.id}
-                                role="treeitem"
-                                aria-label={title}
-                                aria-level={level}
-                                aria-posinset={first + i + 1}
-                                aria-setsize={rows.length}
-                                aria-selected={selectedSet.has(object.id)}
-                                aria-expanded={hasChildren ? isOpen : undefined}
-                                data-rule-color={paletteColor}
-                                style={{
-                                    color: cssColor,
-                                    position: 'absolute',
-                                    top: (first + i) * ROW_HEIGHT,
-                                    height: ROW_HEIGHT,
-                                    left: 0,
-                                    right: 0,
-                                    paddingLeft: `${(level - 1) * 16}px`,
-                                }}
-                                draggable
-                                tabIndex={
-                                    selectedId === object.id ||
-                                    (selectedId === null && first + i === 0)
-                                        ? 0
-                                        : -1
-                                }
-                                onKeyDown={(e) => onMoveKey(e, object)}
-                                aria-disabled={
-                                    drag?.target === object.id && !drag.valid ? true : undefined
-                                }
-                                data-drop={
-                                    drag?.target === object.id && drag.valid
+                    {rows.slice(first, last).map(({ object, title, level, hasChildren }, i) => (
+                        <TreeItem
+                            key={object.id}
+                            object={object}
+                            type={data.getType(object.type)}
+                            title={title}
+                            level={level}
+                            hasChildren={hasChildren}
+                            isOpen={expanded.has(object.id)}
+                            selected={selectedSet.has(object.id)}
+                            focusable={
+                                selectedId === object.id || (selectedId === null && first + i === 0)
+                            }
+                            position={first + i + 1}
+                            setSize={rows.length}
+                            top={(first + i) * ROW_HEIGHT}
+                            height={ROW_HEIGHT}
+                            drop={
+                                drag?.target === object.id
+                                    ? drag.valid
                                         ? drag.position
-                                        : undefined
-                                }
-                                onDragStart={(e) => {
-                                    e.dataTransfer?.setData('text/plain', object.id);
-                                    setDrag({
-                                        id: object.id,
-                                        target: null,
-                                        position: 'inside',
-                                        valid: false,
-                                    });
-                                }}
-                                onDragOver={(e) => {
-                                    if (!drag) return;
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    const position = positionInRow(
-                                        e.clientY - rect.top,
-                                        ROW_HEIGHT,
-                                    );
-                                    const valid = planMove(data, drag.id, object.id, position).ok;
-                                    if (valid) e.preventDefault();
-                                    if (e.dataTransfer) {
-                                        e.dataTransfer.dropEffect = valid ? 'move' : 'none';
-                                    }
-                                    if (
-                                        drag.target !== object.id ||
-                                        drag.position !== position ||
-                                        drag.valid !== valid
-                                    ) {
-                                        setDrag({ ...drag, target: object.id, position, valid });
-                                    }
-                                }}
-                                onDrop={(e) => {
-                                    if (!drag) return;
-                                    e.preventDefault();
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    const position = positionInRow(
-                                        e.clientY - rect.top,
-                                        ROW_HEIGHT,
-                                    );
-                                    const id = drag.id;
-                                    setDrag(null);
-                                    void moveTo(id, object.id, position);
-                                }}
-                                onDragEnd={() => setDrag(null)}
-                                onClick={(e) => selectRow(e, object.id)}
-                                onContextMenu={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    // Правый клик внутри выделения работает на всю группу, вне — на один узел
-                                    const inGroup = selectedSet.has(object.id);
-                                    if (!inGroup) {
-                                        anchor.current = object.id;
-                                        select(object.id);
-                                    }
-                                    setMenu({
-                                        ids: inGroup ? [...selectedIds] : [object.id],
-                                        x: e.clientX,
-                                        y: e.clientY,
-                                    });
-                                }}
-                            >
-                                {hasChildren ? (
-                                    <button
-                                        type="button"
-                                        aria-label={isOpen ? 'Свернуть' : 'Развернуть'}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggle(object.id);
-                                        }}
-                                    >
-                                        <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} />
-                                    </button>
-                                ) : (
-                                    <span aria-hidden="true" />
-                                )}
-                                <TypeIcon type={data.getType(object.type)} />
-                                <span>{title}</span>
-                            </div>
-                        );
-                    })}
+                                        : 'invalid'
+                                    : undefined
+                            }
+                            handlers={handlers}
+                        />
+                    ))}
                 </div>
             </div>
             {menu && menuItems.length > 0 && (

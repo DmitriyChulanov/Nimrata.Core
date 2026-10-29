@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { Button, useData } from '@platform';
+import { Button, useDataController } from '@platform';
 
 import {
     browserNotifications,
@@ -28,7 +28,7 @@ export interface NotificationsBindingProps {
  * и один раз — после ответа (в том числе отказа) кнопка пропадает
  */
 export function NotificationsBinding({ browser, now, userId }: NotificationsBindingProps) {
-    const data = useData();
+    const data = useDataController();
     const api = useMemo(
         () => (browser === undefined ? browserNotifications() : browser),
         [browser],
