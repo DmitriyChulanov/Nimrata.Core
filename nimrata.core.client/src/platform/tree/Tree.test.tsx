@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -236,7 +236,7 @@ describe('Tree: context menu', () => {
         await user.click(screen.getByRole('menuitem', { name: 'Создать: Заметка' }));
 
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         expect(api.changesets[0].operations[0]).toMatchObject({
             op: 'create',
             type: 'Note',
@@ -258,9 +258,38 @@ describe('Tree: context menu', () => {
         });
         await user.click(screen.getByRole('menuitem', { name: 'Создать: Заметка' }));
 
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         const created = String(api.changesets[0].operations[0].id);
-        expect(screen.getByLabelText('выделено')).toHaveTextContent(created);
+        await waitFor(() => expect(screen.getByLabelText('выделено')).toHaveTextContent(created));
         expect(screen.getByLabelText('правка имени')).toHaveTextContent(created);
+    });
+
+    /**
+     * Проверяет, что выделение и правка «Имени» нового объекта не ждут сервера: без сети
+     * (запрос не отвечает) они наступают сразу после локального применения
+     */
+    it('tree_create_offline_selectsNewObjectAndRequestsNameEditWithoutServer', async () => {
+        const user = userEvent.setup();
+        const { api, controller } = await renderTree(family);
+        api.post = () => new Promise<never>(() => {});
+
+        await user.pointer({
+            keys: '[MouseRight]',
+            target: screen.getByRole('treeitem', { name: 'Папка' }),
+        });
+        await user.click(screen.getByRole('menuitem', { name: 'Создать: Заметка' }));
+
+        const created = await waitFor(() => {
+            const id = controller
+                .getChildren('f')
+                .find((o) => o.type === 'Note' && o.id !== 'a')?.id;
+            expect(id).toBeDefined();
+            return id ?? '';
+        });
+        await waitFor(() => expect(screen.getByLabelText('выделено')).toHaveTextContent(created));
+        expect(screen.getByLabelText('правка имени')).toHaveTextContent(created);
+        expect(controller.sync.pending()).toHaveLength(1);
+        controller.dispose();
     });
 
     /**
@@ -302,7 +331,7 @@ describe('Tree: context menu', () => {
 
         expect(names()).toEqual(['Лист']);
         expect(controller.getObject('a')).toBeUndefined();
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         expect(api.changesets[0].operations.map((o) => o.id)).toEqual(['a', 'f']);
     });
 
@@ -311,7 +340,7 @@ describe('Tree: context menu', () => {
      */
     it('tree_serverRejection_isShownAsMessageAndTreeReturnsToPreviousView', async () => {
         const user = userEvent.setup();
-        const { api } = await renderTree(family);
+        const { api, controller } = await renderTree(family);
         api.rejectNext(400, 'Нельзя удалить');
 
         await user.pointer({
@@ -323,7 +352,8 @@ describe('Tree: context menu', () => {
             within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Удалить' }),
         );
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('Нельзя удалить');
+        // Итог удаления локальный: отказ сервера приходит сводным уведомлением контроллера
+        await waitFor(() => expect(controller.getSnapshot().error).toBe('Нельзя удалить'));
         expect(names()).toEqual(['Папка', 'Лист']);
     });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createFakeApi } from './fakeApi';
+import { createFakeApi, postChangeset } from './fakeApi';
 
 const types = [
     { id: 'Root', name: 'Корень', extension: 'a', singleton: true },
@@ -97,20 +97,22 @@ describe('fakeApi: extension connections', () => {
     it('fakeApi_writeToDisconnectedExtension_isRejectedWithExtensionDisabled', async () => {
         const api = createFakeApi(types, [], { extensions: catalog });
         await api.put('extensions/a/connection', { connected: false });
-        await expect(
-            api.post('changesets', { operations: [create('i', 'Item', null)] }),
-        ).rejects.toMatchObject({ status: 422, code: 'extension_disabled' });
+        expect(await postChangeset(api, [create('i', 'Item', null)])).toMatchObject({
+            status: 'rejected',
+            code: 'extension_disabled',
+        });
     });
 
     /**
-     * Проверяет, что второй singleton у того же родителя отклоняется 409 singleton_exists, в том числе скрытый
+     * Проверяет, что второй singleton у того же родителя отклоняется кодом singleton_exists, в том числе скрытый
      */
-    it('fakeApi_secondSingleton_isRejectedWith409EvenIfFirstIsHidden', async () => {
+    it('fakeApi_secondSingleton_isRejectedWithSingletonExistsEvenIfFirstIsHidden', async () => {
         const api = createFakeApi(types, [stored('r1', 'Root')], { extensions: catalog });
         await api.put('extensions/a/connection', { connected: true });
-        await expect(
-            api.post('changesets', { operations: [create('r2', 'Root', null)] }),
-        ).rejects.toMatchObject({ status: 409, code: 'singleton_exists' });
+        expect(await postChangeset(api, [create('r2', 'Root', null)])).toMatchObject({
+            status: 'rejected',
+            code: 'singleton_exists',
+        });
     });
 
     /**
@@ -118,19 +120,70 @@ describe('fakeApi: extension connections', () => {
      */
     it('fakeApi_acceptedChangeset_isVisibleOnNextRead', async () => {
         const api = createFakeApi(types, [], { extensions: catalog });
-        await api.post('changesets', { operations: [create('r1', 'Root', null)] });
+        expect(await postChangeset(api, [create('r1', 'Root', null)])).toMatchObject({
+            status: 'applied',
+        });
         const ids = (await api.get<{ id: string }[]>('objects')).map((o) => o.id);
         expect(ids).toEqual(['r1']);
     });
 
     /**
-     * Проверяет, что подготовленный отказ несёт машинный код
+     * Проверяет, что подготовленный отказ 422 отклоняет набор с причиной и машинным кодом
      */
-    it('fakeApi_rejectNextWithCode_rejectsWithApiErrorCode', async () => {
+    it('fakeApi_rejectNext422WithCode_rejectsChangesetWithCode', async () => {
         const api = createFakeApi(types);
-        api.rejectNext(409, 'уже есть', 'singleton_exists');
+        api.rejectNext(422, 'уже есть', 'singleton_exists');
+        expect(await postChangeset(api, [create('x', 'Item', null)])).toMatchObject({
+            status: 'rejected',
+            code: 'singleton_exists',
+            detail: 'уже есть',
+        });
+        expect(api.changesets).toHaveLength(0);
+    });
+
+    /**
+     * Проверяет, что подготовленный отказ с другим кодом отклоняет весь запрос как ошибку HTTP
+     */
+    it('fakeApi_rejectNextOtherStatus_failsWholeRequest', async () => {
+        const api = createFakeApi(types);
+        api.rejectNext(500, 'сбой');
+        await expect(postChangeset(api, [create('x', 'Item', null)])).rejects.toMatchObject({
+            status: 500,
+        });
+    });
+
+    /**
+     * Проверяет, что наборы пакета независимы и получают растущий курсор, а повтор id — `duplicate`
+     */
+    it('fakeApi_batch_independentChangesetsGrowingSeqAndDuplicate', async () => {
+        const api = createFakeApi(types);
+        const results = await api.post<{ id: string; status: string; seq?: number }[]>(
+            'changesets',
+            {
+                changesets: [
+                    { id: 'c1', operations: [create('x', 'Item', null)] },
+                    { id: 'c2', operations: [create('y', 'Nope', null)] },
+                    { id: 'c3', operations: [create('z', 'Item', null)] },
+                    { id: 'c1', operations: [create('x', 'Item', null)] },
+                ],
+            },
+        );
+        expect(results).toMatchObject([
+            { id: 'c1', status: 'applied', seq: 1, prevSeq: 0 },
+            { id: 'c2', status: 'rejected' },
+            { id: 'c3', status: 'applied', seq: 2, prevSeq: 1 },
+            { id: 'c1', status: 'duplicate', seq: 1, prevSeq: 0 },
+        ]);
+        expect(api.changesets.map((c) => c.id)).toEqual(['c1', 'c3']);
+    });
+
+    /**
+     * Проверяет, что тело в прежнем формате (без `changesets`) отклоняется как ошибка формата
+     */
+    it('fakeApi_oldBodyFormat_is400', async () => {
+        const api = createFakeApi(types);
         await expect(
             api.post('changesets', { operations: [create('x', 'Item', null)] }),
-        ).rejects.toMatchObject({ status: 409, code: 'singleton_exists' });
+        ).rejects.toMatchObject({ status: 400 });
     });
 });

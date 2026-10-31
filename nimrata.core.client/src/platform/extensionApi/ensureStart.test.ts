@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDataController } from '../data/DataController';
-import { createFakeApi } from '../data/fakeApi';
+import { createFakeApi, whenSynced } from '../data/fakeApi';
 import { ensureCreated } from './ensureStart';
 
 import type { ChangeResult } from '../data/DataController';
@@ -17,7 +17,7 @@ const hasRoot = (data: ReturnType<typeof createDataController>) =>
 const createRoot = (data: ReturnType<typeof createDataController>) => () =>
     hasRoot(data)
         ? Promise.resolve<ChangeResult>({ ok: true })
-        : data.perform((tx) => void tx.create({ type: 'Root', parent: null }));
+        : data.perform((tx) => void tx.create({ type: 'Root', parent: null }), { confirmed: true });
 
 async function loaded() {
     const api = createFakeApi(types, []);
@@ -53,38 +53,21 @@ describe('ensureCreated', () => {
         expect(result).toEqual({ ok: true });
         expect(api.changesets).toHaveLength(0);
         expect(data.getChildren(null).map((o) => o.id)).toEqual(['other']);
-        expect(data.getSnapshot().needsReload).toBe(false);
     });
 
     /**
-     * Проверяет, что 409 без кода перезагружает данные и повторяет попытку один раз
+     * Проверяет, что отказ запроса без кода возвращается как есть: ни перезагрузки, ни повтора
      */
-    it('ensureCreated_conflictWithoutCode_reloadsAndRetriesOnce', async () => {
+    it('ensureCreated_requestFailureWithoutCode_returnedAsIsWithoutRetry', async () => {
         const { api, data } = await loaded();
         api.rejectNext(409, 'расхождение');
-
-        const result = await ensureCreated(data, createRoot(data));
-
-        expect(result).toEqual({ ok: true });
-        expect(api.changesets).toHaveLength(1);
-        expect(hasRoot(data)).toBe(true);
-    });
-
-    /**
-     * Проверяет, что повторный 409 без кода возвращается как ошибка (повтор только один)
-     */
-    it('ensureCreated_conflictTwice_returnsError', async () => {
-        const { api, data } = await loaded();
-        // каждая попытка встречает отказ сервера
-        const attempt = vi.fn(() => {
-            api.rejectNext(409, 'расхождение');
-            return createRoot(data)();
-        });
+        const attempt = vi.fn(createRoot(data));
 
         const result = await ensureCreated(data, attempt);
 
         expect(result).toMatchObject({ ok: false, status: 409 });
-        expect(attempt).toHaveBeenCalledTimes(2);
+        expect(attempt).toHaveBeenCalledTimes(1);
+        expect(api.changesets).toHaveLength(0);
     });
 
     /**
@@ -102,18 +85,18 @@ describe('ensureCreated', () => {
     });
 
     /**
-     * Проверяет, что при признаке «нужна перезагрузка» данные сначала загружаются заново
+     * Проверяет, что после отказа сервера записи не блокируются: следующая попытка уходит на сервер
      */
-    it('ensureCreated_dataNeedReload_reloadsBeforeAttempt', async () => {
+    it('ensureCreated_afterRejection_writesAreNotBlocked', async () => {
         const { api, data } = await loaded();
-        api.rejectNext(409, 'расхождение');
+        api.rejectNext(500, 'сбой');
         await data.perform((tx) => void tx.create({ type: 'Root', parent: null }));
-        expect(data.getSnapshot().needsReload).toBe(true);
-        api.objects = [{ id: 'r', type: 'Root', parent: null, number: 0, properties: {} }];
 
         const result = await ensureCreated(data, createRoot(data));
 
         expect(result).toEqual({ ok: true });
-        expect(api.changesets).toHaveLength(0);
+        await whenSynced(data);
+        expect(api.changesets).toHaveLength(1);
+        expect(hasRoot(data)).toBe(true);
     });
 });

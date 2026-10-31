@@ -127,7 +127,7 @@ describe('PropertyGrid: rendering', () => {
         await userEvent.type(input, '2{Enter}');
 
         await waitFor(() => expect(controller.getObject('t')?.number).toBe(2));
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
     });
 
     /**
@@ -169,7 +169,7 @@ describe('PropertyGrid: editing', () => {
         await userEvent.clear(input);
         await userEvent.type(input, 'Вторая{Enter}');
 
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
         expect(api.changesets[0].operations).toEqual([
             { op: 'update', id: 't', changes: { title: { old: 'Первая', new: 'Вторая' } } },
         ]);
@@ -185,6 +185,7 @@ describe('PropertyGrid: editing', () => {
         await userEvent.type(screen.getByLabelText('Описание'), 'строка 1{Enter}строка 2');
         await userEvent.tab();
 
+        await waitFor(() => expect(api.changesets).not.toHaveLength(0));
         expect(api.changesets[0].operations[0]).toMatchObject({
             changes: { descr: { old: null, new: 'строка 1\nстрока 2' } },
         });
@@ -204,6 +205,7 @@ describe('PropertyGrid: editing', () => {
 
         await userEvent.clear(input);
         await userEvent.type(input, '12{Enter}');
+        await waitFor(() => expect(api.changesets).not.toHaveLength(0));
         expect(api.changesets[0].operations[0]).toMatchObject({
             changes: { count: { old: 5, new: 12 } },
         });
@@ -218,6 +220,7 @@ describe('PropertyGrid: editing', () => {
 
         await userEvent.click(screen.getByLabelText('Готово'));
 
+        await waitFor(() => expect(api.changesets).not.toHaveLength(0));
         expect(api.changesets[0].operations[0]).toMatchObject({
             changes: { done: { old: false, new: true } },
         });
@@ -233,6 +236,7 @@ describe('PropertyGrid: editing', () => {
         await userEvent.type(screen.getByLabelText('День'), '2026-03-15');
         await userEvent.tab();
 
+        await waitFor(() => expect(api.changesets).not.toHaveLength(0));
         expect(api.changesets[0].operations[0]).toMatchObject({
             changes: { day: { old: null, new: '2026-03-15' } },
         });
@@ -247,6 +251,7 @@ describe('PropertyGrid: editing', () => {
         await userEvent.type(screen.getByLabelText('Время'), '09:30');
         await userEvent.tab();
 
+        await waitFor(() => expect(api.changesets).not.toHaveLength(0));
         expect(api.changesets[0].operations[0]).toMatchObject({
             changes: { at: { old: null, new: '09:30' } },
         });
@@ -262,6 +267,7 @@ describe('PropertyGrid: editing', () => {
         await userEvent.selectOptions(select, 'Высокий');
         await userEvent.selectOptions(select, '');
 
+        await waitFor(() => expect(api.changesets).toHaveLength(2));
         expect(api.changesets.map((c) => c.operations[0])).toMatchObject([
             { changes: { prio: { old: null, new: 'high' } } },
             { changes: { prio: { old: 'high', new: null } } },
@@ -284,14 +290,15 @@ describe('PropertyGrid: editing', () => {
      * Проверяет, что отказ сервера возвращает значение и показывает причину
      */
     it('propertyGrid_serverRejection_revertsValueAndShowsReason', async () => {
-        const { api } = await renderGrid();
+        const { api, controller: data } = await renderGrid();
         api.rejectNext(400, 'Название слишком длинное');
 
         const input = screen.getByLabelText('Название');
         await userEvent.clear(input);
         await userEvent.type(input, 'Новое{Enter}');
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('Название слишком длинное');
+        // Итог правки локальный: отказ сервера приходит сводным уведомлением контроллера
+        await waitFor(() => expect(data.getSnapshot().error).toBe('Название слишком длинное'));
         expect(screen.getByLabelText('Название')).toHaveValue('Первая');
     });
 
@@ -299,12 +306,12 @@ describe('PropertyGrid: editing', () => {
      * Проверяет, что при отказе сервера флажок возвращается в прежнее положение
      */
     it('propertyGrid_serverRejection_checkboxReturnsToPreviousPosition', async () => {
-        const { api } = await renderGrid();
+        const { api, controller: data } = await renderGrid();
         api.rejectNext(400, 'Нельзя завершить');
 
         await userEvent.click(screen.getByLabelText('Готово'));
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('Нельзя завершить');
+        await waitFor(() => expect(data.getSnapshot().error).toBe('Нельзя завершить'));
         expect(screen.getByLabelText('Готово')).not.toBeChecked();
     });
 

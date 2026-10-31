@@ -8,6 +8,7 @@ using Nimrata.Core.Server.Auth;
 using Nimrata.Core.Server.Data;
 using Nimrata.Core.Server.Extensions;
 using Nimrata.Core.Server.Objects;
+using Nimrata.Core.Server.Sync;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -37,6 +38,11 @@ builder.Services.AddSingleton<ObjectsService>();
 builder.Services.AddSingleton<JournalService>();
 builder.Services.AddSingleton<TypesService>();
 builder.Services.AddSingleton<ExtensionsService>();
+builder.Services.AddOptions<SyncOptions>().BindConfiguration(SyncOptions.Section).ValidateDataAnnotations().ValidateOnStart();
+builder.Services.AddSingleton<SyncService>();
+builder.Services.AddSingleton<ChangeDispatcher>();
+builder.Services.AddSingleton<IChangeNotifier>(sp => sp.GetRequiredService<ChangeDispatcher>());
+builder.Services.AddSignalR();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -51,6 +57,20 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             RoleClaimType = System.Security.Claims.ClaimTypes.Role,
             NameClaimType = "sub",
             ClockSkew = TimeSpan.FromSeconds(30),
+        };
+        // Браузер не передаёт заголовок Authorization в WebSocket: для хаба синхронизации (и только для него)
+        // токен берётся из query access_token
+        o.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.HttpContext.Request.Path.StartsWithSegments(SyncHub.Path)
+                    && context.Request.Query["access_token"] is { Count: > 0 } token)
+                {
+                    context.Token = token;
+                }
+                return Task.CompletedTask;
+            },
         };
     });
 // Всё API закрыто по умолчанию; открытые маршруты помечаются AllowAnonymous
@@ -70,7 +90,9 @@ await app.Services.GetRequiredService<AdminSeeder>().SeedAsync();
 app.UseDefaultFiles();
 // Собранный клиент лежит в wwwroot (кладётся при публикации); раздаём его с диска, без манифеста статических ресурсов.
 // UseRouting вызывается явно после статики: иначе fallback-маршрут выбирается раньше и перекрывает файлы
-app.UseStaticFiles();
+// Заголовки кэширования: service worker и оболочка проверяются у сервера каждый раз, ассеты с хэшем — надолго
+var clientFiles = ClientCaching.CreateStaticFileOptions();
+app.UseStaticFiles(clientFiles);
 app.UseRouting();
 
 if (app.Environment.IsDevelopment())
@@ -84,6 +106,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<SyncHub>(SyncHub.Path);
 
 app.MapGet("/health", async (CancellationToken cancellationToken) =>
 {
@@ -93,7 +116,7 @@ app.MapGet("/health", async (CancellationToken cancellationToken) =>
 }).AllowAnonymous();
 
 // Неизвестные маршруты отдают клиентское приложение (клиентская маршрутизация), кроме /api: там остаётся 404
-app.MapFallbackToFile("{*path:regex(^(?!api(/|$)).*$)}", "index.html").AllowAnonymous();
+app.MapFallbackToFile("{*path:regex(^(?!api(/|$)).*$)}", "index.html", clientFiles).AllowAnonymous();
 
 app.Run();
 

@@ -51,7 +51,9 @@ function descriptor(id: string, rootType: string, log: string[]): ExtensionDescr
             return ensureCreated(data, async () =>
                 data.getChildren(null).some((o) => o.type === rootType)
                     ? { ok: true }
-                    : data.perform((tx) => void tx.create({ type: rootType, parent: null })),
+                    : data.perform((tx) => void tx.create({ type: rootType, parent: null }), {
+                          confirmed: true,
+                      }),
             );
         },
         bindings: [() => <p>привязка {id}</p>],
@@ -153,7 +155,7 @@ describe('ExtensionsProvider: initial start', () => {
             prepare: (api, log) => {
                 const realGet = api.get.bind(api);
                 api.get = (path) => {
-                    if (path === 'objects') log.push('load');
+                    if (path === 'snapshot') log.push('load');
                     return realGet(path);
                 };
             },
@@ -250,7 +252,7 @@ describe('ExtensionsProvider: switching', () => {
         log.length = 0;
         const realGet = api.get.bind(api);
         api.get = (path) => {
-            if (path === 'objects') log.push('load');
+            if (path === 'snapshot') log.push('load');
             return realGet(path);
         };
         const sent = api.changesets.length;
@@ -280,9 +282,13 @@ describe('ExtensionsProvider: switching', () => {
         const realGet = api.get.bind(api);
         let stale = true;
         api.get = (path) => {
-            if (path === 'objects' && stale) {
+            if (path === 'snapshot' && stale) {
                 stale = false;
-                return Promise.resolve([stored('rb', 'RootB')] as never);
+                return Promise.resolve({
+                    seq: 0,
+                    types: api.types,
+                    objects: [stored('rb', 'RootB')],
+                } as never);
             }
             return realGet(path);
         };

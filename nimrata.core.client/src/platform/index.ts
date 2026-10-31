@@ -5,12 +5,36 @@ export type { AuthSession, AuthState, AuthStatus } from './auth/authSession';
 export { AuthProvider } from './auth/AuthProvider';
 export { useAuth } from './auth/useAuth';
 export { useApi } from './auth/useApi';
+export { useAuthContext } from './auth/useAuthContext';
 export { LoginScreen } from './auth/LoginScreen';
 export { ResetPasswordScreen } from './auth/ResetPasswordScreen';
 export { TypesProvider } from './types/TypesProvider';
 export { useTypes } from './types/useTypes';
 export type { TypesContextValue, TypesStatus } from './types/TypesContext';
 export { createDataController } from './data/DataController';
+export {
+    SYNC_CATCHUP_DELAY_MS,
+    SYNC_MAX_OPERATIONS,
+    SYNC_OFFLINE_MESSAGE,
+    SYNC_RETRY_BASE_MS,
+    SYNC_RETRY_MAX_MS,
+    SYNC_WINDOW_MS,
+    createSyncEngine,
+} from './sync/syncEngine';
+export type { PushChanges, PushChannel, PushHandlers, SyncEngineOptions } from './sync/syncEngine';
+export { SYNC_HUB_URL, createSignalRChannel } from './sync/signalrChannel';
+export type { HubConnectionLike, SignalRChannelOptions } from './sync/signalrChannel';
+export { SyncIndicator } from './sync/SyncIndicator';
+export {
+    SYNC_STATUS_POLL_MS,
+    SYNC_STATUS_SETTLE_MS,
+    SyncStatusProvider,
+} from './sync/SyncStatusProvider';
+export type { SyncStatusProviderProps } from './sync/SyncStatusProvider';
+export type { SyncStatusValue } from './sync/SyncStatusContext';
+export { useSyncStatus } from './sync/useSyncStatus';
+export { describeSyncStatus, unsentLabel } from './sync/syncStatus';
+export type { SyncIndicatorKind, SyncStatusInput, SyncStatusView } from './sync/syncStatus';
 export type {
     ActionContext,
     ActionRegistrationOptions,
@@ -22,6 +46,7 @@ export type {
     CommandHandler,
     CommandRegistrationOptions,
     CreateInput,
+    ChangesetTransport,
     CreateResult,
     DataController,
     DataControllerOptions,
@@ -35,10 +60,29 @@ export type {
     HookResult,
     MoveInput,
     OperationOptions,
+    SyncConnection,
+    SyncLink,
+    SyncPort,
+    SyncState,
     TitleFormatter,
 } from './data/DataController';
 export { DataProvider } from './data/DataProvider';
 export { useData } from './data/useData';
+export { useDataController } from './data/useDataController';
+export { useObject } from './data/useObject';
+export { useChildren } from './data/useChildren';
+export { shallowEqual, useQuery } from './data/useQuery';
+export type { PendingChangeset, RemoteChanges, StoreChange, StoreSnapshot } from './data/dataStore';
+export {
+    OFFLINE_ADOPT_INTERVAL_MS,
+    OFFLINE_SAVE_DELAY_MS,
+    createOfflineSync,
+} from './offline/offlineSync';
+export type { OfflineSync, OfflineSyncOptions } from './offline/offlineSync';
+export { deleteOfflineDb, offlineDbName, openOfflineDb } from './offline/offlineDb';
+export type { OfflineDb, OfflineDbOptions, OfflineState } from './offline/offlineDb';
+export { createMemoryLocks, createWebLocks } from './offline/tabLocks';
+export type { LockManagerLike, TabLocks } from './offline/tabLocks';
 export { UndoControls } from './data/UndoControls';
 export { ActionDialog } from './actions/ActionDialog';
 export type { ActionDialogProps } from './actions/ActionDialog';
@@ -70,7 +114,7 @@ export { TabsProvider } from './tabs/TabsProvider';
 export { useTabs } from './tabs/useTabs';
 export { TabContainer } from './tabs/TabContainer';
 export { MainMenu } from './tabs/MainMenu';
-export { useCurrentUser } from './auth/useCurrentUser';
+export { forgetRememberedUser, rememberedUser, useCurrentUser } from './auth/useCurrentUser';
 export type { CurrentUser } from './auth/useCurrentUser';
 export { UsersTab } from './users/UsersTab';
 export { registerUsersAdmin, USERS_TAB_ID } from './users/registerUsersAdmin';
@@ -87,12 +131,17 @@ export type {
 } from './extensionApi/registry';
 export { ExtensionsProvider } from './extensionCatalog/ExtensionsProvider';
 export type { ExtensionsProviderProps } from './extensionCatalog/ExtensionsProvider';
+export type { CatalogCache } from './extensionCatalog/extensionLifecycle';
 export { registerExtensionsEditor } from './extensionCatalog/registerExtensionsEditor';
 export { ExtensionsEditor } from './extensionCatalog/ExtensionsEditor';
 export { NoExtensionsNotice } from './extensionCatalog/NoExtensionsNotice';
 export { useExtensions } from './extensionCatalog/useExtensions';
 export type { ExtensionsStatus, ExtensionsValue } from './extensionCatalog/ExtensionsContext';
-export { fetchExtensionCatalog, putExtensionConnection } from './extensionCatalog/catalog';
+export {
+    fetchExtensionCatalog,
+    isExtensionCatalog,
+    putExtensionConnection,
+} from './extensionCatalog/catalog';
 export type { ExtensionInfo } from './extensionCatalog/catalog';
 export { RevealBinding } from './extensionApi/RevealBinding';
 export { createRevealBridge } from './extensionApi/revealBridge';
@@ -142,6 +191,7 @@ export {
     Switch,
     TextArea,
     TextField,
+    Tooltip,
 } from './ui';
 export type {
     BadgeProps,
@@ -158,6 +208,8 @@ export type {
     SwitchProps,
     TextAreaProps,
     TextFieldProps,
+    TooltipAlign,
+    TooltipProps,
 } from './ui';
 export {
     SETTINGS_ROOT,

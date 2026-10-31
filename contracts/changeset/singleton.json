@@ -40,8 +40,7 @@
       ],
       "expect": {
         "ok": false,
-        "code": "singleton_exists",
-        "conflict": true
+        "code": "singleton_exists"
       }
     },
     {
@@ -113,8 +112,7 @@
       ],
       "expect": {
         "ok": false,
-        "code": "singleton_exists",
-        "conflict": true
+        "code": "singleton_exists"
       }
     },
     {
@@ -140,8 +138,7 @@
       ],
       "expect": {
         "ok": false,
-        "code": "singleton_exists",
-        "conflict": true
+        "code": "singleton_exists"
       }
     },
     {
@@ -181,8 +178,7 @@
       ],
       "expect": {
         "ok": false,
-        "code": "singleton_exists",
-        "conflict": true
+        "code": "singleton_exists"
       }
     },
     {
@@ -264,8 +260,7 @@
         }
       ],
       "expect": {
-        "ok": false,
-        "conflict": true
+        "ok": false
       }
     }
   ]

@@ -90,8 +90,8 @@ export function registerTasks(data: DataController, options: ExtensionOptions = 
 
 /**
  * Создаёт стартовую структуру Трекера задач («Задачи» с «Текущие задачи» и «Завершённые задачи»),
- * если её у пользователя ещё нет, и достраивает повторы.
- * Идемпотентна: затрагивает только свои корни; при повторном вызове, когда всё есть, ничего
+ * если её у пользователя ещё нет, и достраивает повторы;
+ * идемпотентна: затрагивает только свои корни; при повторном вызове, когда всё есть, ничего
  * не отправляет
  *
  * @param data - контроллер данных с загруженными объектами
@@ -104,15 +104,23 @@ export async function ensureTasksStart(data: DataController): Promise<ChangeResu
         const hasGroup =
             settings && data.getChildren(settings.id).some((o) => o.type === CATEGORY_TEMPLATES);
         if (hasTasks && hasGroup) return { ok: true };
-        return data.perform((tx) => {
-            if (!hasTasks) {
-                const tasks = createNode(tx, null, TASKS_ROOT);
-                createNode(tx, tasks, CURRENT_TASKS_ROOT);
-                createNode(tx, tasks, COMPLETED_TASKS_ROOT);
-            }
-            if (!hasGroup)
-                createNode(tx, ensureSettingsNode(data, tx, TASKS_SETTINGS), CATEGORY_TEMPLATES);
-        });
+        return data.perform(
+            (tx) => {
+                if (!hasTasks) {
+                    const tasks = createNode(tx, null, TASKS_ROOT);
+                    createNode(tx, tasks, CURRENT_TASKS_ROOT);
+                    createNode(tx, tasks, COMPLETED_TASKS_ROOT);
+                }
+                if (!hasGroup)
+                    createNode(
+                        tx,
+                        ensureSettingsNode(data, tx, TASKS_SETTINGS),
+                        CATEGORY_TEMPLATES,
+                    );
+                // Итог сервера нужен ensureCreated: отказ singleton_exists — «уже есть»
+            },
+            { confirmed: true },
+        );
     });
     if (!created.ok) return created;
     return ensureRepeats(data);

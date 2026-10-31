@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { Button, useData } from '@platform';
+import { Button, useDataController } from '@platform';
 
 import {
     browserNotifications,
@@ -23,12 +23,12 @@ export interface NotificationsBindingProps {
 }
 
 /**
- * Запускает службу уведомлений, пока компонент смонтирован (вкладка открыта).
- * Пока решение о разрешении не принято, показывает кнопку: запрос идёт только по её нажатию
+ * Запускает службу уведомлений, пока компонент смонтирован (вкладка открыта);
+ * пока решение о разрешении не принято, показывает кнопку: запрос идёт только по её нажатию
  * и один раз — после ответа (в том числе отказа) кнопка пропадает
  */
 export function NotificationsBinding({ browser, now, userId }: NotificationsBindingProps) {
-    const data = useData();
+    const data = useDataController();
     const api = useMemo(
         () => (browser === undefined ? browserNotifications() : browser),
         [browser],

@@ -1,15 +1,17 @@
-import { useContext, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 
-import { DataContext } from '@platform/data/DataContext';
+import { useDataController } from '@platform/data/useDataController';
 
 import type { DataController } from '@platform/data/DataController';
 
 /**
- * Контроллер данных; компонент перерисовывается при каждом изменении модели
+ * Контроллер данных; компонент перерисовывается при каждом изменении модели. Только там, где нужна
+ * вся модель: для адресного чтения — `useObject`, `useChildren`, `useQuery`
+ *
+ * @returns контроллер из ближайшего `DataProvider`
  */
 export function useData(): DataController {
-    const controller = useContext(DataContext);
-    if (!controller) throw new Error('DataProvider не найден в дереве компонентов.');
+    const controller = useDataController();
     useSyncExternalStore(controller.subscribe, controller.getSnapshot);
     return controller;
 }

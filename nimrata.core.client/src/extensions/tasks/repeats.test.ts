@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDataController } from '@platform';
-import { createFakeApi } from '@platform/data/fakeApi';
+import { createFakeApi, whenSynced } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { checkNotifications, createNotificationState } from './notifications';
@@ -360,6 +360,7 @@ describe('Tracker: repeats', () => {
         it('repeats_everyWeekdayForTaskInWeekendDay_isRejectedWithMessage', async () => {
             const { data, api } = await start();
             const task = await addTask(data, 'Субботнее', '2026-03-07');
+            await whenSynced(data);
             const posted = api.changesets.length;
 
             const result = await setRepeat(data, task, 'weekdays');
@@ -369,6 +370,7 @@ describe('Tracker: repeats', () => {
             expect(fresh(data, task).properties.repeat).toBe('none');
             expect(fresh(data, task).properties.repeatId).toBeUndefined();
             expect(series(data, 'Субботнее')).toHaveLength(1);
+            await whenSynced(data);
             expect(api.changesets).toHaveLength(posted);
         });
 
@@ -498,10 +500,12 @@ describe('Tracker: repeats', () => {
          */
         it('sync_edit_isOneChangesetAndRevertedByOneUndo', async () => {
             const { data, api } = await weekly();
+            await whenSynced(data);
             const posted = api.changesets.length;
 
             await data.setProperty(series(data, 'Планёрка')[2].id, 'priority', 'high');
 
+            await whenSynced(data);
             expect(api.changesets).toHaveLength(posted + 1);
             await data.undo();
             for (const m of series(data, 'Планёрка')) expect(m.properties.priority).toBe('low');
@@ -541,12 +545,14 @@ describe('Tracker: repeats', () => {
          */
         it('sync_serverRejection_revertsEditForWholeSet', async () => {
             const { data, api } = await weekly();
-            api.rejectNext(500, 'сбой');
+            await whenSynced(data);
+            api.rejectNext(422, 'сбой');
 
             const result = await data.setProperty(
                 series(data, 'Планёрка')[0].id,
                 'priority',
                 'high',
+                { confirmed: true },
             );
 
             expect(result.ok).toBe(false);
@@ -661,10 +667,12 @@ describe('Tracker: repeats', () => {
             const task = await addTask(data, 'Планёрка', '2026-03-04');
             await setRepeat(data, task, 'weekly');
             await setRepeat(data, fresh(data, task), 'none');
+            await whenSynced(data);
             const posted = api.changesets.length;
 
             await ensureRepeats(data);
 
+            await whenSynced(data);
             expect(api.changesets).toHaveLength(posted);
             expect(series(data, 'Планёрка')).toHaveLength(1);
         });
@@ -706,6 +714,7 @@ describe('Tracker: repeats', () => {
             await setRepeat(data, task, 'weekly');
             setNow(2026, 4, 2);
             await ensureRepeats(data);
+            await whenSynced(data);
             const posted = api.changesets.length;
             const count = series(data, 'Планёрка').length;
 
@@ -713,6 +722,7 @@ describe('Tracker: repeats', () => {
 
             expect(again.ok).toBe(true);
             expect(series(data, 'Планёрка')).toHaveLength(count);
+            await whenSynced(data);
             expect(api.changesets).toHaveLength(posted);
         });
 
@@ -723,10 +733,12 @@ describe('Tracker: repeats', () => {
             const { data, api } = await start();
             const task = await addTask(data, 'Планёрка', '2026-03-04');
             await setRepeat(data, task, 'weekly');
+            await whenSynced(data);
             const posted = api.changesets.length;
 
             await ensureRepeats(data);
 
+            await whenSynced(data);
             expect(api.changesets).toHaveLength(posted);
         });
 
@@ -778,11 +790,13 @@ describe('Tracker: repeats', () => {
         it('topUp_setWithoutIdAndTasksWithoutRepeat_areIgnored', async () => {
             const { data, api } = await start();
             await addTask(data, 'Обычная', '2026-03-04');
+            await whenSynced(data);
             const posted = api.changesets.length;
 
             const result = await ensureRepeats(data);
 
             expect(result.ok).toBe(true);
+            await whenSynced(data);
             expect(api.changesets).toHaveLength(posted);
         });
 
@@ -796,10 +810,12 @@ describe('Tracker: repeats', () => {
             await setRepeat(data, a, 'weekly');
             await setRepeat(data, b, 'weekly');
             setNow(2026, 4, 2);
+            await whenSynced(data);
             const posted = api.changesets.length;
 
             await ensureRepeats(data);
 
+            await whenSynced(data);
             expect(api.changesets).toHaveLength(posted + 1);
             expect((dates(data, 'А') as string[]).at(-1)).toBe('2026-05-27');
             expect((dates(data, 'Б') as string[]).at(-1)).toBe('2026-05-28');

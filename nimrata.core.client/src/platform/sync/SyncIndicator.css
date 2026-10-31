@@ -1,0 +1,17 @@
+/* Индикатор синхронизации в шапке: кнопка с иконкой и подписью; подсказка — компонент Tooltip. */
+.sync-indicator .sync-indicator__button {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+/* Неотправленные, офлайн и ошибка — важное, пишется основным цветом. */
+.sync-indicator.sync-indicator--unsent .sync-indicator__button,
+.sync-indicator.sync-indicator--offline .sync-indicator__button,
+.sync-indicator.sync-indicator--error .sync-indicator__button {
+    color: var(--text);
+}
+
+/* Смысл несёт подпись; цвет опасности — только у значка (контраст значка 3:1). */
+.sync-indicator.sync-indicator--error .sync-indicator__button .icon {
+    color: var(--danger);
+}

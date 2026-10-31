@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { ApiError, menuRegistry, tabRegistry, useExtensions } from '@platform';
+import { ApiError, SYNC_WINDOW_MS, menuRegistry, tabRegistry, useExtensions } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
 import { App } from './App';
@@ -66,6 +66,14 @@ function stubServer(objects: unknown[], connected = { tasks: true, notes: true }
 }
 
 /**
+ * Ожидание запуска расширений. Они запускаются по очереди и ждут подтверждения сервера
+ * (`confirmed: true`): корень «Заметок» появляется только после окна отправки и ответа на набор
+ * «Задач», второй набор уходит ещё через окно. Под нагрузкой полного прогона это дольше 1 с,
+ * которую ждут `findBy` и `waitFor` по умолчанию
+ */
+const START_TIMEOUT = { timeout: SYNC_WINDOW_MS * 20 };
+
+/**
  * Для ручной проверки переключения: вкладка-проба отдаёт наружу значение `useExtensions`
  * (интерфейс Редактора расширений — отдельный тикет)
  */
@@ -97,9 +105,13 @@ it('extensions_firstLoginWithoutRoots_createsEachExtensionStartStructureInItsOwn
     const { api } = stubServer([]);
     render(<App />);
 
-    expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
-    expect(screen.getByRole('treeitem', { name: /Задачи/ })).toBeInTheDocument();
-    expect(api.changesets).toHaveLength(2);
+    expect(
+        await screen.findByRole('treeitem', { name: /Задачи/ }, START_TIMEOUT),
+    ).toBeInTheDocument();
+    expect(
+        await screen.findByRole('treeitem', { name: /Заметки/ }, START_TIMEOUT),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(api.changesets).toHaveLength(2), START_TIMEOUT);
 });
 
 /**
@@ -130,8 +142,12 @@ it('extensions_serverRejectsStartStructure_showsErrorAndOtherExtensionStillStart
     api.rejectNext(422, 'тип "CurrentTasksRoot" нельзя разместить внутри типа "TasksRoot".');
     render(<App />);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('нельзя разместить');
-    expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
+    expect(await screen.findByRole('alert', {}, START_TIMEOUT)).toHaveTextContent(
+        'нельзя разместить',
+    );
+    expect(
+        await screen.findByRole('treeitem', { name: /Заметки/ }, START_TIMEOUT),
+    ).toBeInTheDocument();
 });
 
 /**
@@ -158,7 +174,10 @@ it('extensions_serverRejectsRepeatsTopUp_showsErrorToUser', async () => {
     api.rejectNext(422, 'сервер недоступен для достройки');
     render(<App />);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('сервер недоступен для достройки');
+    // Итог достройки локальный: отказ сервера приходит позже сводным уведомлением
+    expect(await screen.findByRole('alert', {}, { timeout: 5000 })).toHaveTextContent(
+        'сервер недоступен для достройки',
+    );
 });
 
 /**
@@ -172,7 +191,7 @@ it('extensions_tasksDisconnected_noRootsNoNotificationsAndConnectingStartsThem',
     expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     expect(screen.queryByRole('treeitem', { name: /Задачи/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Включить уведомления' })).not.toBeInTheDocument();
-    expect(api.changesets).toHaveLength(1);
+    await waitFor(() => expect(api.changesets).toHaveLength(1));
 
     await openProbe();
     await act(async () => {
@@ -192,6 +211,8 @@ it('extensions_disconnectAndReconnect_hidesAndRestoresTreeWithoutDuplicates', as
     render(<App />);
     expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     await openProbe();
+    // Стартовые структуры обоих расширений дошли до сервера
+    await waitFor(() => expect(api.changesets).toHaveLength(2));
 
     await act(async () => {
         expect(await probe.value!.setConnected('notes', false)).toEqual({ ok: true });
@@ -210,6 +231,8 @@ it('extensions_disconnectAndReconnect_hidesAndRestoresTreeWithoutDuplicates', as
 
     expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
     expect(screen.getAllByRole('treeitem', { name: /Заметки/ })).toHaveLength(1);
+    // Лишний набор ушёл бы на сервер после окна отправки
+    await act(() => new Promise((resolve) => setTimeout(resolve, SYNC_WINDOW_MS * 2)));
     expect(api.changesets).toHaveLength(sent);
 });
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDataController } from './DataController';
-import { createFakeApi } from './fakeApi';
+import { createFakeApi, whenSynced } from './fakeApi';
 
 const types = [
     { id: 'Folder', name: 'Папка', extension: 't', extensionVersion: 1 },
@@ -69,8 +69,10 @@ describe('DataController: changes through a changeset', () => {
             number: 5,
             properties: { title: 'Новая' },
         });
+        await whenSynced(data);
         expect(api.changesets).toEqual([
             {
+                id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/),
                 operations: [
                     {
                         op: 'create',
@@ -83,6 +85,20 @@ describe('DataController: changes through a changeset', () => {
                 ],
             },
         ]);
+    });
+
+    /**
+     * Проверяет, что каждый набор уходит пакетом со своим идентификатором UUIDv7
+     */
+    it('changeset_eachSubmission_hasOwnUuid7Id', async () => {
+        const { api, data } = await loaded();
+        await data.setProperty('a', 'title', 'X');
+        await data.setProperty('a', 'title', 'Y');
+        await whenSynced(data);
+        const [first, second] = api.changesets.map((c) => c.id);
+        expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/);
+        expect(second).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/);
+        expect(first).not.toBe(second);
     });
 
     /**
@@ -110,6 +126,7 @@ describe('DataController: changes through a changeset', () => {
         expect(data.getObject('a')?.properties).toEqual({ title: 'A2' });
         await data.setProperty('a', 'title', null);
         expect(data.getObject('a')?.properties).toEqual({});
+        await whenSynced(data);
         expect(api.changesets.map((c) => c.operations)).toEqual([
             [{ op: 'update', id: 'a', changes: { title: { old: 'A', new: 'A2' } } }],
             [{ op: 'update', id: 'a', changes: { title: { old: 'A2', new: null } } }],
@@ -123,6 +140,7 @@ describe('DataController: changes through a changeset', () => {
         const { api, data } = await loaded();
         await data.move('a', { parent: null, number: 7 });
         expect(data.getObject('a')).toMatchObject({ parent: null, number: 7 });
+        await whenSynced(data);
         expect(api.changesets[0].operations).toEqual([
             { op: 'move', id: 'a', parent: { old: 'root', new: null }, number: { old: 1, new: 7 } },
         ]);
@@ -134,6 +152,7 @@ describe('DataController: changes through a changeset', () => {
     it('move_orderOnly_doesNotTouchParent', async () => {
         const { api, data } = await loaded();
         await data.move('a', { number: 9 });
+        await whenSynced(data);
         expect(api.changesets[0].operations).toEqual([
             { op: 'move', id: 'a', number: { old: 1, new: 9 } },
         ]);
@@ -147,6 +166,7 @@ describe('DataController: changes through a changeset', () => {
         await data.remove('root');
         expect(data.getObject('root')).toBeUndefined();
         expect(data.getObject('a')).toBeUndefined();
+        await whenSynced(data);
         const ids = api.changesets[0].operations.map((o) => o.id);
         expect(api.changesets).toHaveLength(1);
         expect(ids.at(-1)).toBe('root');
@@ -186,11 +206,10 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
             seen ??= data.getSnapshot().error;
         });
         api.rejectNext(422, 'Операция 1: значение не подходит.');
-        const result = await data.setProperty('a', 'title', 'Плохо');
+        const result = await data.setProperty('a', 'title', 'Плохо', { confirmed: true });
         expect(result).toMatchObject({ ok: false, error: 'Операция 1: значение не подходит.' });
         expect(data.getObject('a')?.properties).toEqual({ title: 'A' });
         expect(data.getSnapshot().error).toBe('Операция 1: значение не подходит.');
-        expect(data.getSnapshot().needsReload).toBe(false);
         expect(seen).toBe('Операция 1: значение не подходит.');
     });
 
@@ -202,16 +221,18 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
         const before = JSON.stringify(data.getChildren('root'));
 
         api.rejectNext(422, 'нет');
-        const created = await data.create({ type: 'Note', parent: 'root' });
+        const created = await data.create({ type: 'Note', parent: 'root' }, { confirmed: true });
         expect(created.ok).toBe(false);
         expect(data.getChildren('root')).toHaveLength(2);
 
         api.rejectNext(422, 'нет');
         await data.move('a', { parent: null, number: 5 });
+        await whenSynced(data);
         expect(data.getObject('a')).toMatchObject({ parent: 'root', number: 1 });
 
         api.rejectNext(422, 'нет');
         await data.remove('root');
+        await whenSynced(data);
         expect(data.getObject('root')).toBeDefined();
         expect(JSON.stringify(data.getChildren('root'))).toBe(before);
     });
@@ -229,18 +250,20 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
     });
 
     /**
-     * Проверяет, что 409 из-за расхождения старого значения требует перезагрузки и блокирует правки
+     * Проверяет, что после отказа сервера правки не блокируются: следующая уходит на сервер
      */
-    it('rejection_409OldMismatch_setsReloadNeededAndBlocksEdits', async () => {
+    it('rejection_afterRequestFailure_editsAreNotBlocked', async () => {
         const { api, data } = await loaded();
-        api.rejectNext(409, 'свойство изменилось с момента загрузки');
+        api.rejectNext(409, 'сбой');
         await data.setProperty('a', 'title', 'X');
-        expect(data.getSnapshot().needsReload).toBe(true);
+        await whenSynced(data);
         expect(data.getObject('a')?.properties).toEqual({ title: 'A' });
 
-        const blocked = await data.setProperty('a', 'title', 'Z');
-        expect(blocked.ok).toBe(false);
-        expect(api.changesets).toHaveLength(0);
+        const next = await data.setProperty('a', 'title', 'Z');
+        expect(next.ok).toBe(true);
+        await whenSynced(data);
+        expect(api.changesets).toHaveLength(1);
+        expect(data.getObject('a')?.properties).toEqual({ title: 'Z' });
     });
 
     /**
@@ -249,7 +272,7 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
     it('rejection_serverRefusal_resultCarriesStatusAndCode', async () => {
         const { api, data } = await loaded();
         api.rejectNext(409, 'уже есть', 'singleton_exists');
-        const result = await data.setProperty('a', 'title', 'X');
+        const result = await data.setProperty('a', 'title', 'X', { confirmed: true });
         expect(result).toEqual({
             ok: false,
             error: 'уже есть',
@@ -259,28 +282,24 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
 
         await data.load();
         api.rejectNext(422, 'нет');
-        expect(await data.setProperty('a', 'title', 'Y')).toMatchObject({
+        expect(await data.setProperty('a', 'title', 'Y', { confirmed: true })).toMatchObject({
             ok: false,
             status: 422,
         });
     });
 
     /**
-     * Проверяет, что перезагрузка заменяет модель данными сервера и снимает признак
+     * Проверяет, что перезагрузка заменяет модель данными сервера и снимает ошибку
      */
-    it('reload_replacesModelWithServerDataAndClearsFlag', async () => {
+    it('reload_replacesModelWithServerDataAndClearsError', async () => {
         const { api, data } = await loaded();
-        api.rejectNext(409, 'расхождение');
+        api.rejectNext(422, 'нет');
         await data.setProperty('a', 'title', 'X');
         api.objects = [
-            { id: 'z', type: 'Note', parent: null, number: 0, properties: { title: 'Z' } },
+            { id: 'z', type: 'Note', parent: null, number: 1, properties: { title: 'Z' } },
         ];
         await data.load();
-        expect(data.getSnapshot()).toMatchObject({
-            status: 'ready',
-            needsReload: false,
-            error: null,
-        });
+        expect(data.getSnapshot()).toMatchObject({ status: 'ready', error: null });
         expect(data.getObject('a')).toBeUndefined();
         expect(data.getObject('z')?.properties).toEqual({ title: 'Z' });
         expect((await data.setProperty('z', 'title', 'Q')).ok).toBe(true);
@@ -292,7 +311,7 @@ describe('DataController: rejection, rollback, divergence, reload', () => {
     it('changes_areQueued_rollbackOfOneDoesNotOverwriteNext', async () => {
         const { api, data } = await loaded();
         api.rejectNext(422, 'нет');
-        const first = data.setProperty('a', 'title', 'X');
+        const first = data.setProperty('a', 'title', 'X', { confirmed: true });
         const second = data.setProperty('b', 'title', 'Y');
         expect((await first).ok).toBe(false);
         expect((await second).ok).toBe(true);
@@ -382,6 +401,7 @@ describe('DataController: default values', () => {
 
         const id = result.ok ? result.id : '';
         expect(data.getObject(id)?.properties).toEqual({ status: 'new', priority: 7 });
+        await whenSynced(data);
         expect(api.changesets[0].operations[0].properties).toEqual({ status: 'new', priority: 7 });
     });
 });

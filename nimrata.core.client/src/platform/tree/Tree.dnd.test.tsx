@@ -118,7 +118,7 @@ describe('Tree: move by dragging', () => {
 
         await waitFor(() => expect(names()).toEqual(['А', 'В', 'Б']));
         expect(['a', 'b', 'c'].map((id) => controller.getObject(id)?.number)).toEqual([1, 3, 2]);
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
     });
 
     /**
@@ -194,12 +194,13 @@ describe('Tree: move by dragging', () => {
      * Проверяет, что отказ сервера возвращает дерево и показывает сообщение
      */
     it('treeDnd_serverRejection_restoresTreeAndShowsMessage', async () => {
-        const { api } = await renderTree(scene());
+        const { api, controller } = await renderTree(scene());
         api.rejectNext(400, 'Сервер отказал');
 
         drag('Заметка', 'Папка', 12);
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('Сервер отказал');
+        // Итог переноса локальный: отказ сервера приходит сводным уведомлением контроллера
+        await waitFor(() => expect(controller.getSnapshot().error).toBe('Сервер отказал'));
         expect(names()).toEqual(['Папка', 'Группа', 'Заметка', 'Лист']);
     });
 });
@@ -218,7 +219,7 @@ describe('Tree: move by keyboard', () => {
         item('Папка').focus();
         await user.keyboard('{Alt>}{ArrowDown}{/Alt}');
         await waitFor(() => expect(names()).toEqual(['Группа', 'Папка', 'Заметка', 'Лист']));
-        expect(api.changesets).toHaveLength(1);
+        await waitFor(() => expect(api.changesets).toHaveLength(1));
 
         await user.keyboard('{Alt>}{ArrowUp}{/Alt}');
         await waitFor(() => expect(names()).toEqual(['Папка', 'Группа', 'Заметка', 'Лист']));

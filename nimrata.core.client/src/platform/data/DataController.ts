@@ -1,12 +1,18 @@
-import { ApiError } from '@platform/api/apiClient';
+import { createSyncEngine } from '@platform/sync/syncEngine';
+import type { PushChannel } from '@platform/sync/syncEngine';
 
 import { createActionRegistry } from './actionRegistry';
+import { createDataLoading } from './dataLoading';
+import { createDataStore } from './dataStore';
 import { errorMessage } from './errorMessage';
+import { createLocalQueue } from './localQueue';
+import { createUndoHistory, invertOperations } from './undoHistory';
+import { createUndoReplay } from './undoReplay';
+import { uuid7 } from './uuid7';
 
 import type { GroupLaunch } from './actionRegistry';
-import type { Operation } from './undoHistory';
-import { applyOperations, createUndoHistory, invertOperations, touchedIds } from './undoHistory';
-import { uuid7 } from './uuid7';
+import type { DataStore, LocalEdit, StoreSnapshot } from './dataStore';
+import type { HistoryEntry, Operation } from './undoHistory';
 
 import type { ApiClient } from '@platform/api/apiClient';
 import type {
@@ -43,10 +49,11 @@ export interface DataSnapshot {
     status: DataStatus;
     /** Версия модели: растёт при каждом изменении (удобно для `useSyncExternalStore`) */
     version: number;
-    /** Причина последней ошибки загрузки или отказа сервера; `null`, если всё в порядке */
+    /**
+     * Причина последней ошибки загрузки или сводное уведомление об отказе наборов (одно на
+     * применение); `null`, если всё в порядке
+     */
     error: string | null;
-    /** Данные разошлись с сервером: нужно вызвать `reload()` */
-    needsReload: boolean;
 }
 
 /**
@@ -64,6 +71,27 @@ export interface ChangeFailure {
     /** Машинный код отказа (`singleton_exists`, `extension_disabled`) */
     code?: string;
 }
+/**
+ * Итог одного набора в ответе пакетной записи `POST /api/changesets`
+ */
+export interface ChangesetResult {
+    /** Идентификатор набора, присланный клиентом */
+    id: string;
+    /** Применён, повтор уже применённого или отклонён целиком */
+    status: 'applied' | 'duplicate' | 'rejected';
+    /** Курсор набора; у отклонённого отсутствует */
+    seq?: number;
+    /**
+     * Курсор предыдущего набора того же пользователя (0 — первый); у отклонённого отсутствует;
+     * `seq` глобальный и у пользователя идёт с дырами: курсор сдвигается, только если `prevSeq` равен ему
+     */
+    prevSeq?: number;
+    /** Машинный код отказа (`singleton_exists`, `extension_disabled`) */
+    code?: string;
+    /** Причина отказа для пользователя */
+    detail?: string;
+}
+
 /**
  * Результат создания объекта: идентификатор нового объекта либо причина отказа
  */
@@ -97,10 +125,16 @@ export interface MoveInput {
  */
 export interface OperationOptions {
     /**
-     * `false` — не запускать хуки (внутренние операции: повторы, Undo).
-     * По умолчанию хуки запускаются
+     * `false` — не запускать хуки (внутренние операции: повторы, Undo);
+     * по умолчанию хуки запускаются
      */
     hooks?: boolean;
+    /**
+     * `true` — итог ждёт ответа сервера (подтверждение или отказ набора). По умолчанию итог
+     * разрешается, как только набор применён локально и встал в очередь (работает и без сети);
+     * поздний отказ сервера откатывает набор с зависимыми и показывается сводным уведомлением
+     */
+    confirmed?: boolean;
 }
 
 /**
@@ -225,25 +259,157 @@ export interface DataControllerOptions {
     api: ApiClient;
     /** Генератор идентификаторов новых объектов (по умолчанию UUIDv7) */
     newId?: () => string;
+    /**
+     * Сетевая часть: отправляет наборы очереди и пишет итоги и входящие изменения в хранилище;
+     * по умолчанию — `createSyncEngine(api)` (пакеты с окном 200 мс, повтор при сбое сети)
+     */
+    transport?: ChangesetTransport;
 }
+
+/**
+ * Вход хранилища для сетевой части (SyncEngine): очередь, итоги наборов, входящие изменения
+ */
+export type SyncPort = Pick<
+    DataStore,
+    | 'getSeq'
+    | 'pending'
+    | 'subscribePending'
+    | 'subscribeSeq'
+    | 'confirm'
+    | 'reject'
+    | 'applyRemote'
+    | 'reset'
+    | 'restoreQueue'
+    | 'confirmedSnapshot'
+>;
+
+/**
+ * Подключённая к хранилищу сетевая часть
+ */
+export interface SyncLink {
+    /**
+     * Полная загрузка (`GET /api/snapshot`) с переналожением очереди: неотправленные наборы
+     * сначала уходят на сервер, снимок кладётся в хранилище через `SyncPort.reset`. Отказ — исключением
+     */
+    resync(): Promise<void>;
+    /** Догон `GET /api/changes?since=<курсор>`; при ответе `resync` — полная загрузка */
+    catchUp(): Promise<void>;
+    /** Отправить неотправленные наборы сейчас, не дожидаясь окна и задержки повтора */
+    kick(): void;
+    /**
+     * Подключает push-канал: после каждого соединения — догон и отправка очереди, сообщения
+     * `changes` применяются, `resync` — полная загрузка. Возвращает отключение канала
+     */
+    connect(channel: PushChannel): () => void;
+    /**
+     * Приостанавливает отправку очереди (например, пока открыто предупреждение о выходе): новых
+     * запросов `POST /api/changesets` нет, push и догон работают. Разрешается, когда завершится
+     * уже идущий запрос, — после этого очередь не меняется отправкой. Возвращает возобновление
+     */
+    pause(): Promise<() => void>;
+    /** Отключает сетевую часть: таймеры, push-соединение, поздние ответы игнорируются */
+    dispose(): void;
+    /** Состояние связи с сервером по итогу последнего запроса или события push-соединения */
+    getState(): SyncState;
+    /** Подписка на смену состояния связи; возвращает отписку */
+    subscribeState(listener: () => void): () => void;
+    /**
+     * Подписка на полную загрузку по сигналу сервера (`resync` push или ответ догона): вызывается
+     * после того, как снимок лёг в хранилище. Своя загрузка (`resync()`, `load`) не сообщается;
+     * возвращает отписку
+     */
+    onResync(listener: () => void): () => void;
+}
+
+/**
+ * Связь с сервером: `online` — последний запрос удался (или запросов ещё не было), `offline` —
+ * нет сети (запрос не дошёл, push-соединение оборвано), `error` — сервер ответил сбоем
+ */
+export type SyncConnection = 'online' | 'offline' | 'error';
+
+/**
+ * Состояние сетевой части для индикатора синхронизации
+ */
+export interface SyncState {
+    /** Связь с сервером */
+    connection: SyncConnection;
+    /** Текст последней ошибки (`offline`, `error`); `null` — ошибки нет */
+    error: string | null;
+}
+
+/**
+ * Сетевая часть контроллера: подключается к хранилищу
+ */
+export type ChangesetTransport = (port: SyncPort) => SyncLink;
 
 /**
  * Контроллер данных: модель типов и объектов, изменения, хуки, действия и отмена
  */
 export interface DataController {
-    /** Загружает типы и объекты пользователя, заменяя модель */
+    /**
+     * Загружает снимок сервера (`GET /api/snapshot`: курсор, типы, объекты) через сетевую часть:
+     * подтверждённый слой заменяется, очередь неотправленных накладывается сверху
+     */
     load(): Promise<void>;
+    /**
+     * Старт из кэша (офлайн): снимок кладётся в подтверждённый слой, очередь накладывается сверху,
+     * модель сразу готова. Сеть не трогается — затем вызывают `catchUp`
+     */
+    startFromCache(snapshot: StoreSnapshot): void;
+    /**
+     * Догон изменений сервера после курсора (`GET /api/changes`); после него push применяется;
+     * без сети отказывает исключением, модель остаётся как была
+     */
+    catchUp(): Promise<void>;
+    /** Отправить неотправленные наборы сейчас (сеть вернулась), не дожидаясь задержки повтора */
+    kick(): void;
+    /**
+     * Освобождает контроллер (выход, истёкший вход): сетевая часть останавливается — таймеры,
+     * push, поздние ответы; локальная модель остаётся читаемой
+     */
+    dispose(): void;
+    /**
+     * Подписка на сводные уведомления об отказах наборов (отказ сервера с каскадом, отбрасывание
+     * при переналожении): итоги действий локальные, поэтому поздний отказ приходит только сюда
+     * (и в `DataSnapshot.error`)
+     */
+    onNotice(listener: (message: string) => void): () => void;
     /** Текущий снимок состояния модели */
     getSnapshot(): DataSnapshot;
-    /** Подписка на изменения модели; возвращает функцию отписки */
+    /** Подписка на любые изменения модели; возвращает функцию отписки */
     subscribe(listener: () => void): () => void;
+    /** Подписка на изменения одного объекта (в том числе появление и удаление) */
+    subscribeObject(id: string, listener: () => void): () => void;
+    /** Подписка на изменения детей родителя (`null` — корень): состав, порядок, сами дети */
+    subscribeChildren(parent: string | null, listener: () => void): () => void;
     /** Тип по идентификатору */
     getType(id: string): TypeDefinition | undefined;
     /** Все загруженные типы */
     getTypes(): TypeDefinition[];
     getObject(id: string): DataObject | undefined;
-    /** Потомки родителя по возрастанию номера; `null` — корневые объекты */
-    getChildren(parent: string | null): DataObject[];
+    /**
+     * Потомки родителя по возрастанию номера; `null` — корневые объекты. Ссылка на список
+     * сохраняется, пока дети не изменились
+     */
+    getChildren(parent: string | null): readonly DataObject[];
+    /** Вход хранилища для сетевой части: очередь, итоги наборов и входящие изменения */
+    readonly sync: SyncPort;
+    /** Подключает push-канал к сетевой части (SignalR в приложении); возвращает отключение */
+    connectPush(channel: PushChannel): () => void;
+    /**
+     * Приостанавливает отправку очереди на сервер (`SyncLink.pause`); разрешается после
+     * завершения идущего запроса и возвращает возобновление
+     */
+    pauseSync(): Promise<() => void>;
+    /** Состояние связи сетевой части с сервером (индикатор синхронизации) */
+    getSyncState(): SyncState;
+    /** Подписка на смену состояния связи; возвращает отписку */
+    subscribeSyncState(listener: () => void): () => void;
+    /**
+     * Подписка на полную загрузку по сигналу сервера (например, расширение подключили в другой
+     * вкладке): вызывается после того, как новый снимок лёг в модель. Возвращает отписку
+     */
+    onResync(listener: () => void): () => void;
     /** Создаёт объект (одно действие — один набор изменений) */
     create(input: CreateInput, options?: OperationOptions): Promise<CreateResult>;
     /** Меняет свойство; `null` удаляет значение */
@@ -256,7 +422,11 @@ export interface DataController {
     move(id: string, to: MoveInput, options?: OperationOptions): Promise<ChangeResult>;
     /** Удаляет объект вместе с потомками одним набором */
     remove(id: string, options?: OperationOptions): Promise<ChangeResult>;
-    /** Отменяет последнее действие (обратным набором, без хуков); при отказе сервера стек не меняется */
+    /**
+     * Отменяет последнее действие (обратным набором, без хуков); при отказе сервера стек не меняется;
+     * если текущие значения уже не те, что ставило действие (их изменили в другом месте), отмена
+     * отклоняется с уведомлением, а запись убирается из стека
+     */
     undo(): Promise<ChangeResult>;
     /** Повторяет последнее отменённое действие (без хуков) */
     redo(): Promise<ChangeResult>;
@@ -271,8 +441,8 @@ export interface DataController {
         options?: OperationOptions,
     ): Promise<ChangeResult>;
     /**
-     * Регистрирует хук операции для объектов типа `type` (`'*'` — любой тип).
-     * Хуки одного вида вызываются в порядке регистрации. Возвращает функцию отписки
+     * Регистрирует хук операции для объектов типа `type` (`'*'` — любой тип);
+     * хуки одного вида вызываются в порядке регистрации. Возвращает функцию отписки
      */
     registerHook(
         type: string,
@@ -317,8 +487,8 @@ export interface DataController {
      */
     groupLaunch(objectIds: readonly string[], action: ActionDefinition): GroupLaunch;
     /**
-     * Привязывает обработчик к команде расширения `id` (описана в `commands` манифеста).
-     * Повторная регистрация того же `id` заменяет обработчик. Возвращает функцию отписки
+     * Привязывает обработчик к команде расширения `id` (описана в `commands` манифеста);
+     * повторная регистрация того же `id` заменяет обработчик. Возвращает функцию отписки
      */
     registerCommand(
         id: string,
@@ -398,68 +568,60 @@ interface HookEntry {
 }
 
 /**
- * Создаёт контроллер данных
- *
- * @param options - API-клиент и генератор идентификаторов
- * @returns контроллер с пустой моделью; данные загружает `load`
- */
-/**
  * Номер для нового объекта среди соседей: максимальный плюс 1, а в пустой коллекции — 1
+ *
+ * @param siblings - соседи нового объекта
+ * @returns номер нового объекта
  */
 function nextNumber(siblings: readonly DataObject[]): number {
     return siblings.reduce((max, o) => Math.max(max, o.number), 0) + 1;
 }
 
+/**
+ * Создаёт контроллер данных
+ *
+ * @param options - API-клиент, генератор идентификаторов и сетевая часть
+ * @returns контроллер с пустой моделью; данные загружает `load`
+ */
 export function createDataController(options: DataControllerOptions): DataController {
     const { api } = options;
 
-    let types = new Map<string, TypeDefinition>();
-    let objects = new Map<string, DataObject>();
-    let snapshot: DataSnapshot = { status: 'idle', version: 0, error: null, needsReload: false };
+    const store = createDataStore();
+    let snapshot: DataSnapshot = { status: 'idle', version: 0, error: null };
     const listeners = new Set<() => void>();
     const hookEntries: HookEntry[] = [];
     const titleFormatters = new Map<string, TitleFormatter>();
-    // Индекс «родитель → потомки по порядку»: строится по требованию, сбрасывается при любом
-    // изменении модели (в том числе внутри набора, между его операциями)
-    let childrenIndex: Map<string | null, DataObject[]> | null = null;
 
+    /**
+     * Обновляет снимок состояния и уведомляет подписчиков
+     *
+     * @param patch - изменённые поля снимка
+     * @param model - изменилась ли модель (растёт версия)
+     */
     function publish(patch: Partial<DataSnapshot>, model = true) {
         snapshot = { ...snapshot, ...patch, version: snapshot.version + (model ? 1 : 0) };
-        childrenIndex = null;
         for (const listener of [...listeners]) listener();
     }
+    store.subscribe(() => publish({}));
+    store.onNotice((message) => publish({ error: message }, false));
 
-    function putObject(object: DataObject) {
-        objects.set(object.id, object);
-        childrenIndex = null;
-    }
-
-    function dropObject(id: string) {
-        objects.delete(id);
-        childrenIndex = null;
-    }
-
-    function getChildren(parent: string | null, exclude?: string): DataObject[] {
-        if (!childrenIndex) {
-            const index = new Map<string | null, DataObject[]>();
-            for (const o of objects.values()) {
-                const list = index.get(o.parent);
-                if (list) list.push(o);
-                else index.set(o.parent, [o]);
-            }
-            for (const list of index.values()) {
-                list.sort((a, b) => a.number - b.number || (a.id < b.id ? -1 : 1));
-            }
-            childrenIndex = index;
-        }
-        const list = childrenIndex.get(parent) ?? [];
-        return exclude === undefined ? [...list] : list.filter((o) => o.id !== exclude);
-    }
+    const getChildren = (parent: string | null) => store.getChildren(parent);
 
     const newId = options.newId ?? uuid7;
     const history = createUndoHistory();
-    // Наборы выполняются строго по очереди, чтобы откат одного не затирал соседние
-    let queue: Promise<unknown> = Promise.resolve();
+    const link = (options.transport ?? createSyncEngine(api))(store);
+    const enqueueLocal = createLocalQueue();
+    const undoReplay = createUndoReplay({
+        store,
+        history,
+        enqueueLocal,
+        reportError(error) {
+            if (error === null) snapshot = { ...snapshot, error: null };
+            else publish({ error }, false);
+        },
+        notify: () => publish({}, false),
+    });
+    const loading = createDataLoading({ store, link, history, publish });
 
     function descendantsFirst(id: string): string[] {
         const result: string[] = [];
@@ -472,17 +634,10 @@ export function createDataController(options: DataControllerOptions): DataContro
         return { ...object, properties: { ...object.properties } };
     }
 
-    function touch(scope: Scope, id: string) {
+    function touch(scope: Scope, edit: LocalEdit, id: string) {
         if (scope.before.has(id)) return;
-        const o = objects.get(id);
+        const o = edit.get(id);
         scope.before.set(id, o && snapshotOf(o));
-    }
-
-    function rollback(scope: Scope) {
-        for (const [id, o] of scope.before) {
-            if (o) putObject(o);
-            else dropObject(id);
-        }
     }
 
     function refuse(scope: Scope, error: string): { ok: false; error: string } {
@@ -527,15 +682,15 @@ export function createDataController(options: DataControllerOptions): DataContro
         }
     }
 
-    function makeScope(hooks: boolean): { scope: Scope; tx: ChangeScope } {
+    function makeScope(hooks: boolean, edit: LocalEdit): { scope: Scope; tx: ChangeScope } {
         const scope: Scope = { operations: [], before: new Map(), hooks, depth: 0, error: null };
 
         const tx: ChangeScope = {
             create(input) {
-                const type = types.get(input.type);
+                const type = store.getType(input.type);
                 if (!type) return refuse(scope, `Тип "${input.type}" неизвестен.`);
                 const parent = input.parent ?? null;
-                if (parent !== null && !objects.has(parent)) {
+                if (parent !== null && !edit.get(parent)) {
                     return refuse(scope, 'Родитель не найден.');
                 }
                 const id = newId();
@@ -552,8 +707,8 @@ export function createDataController(options: DataControllerOptions): DataContro
                 const cancelled = runHooks(scope, tx, 'create', 'before', { object });
                 if (cancelled !== null) return refuse(scope, cancelled);
 
-                touch(scope, id);
-                putObject(object);
+                touch(scope, edit, id);
+                edit.put(object);
                 scope.operations.push({
                     op: 'create',
                     id,
@@ -570,7 +725,7 @@ export function createDataController(options: DataControllerOptions): DataContro
             },
 
             setProperty(id, property, value) {
-                const object = objects.get(id);
+                const object = edit.get(id);
                 if (!object) return refuse(scope, 'Объект не найден.');
                 const oldValue = object.properties[property] ?? null;
                 const newValue = value ?? null;
@@ -580,13 +735,13 @@ export function createDataController(options: DataControllerOptions): DataContro
                 if (cancelled !== null) return refuse(scope, cancelled);
 
                 // Хук «до» мог изменить объект: берём актуальную версию
-                const current = objects.get(id);
+                const current = edit.get(id);
                 if (!current) return refuse(scope, 'Объект не найден.');
-                touch(scope, id);
+                touch(scope, edit, id);
                 const properties = { ...current.properties };
                 if (newValue === null) delete properties[property];
                 else properties[property] = newValue;
-                putObject({ ...current, properties });
+                edit.put({ ...current, properties });
                 scope.operations.push({
                     op: 'update',
                     id,
@@ -595,21 +750,21 @@ export function createDataController(options: DataControllerOptions): DataContro
 
                 const failed = runHooks(scope, tx, 'setProperty', 'after', {
                     ...context,
-                    object: snapshotOf(objects.get(id) ?? current),
+                    object: snapshotOf(edit.get(id) ?? current),
                 });
                 return failed !== null ? refuse(scope, failed) : { ok: true };
             },
 
             move(id, to) {
-                const object = objects.get(id);
+                const object = edit.get(id);
                 if (!object) return refuse(scope, 'Объект не найден.');
                 const parent = to.parent === undefined ? object.parent : to.parent;
                 if (parent !== null) {
-                    if (!objects.has(parent)) return refuse(scope, 'Родитель не найден.');
+                    if (!edit.get(parent)) return refuse(scope, 'Родитель не найден.');
                     for (
                         let p: string | null = parent;
                         p !== null;
-                        p = objects.get(p)?.parent ?? null
+                        p = edit.get(p)?.parent ?? null
                     ) {
                         if (p === id) {
                             return refuse(
@@ -630,34 +785,34 @@ export function createDataController(options: DataControllerOptions): DataContro
                 const cancelled = runHooks(scope, tx, 'move', 'before', context);
                 if (cancelled !== null) return refuse(scope, cancelled);
 
-                const current = objects.get(id);
+                const current = edit.get(id);
                 if (!current) return refuse(scope, 'Объект не найден.');
                 const operation: Extract<Operation, { op: 'move' }> = { op: 'move', id };
                 if (parent !== from.parent) operation.parent = { old: from.parent, new: parent };
                 if (number !== from.number) operation.number = { old: from.number, new: number };
-                touch(scope, id);
-                putObject({ ...current, parent, number });
+                touch(scope, edit, id);
+                edit.put({ ...current, parent, number });
                 scope.operations.push(operation);
 
                 const failed = runHooks(scope, tx, 'move', 'after', {
                     ...context,
-                    object: snapshotOf(objects.get(id) ?? current),
+                    object: snapshotOf(edit.get(id) ?? current),
                 });
                 return failed !== null ? refuse(scope, failed) : { ok: true };
             },
 
             remove(id) {
-                const object = objects.get(id);
+                const object = edit.get(id);
                 if (!object) return refuse(scope, 'Объект не найден.');
                 const removed = snapshotOf(object);
 
                 const cancelled = runHooks(scope, tx, 'remove', 'before', { object: removed });
                 if (cancelled !== null) return refuse(scope, cancelled);
 
-                if (!objects.has(id)) return refuse(scope, 'Объект не найден.');
+                if (!edit.get(id)) return refuse(scope, 'Объект не найден.');
                 for (const x of descendantsFirst(id)) {
-                    touch(scope, x);
-                    dropObject(x);
+                    touch(scope, edit, x);
+                    edit.drop(x);
                     scope.operations.push({ op: 'delete', id: x });
                 }
 
@@ -669,100 +824,46 @@ export function createDataController(options: DataControllerOptions): DataContro
     }
 
     /**
-     * Выполняет набор: локально применяет операции, отправляет их на сервер одним запросом;
-     * при отказе (в том числе вложенной операции или сервера) возвращает модель как была
+     * Выполняет набор: локально применяет операции и ставит набор в очередь хранилища (видно
+     * сразу); итог — подтверждение или отказ сервера. При локальном отказе (в том числе вложенной
+     * операции) модель возвращается как была, при отказе сервера набор откатывает хранилище
      */
     function execute(
         run: (tx: ChangeScope, scope: Scope) => void | Promise<void>,
         opts: OperationOptions | undefined,
     ): Promise<ChangeResult> {
-        const step = async (): Promise<ChangeResult> => {
-            if (snapshot.needsReload) {
-                return { ok: false, error: 'Данные разошлись с сервером: перезагрузите данные.' };
-            }
-            const { scope, tx } = makeScope(opts?.hooks !== false);
+        return enqueueLocal(async () => {
+            const edit = store.beginLocal();
+            const { scope, tx } = makeScope(opts?.hooks !== false, edit);
             try {
                 await run(tx, scope);
             } catch (error) {
                 scope.error ??= errorMessage(error);
             }
             if (scope.error !== null) {
-                const touched = scope.before.size > 0;
-                rollback(scope);
-                if (touched) publish({});
-                return { ok: false, error: scope.error };
+                edit.abort();
+                return { result: { ok: false, error: scope.error } };
             }
-            if (scope.operations.length === 0) return { ok: true };
-
-            publish({ error: null });
-            try {
-                await api.post('changesets', { operations: scope.operations });
-                history.record({
-                    forward: scope.operations,
-                    inverse: invertOperations(scope.operations, scope.before),
-                });
-                publish({}, false);
-                return { ok: true };
-            } catch (error) {
-                rollback(scope);
-                publish({
-                    error: errorMessage(error),
-                    needsReload: error instanceof ApiError && error.status === 409,
-                });
-                return error instanceof ApiError
-                    ? { ok: false, error: error.message, status: error.status, code: error.code }
-                    : { ok: false, error: errorMessage(error) };
+            if (scope.operations.length === 0) {
+                edit.commit([]);
+                return { result: { ok: true } };
             }
-        };
-        const result = queue.then(step);
-        queue = result;
-        return result;
-    }
-
-    /**
-     * Отмена и повтор: применяют сохранённый набор напрямую к модели, минуя `makeScope`,
-     * поэтому хуки не вызываются; идут через ту же очередь. При отказе стек остаётся прежним
-     */
-    function replay(kind: 'undo' | 'redo'): Promise<ChangeResult> {
-        const step = async (): Promise<ChangeResult> => {
-            if (snapshot.needsReload) {
-                return { ok: false, error: 'Данные разошлись с сервером: перезагрузите данные.' };
-            }
-            const entry = kind === 'undo' ? history.peekUndo() : history.peekRedo();
-            if (!entry) {
-                return {
-                    ok: false,
-                    error: kind === 'undo' ? 'Нечего отменять.' : 'Нечего повторять.',
-                };
-            }
-            const operations = kind === 'undo' ? entry.inverse : entry.forward;
-            const before = new Map(
-                touchedIds(operations).map((id) => {
-                    const o = objects.get(id);
-                    return [id, o && snapshotOf(o)] as const;
-                }),
-            );
-            applyOperations(objects, operations);
-            publish({ error: null });
-            const verb = kind === 'undo' ? 'отменить' : 'повторить';
-            try {
-                await api.post('changesets', { operations });
-                if (kind === 'undo') history.markUndone();
-                else history.markRedone();
-                publish({}, false);
-                return { ok: true };
-            } catch (error) {
-                for (const [id, o] of before) {
-                    if (o) putObject(o);
-                    else dropObject(id);
+            const entry: HistoryEntry = {
+                forward: scope.operations,
+                inverse: invertOperations(scope.operations, scope.before),
+            };
+            history.record(entry);
+            snapshot = { ...snapshot, error: null };
+            const { outcome } = edit.commit(scope.operations);
+            const settled = outcome.then((result) => {
+                if (!result.ok) {
+                    history.discard(entry);
+                    publish({}, false);
                 }
-                publish({ error: errorMessage(error) });
-                return { ok: false, error: `Не удалось ${verb}: ${errorMessage(error)}` };
-            }
-        };
-        const result = queue.then(step);
-        queue = result;
-        return result;
+                return result;
+            });
+            return opts?.confirmed ? { outcome: settled } : { result: { ok: true } };
+        });
     }
 
     function registerHook(
@@ -792,29 +893,20 @@ export function createDataController(options: DataControllerOptions): DataContro
 
     const registry = createActionRegistry({
         reader: {
-            getObject: (id) => objects.get(id),
-            getType: (id) => types.get(id),
+            getObject: (id) => store.getObject(id),
+            getType: (id) => store.getType(id),
             getTitle,
         },
         execute,
     });
 
     return {
-        async load() {
-            publish({ status: 'loading', error: null }, false);
-            try {
-                const [loadedTypes, loadedObjects] = await Promise.all([
-                    api.get<TypeDefinition[]>('types'),
-                    api.get<DataObject[]>('objects'),
-                ]);
-                types = new Map(loadedTypes.map((t) => [t.id, t]));
-                objects = new Map(loadedObjects.map((o) => [o.id, { ...o }]));
-                history.clear();
-                publish({ status: 'ready', error: null, needsReload: false });
-            } catch (error) {
-                publish({ status: 'error', error: errorMessage(error) }, false);
-            }
-        },
+        load: loading.load,
+        startFromCache: loading.startFromCache,
+        catchUp: () => link.catchUp(),
+        kick: () => link.kick(),
+        dispose: () => link.dispose(),
+        onNotice: (listener) => store.onNotice(listener),
         getSnapshot: () => snapshot,
         subscribe(listener) {
             listeners.add(listener);
@@ -822,10 +914,18 @@ export function createDataController(options: DataControllerOptions): DataContro
                 listeners.delete(listener);
             };
         },
-        getType: (id) => types.get(id),
-        getTypes: () => [...types.values()],
-        getObject: (id) => objects.get(id),
-        getChildren: (parent) => getChildren(parent),
+        subscribeObject: (id, listener) => store.subscribeObject(id, listener),
+        subscribeChildren: (parent, listener) => store.subscribeChildren(parent, listener),
+        getType: (id) => store.getType(id),
+        getTypes: () => store.getTypes(),
+        getObject: (id) => store.getObject(id),
+        getChildren,
+        sync: store,
+        connectPush: (channel) => link.connect(channel),
+        pauseSync: () => link.pause(),
+        getSyncState: () => link.getState(),
+        subscribeSyncState: (listener) => link.subscribeState(listener),
+        onResync: (listener) => link.onResync(listener),
         async create(input, opts) {
             let created: CreateResult = { ok: false, error: 'Объект не создан.' };
             const result = await execute((tx) => {
@@ -837,10 +937,10 @@ export function createDataController(options: DataControllerOptions): DataContro
             execute((tx) => void tx.setProperty(id, property, value), opts),
         move: (id, to, opts) => execute((tx) => void tx.move(id, to), opts),
         remove: (id, opts) => execute((tx) => void tx.remove(id), opts),
-        undo: () => replay('undo'),
-        redo: () => replay('redo'),
-        canUndo: () => history.canUndo(),
-        canRedo: () => history.canRedo(),
+        undo: undoReplay.undo,
+        redo: undoReplay.redo,
+        canUndo: undoReplay.canUndo,
+        canRedo: undoReplay.canRedo,
         perform: (run, opts) => execute((tx) => run(tx), opts),
         registerHook,
         registerTitle,

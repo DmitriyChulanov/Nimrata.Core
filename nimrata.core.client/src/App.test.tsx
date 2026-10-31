@@ -130,8 +130,8 @@ it('app_afterLogin_showsThreePanelsAndSelectedObjectInProperties', async () => {
             .fn()
             .mockImplementation((url: string) =>
                 Promise.resolve(
-                    url === '/api/types'
-                        ? jsonResponse(types)
+                    url === '/api/snapshot'
+                        ? jsonResponse({ seq: 0, types, objects })
                         : url === '/api/objects'
                           ? jsonResponse(objects)
                           : url === '/api/extensions'
@@ -179,11 +179,13 @@ it('app_platformTabAndMenuItem_workWithoutExtensionsAndRoleHidesItems', async ()
             .fn()
             .mockImplementation((url: string) =>
                 Promise.resolve(
-                    url === '/api/types' || url === '/api/objects' || url === '/api/extensions'
-                        ? jsonResponse([])
-                        : url === '/api/auth/me'
-                          ? jsonResponse({ id: 'u1', email: 'a@b.test', isAdmin: false })
-                          : jsonResponse({ accessToken: 'tok' }),
+                    url === '/api/snapshot'
+                        ? jsonResponse({ seq: 0, types: [], objects: [] })
+                        : url === '/api/objects' || url === '/api/extensions'
+                          ? jsonResponse([])
+                          : url === '/api/auth/me'
+                            ? jsonResponse({ id: 'u1', email: 'a@b.test', isAdmin: false })
+                            : jsonResponse({ accessToken: 'tok' }),
                 ),
             ),
     );
@@ -205,14 +207,13 @@ function stubSession(isAdmin: boolean) {
             .fn()
             .mockImplementation((url: string) =>
                 Promise.resolve(
-                    url === '/api/types' ||
-                        url === '/api/objects' ||
-                        url === '/api/admin/users' ||
-                        url === '/api/extensions'
-                        ? jsonResponse([])
-                        : url === '/api/auth/me'
-                          ? jsonResponse({ id: 'u1', email: 'a@b.test', isAdmin })
-                          : jsonResponse({ accessToken: 'tok' }),
+                    url === '/api/snapshot'
+                        ? jsonResponse({ seq: 0, types: [], objects: [] })
+                        : url === '/api/admin/users' || url === '/api/extensions'
+                          ? jsonResponse([])
+                          : url === '/api/auth/me'
+                            ? jsonResponse({ id: 'u1', email: 'a@b.test', isAdmin })
+                            : jsonResponse({ accessToken: 'tok' }),
                 ),
             ),
     );

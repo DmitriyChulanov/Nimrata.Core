@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDataController, ICON_REGISTRY } from '@platform';
 import { PALETTE_COLORS } from '@platform/tree/colorRules';
-import { createFakeApi } from '@platform/data/fakeApi';
+import { createFakeApi, whenSynced } from '@platform/data/fakeApi';
 
 import manifest from './manifest.json';
 import { ensureNotesStart, registerNotes } from './notesExtension';
@@ -41,6 +41,7 @@ describe('Notes: start structure', () => {
         const result = await ensureNotesStart(data);
 
         expect(result.ok).toBe(true);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
         expect(data.getChildren(null).map((o) => o.type)).toEqual(['NotesRoot']);
         expect(data.getChildren(byType(data, 'NotesRoot').id).map((o) => o.type)).toEqual([
@@ -60,6 +61,7 @@ describe('Notes: start structure', () => {
         const result = await ensureNotesStart(data);
 
         expect(result.ok).toBe(true);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
         expect(data.getChildren('n').map((o) => o.type)).toEqual([
             'ActiveNotesRoot',
@@ -81,6 +83,7 @@ describe('Notes: start structure', () => {
         const afterReload = await ensureNotesStart(data);
 
         expect(again.ok && afterReload.ok).toBe(true);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
         expect(data.getChildren(null)).toHaveLength(1);
         expect(data.getChildren(notesRoot.id)).toHaveLength(2);
@@ -91,6 +94,7 @@ describe('Notes: start structure', () => {
      */
     it('startStructure_serverRejects_returnsReasonAndCreatesNothing', async () => {
         const { api, data } = await start();
+        await whenSynced(data);
         api.rejectNext(400, 'нельзя');
 
         const result = await ensureNotesStart(data);
@@ -115,22 +119,26 @@ describe('Notes: start structure under race', () => {
         const result = await ensureNotesStart(data);
 
         expect(result.ok).toBe(true);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(0);
         expect(data.getChildren(null).map((o) => o.id)).toEqual(['n']);
     });
 
     /**
-     * Проверяет, что 409 без кода перезагружает данные и повторяет создание один раз
+     * Проверяет, что отказ сервера возвращается без повтора, а следующий запуск создаёт структуру
      */
-    it('startStructure_conflictWithoutCode_reloadsAndRetriesOnce', async () => {
+    it('startStructure_serverRejection_returnedWithoutRetryAndNextStartCreates', async () => {
         const { api, data } = await start();
-        api.rejectNext(409, 'расхождение');
+        await whenSynced(data);
+        api.rejectNext(422, 'сбой');
 
-        const result = await ensureNotesStart(data);
+        expect((await ensureNotesStart(data)).ok).toBe(false);
+        await whenSynced(data);
+        expect(api.changesets).toHaveLength(0);
 
-        expect(result.ok).toBe(true);
+        expect((await ensureNotesStart(data)).ok).toBe(true);
+        await whenSynced(data);
         expect(api.changesets).toHaveLength(1);
-        expect(data.getChildren(null).map((o) => o.type)).toEqual(['NotesRoot']);
     });
 });
 
@@ -343,9 +351,11 @@ describe('Notes: behavior', () => {
             const work = await group(notesId, 'Работа');
             await data.runAction(work.id, 'createNote', { name: 'Идея' });
             const note = childByName(work.id, 'Идея')!;
+            await whenSynced(data);
             const before = api.changesets.length;
 
             await data.runAction(note.id, 'complete');
+            await whenSynced(data);
             expect(api.changesets).toHaveLength(before + 1);
 
             await data.undo();

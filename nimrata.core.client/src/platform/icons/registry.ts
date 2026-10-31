@@ -22,6 +22,10 @@ import {
     Circle,
     Clipboard,
     Clock,
+    CloudArrowUp,
+    CloudCheck,
+    CloudSlash,
+    CloudWarning,
     Copy,
     Crosshair,
     Database,
@@ -81,9 +85,9 @@ export interface IconDefinition {
 }
 
 /**
- * Реестр иконок платформы: имя в kebab-case → компонент и вес.
- * Типы расширений ссылаются на иконку только этим именем (имена стабильны и хранятся в БД).
- * Новая иконка добавляется сюда.
+ * Реестр иконок платформы: имя в kebab-case → компонент и вес;
+ * типы расширений ссылаются на иконку только этим именем (имена стабильны и хранятся в БД);
+ * новая иконка добавляется сюда
  */
 export const ICON_REGISTRY = {
     archive: { component: Archive, weight: 'fill' },
@@ -109,6 +113,10 @@ export const ICON_REGISTRY = {
     'circle-help': { component: Question, weight: 'fill' },
     clipboard: { component: Clipboard, weight: 'fill' },
     clock: { component: Clock, weight: 'fill' },
+    'cloud-arrow-up': { component: CloudArrowUp, weight: 'fill' },
+    'cloud-check': { component: CloudCheck, weight: 'fill' },
+    'cloud-slash': { component: CloudSlash, weight: 'fill' },
+    'cloud-warning': { component: CloudWarning, weight: 'fill' },
     copy: { component: Copy, weight: 'fill' },
     crosshair: { component: Crosshair, weight: 'fill' },
     database: { component: Database, weight: 'fill' },

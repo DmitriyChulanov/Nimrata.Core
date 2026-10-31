@@ -126,8 +126,8 @@ export function registerNotes(data: DataController, options: ExtensionOptions = 
 }
 
 /**
- * Создаёт корень «Заметки» с «Активными» и «Завершёнными», если их у пользователя ещё нет.
- * Идемпотентна: достраивает только недостающее; когда всё есть, ничего не отправляет
+ * Создаёт корень «Заметки» с «Активными» и «Завершёнными», если их у пользователя ещё нет;
+ * идемпотентна: достраивает только недостающее; когда всё есть, ничего не отправляет
  *
  * @param data - контроллер данных с загруженными объектами
  * @returns результат; при отказе — причина
@@ -140,10 +140,14 @@ export function ensureNotesStart(data: DataController): Promise<ChangeResult> {
             (type) => !children.some((o) => o.type === type),
         );
         if (existing && missing.length === 0) return { ok: true };
-        return data.perform((tx) => {
-            const root = existing?.id ?? createNode(tx, null, NOTES_ROOT);
-            for (const type of missing) createNode(tx, root, type);
-        });
+        return data.perform(
+            (tx) => {
+                const root = existing?.id ?? createNode(tx, null, NOTES_ROOT);
+                for (const type of missing) createNode(tx, root, type);
+                // Итог сервера нужен ensureCreated: отказ singleton_exists — «уже есть»
+            },
+            { confirmed: true },
+        );
     });
 }
 

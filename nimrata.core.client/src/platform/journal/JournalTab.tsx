@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+
 import { useApi } from '@platform/auth/useApi';
 import { useData } from '@platform/data/useData';
 import { objectLabel } from '@platform/objectQueries/objectQueries';
@@ -9,13 +11,15 @@ import { JournalView } from './JournalView';
 import type { JournalResolver } from './journal';
 
 /**
- * Вкладка «Журнал»: следит за выделением в дереве
+ * Вкладка «Журнал»: следит за выделением в дереве и перечитывает первую страницу при сдвиге
+ * курсора синхронизации (свои и чужие наборы)
  */
 export function JournalTab() {
     const api = useApi();
     const data = useData();
     const { getType } = useTypes();
     const { selectedId } = useSelection();
+    const cursor = useSyncExternalStore(data.sync.subscribeSeq, data.sync.getSeq);
 
     // Resolver читает актуальную модель; useData перерисовывает вкладку при её изменении
     const resolver: JournalResolver = {
@@ -34,5 +38,5 @@ export function JournalTab() {
         objectTypeId: (id) => data.getObject(id)?.type ?? null,
     };
 
-    return <JournalView api={api} selectedId={selectedId} resolver={resolver} />;
+    return <JournalView api={api} selectedId={selectedId} resolver={resolver} cursor={cursor} />;
 }

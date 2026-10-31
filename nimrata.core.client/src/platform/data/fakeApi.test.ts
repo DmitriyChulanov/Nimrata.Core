@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createFakeApi } from './fakeApi';
+import { createFakeApi, postChangeset } from './fakeApi';
 
 const types = [
     { id: 'Root', name: 'Корень', allowedChildren: ['Leaf'] },
@@ -26,9 +26,9 @@ describe('fakeApi: parent allowance like on the server', () => {
      */
     it('fakeApi_typeFromAllowedChildrenAndAnyTypeAtRoot_isAccepted', async () => {
         const api = createFakeApi(types);
-        await api.post('changesets', {
-            operations: [create('r', 'Root', null), create('l', 'Leaf', 'r')],
-        });
+        expect(
+            await postChangeset(api, [create('r', 'Root', null), create('l', 'Leaf', 'r')]),
+        ).toMatchObject({ status: 'applied' });
         expect(api.changesets).toHaveLength(1);
     });
 
@@ -37,11 +37,9 @@ describe('fakeApi: parent allowance like on the server', () => {
      */
     it('fakeApi_emptyAllowedChildren_forbidsAnyChildren422', async () => {
         const api = createFakeApi(types);
-        await expect(
-            api.post('changesets', {
-                operations: [create('l', 'Leaf', null), create('x', 'Leaf', 'l')],
-            }),
-        ).rejects.toMatchObject({ status: 422 });
+        expect(
+            await postChangeset(api, [create('l', 'Leaf', null), create('x', 'Leaf', 'l')]),
+        ).toMatchObject({ status: 'rejected' });
         expect(api.changesets).toHaveLength(0);
     });
 
@@ -50,14 +48,12 @@ describe('fakeApi: parent allowance like on the server', () => {
      */
     it('fakeApi_typeOutsideList_isRejectedAndMissingFieldDoesNotRestrict', async () => {
         const api = createFakeApi(types);
-        await expect(
-            api.post('changesets', {
-                operations: [create('r', 'Root', null), create('f', 'Free', 'r')],
-            }),
-        ).rejects.toMatchObject({ status: 422 });
-        await api.post('changesets', {
-            operations: [create('f', 'Free', null), create('r', 'Root', 'f')],
-        });
+        expect(
+            await postChangeset(api, [create('r', 'Root', null), create('f', 'Free', 'r')]),
+        ).toMatchObject({ status: 'rejected' });
+        expect(
+            await postChangeset(api, [create('f', 'Free', null), create('r', 'Root', 'f')]),
+        ).toMatchObject({ status: 'applied' });
         expect(api.changesets).toHaveLength(1);
     });
 
@@ -68,11 +64,11 @@ describe('fakeApi: parent allowance like on the server', () => {
         const api = createFakeApi(types, [
             { id: 'l', type: 'Leaf', parent: null, number: 1, properties: {} },
         ]);
-        await api.post('changesets', { operations: [create('f', 'Free', null)] });
-        await expect(
-            api.post('changesets', {
-                operations: [{ op: 'move', id: 'f', parent: { old: null, new: 'l' } }],
-            }),
-        ).rejects.toMatchObject({ status: 422 });
+        expect(await postChangeset(api, [create('f', 'Free', null)])).toMatchObject({
+            status: 'applied',
+        });
+        expect(
+            await postChangeset(api, [{ op: 'move', id: 'f', parent: { old: null, new: 'l' } }]),
+        ).toMatchObject({ status: 'rejected' });
     });
 });

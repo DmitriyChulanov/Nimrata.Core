@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { useObject } from '@platform/data/useObject';
 import { Icon } from '@platform/icons/Icon';
 import { objectLabel } from '@platform/objectQueries/objectQueries';
 import { useSelection } from '@platform/selection/useSelection';
@@ -137,7 +138,8 @@ export function ReferenceEditor({
     const [picking, setPicking] = useState(false);
 
     const id = !mixed && typeof value === 'string' && value !== '' ? value : null;
-    const target = id ? data.getObject(id) : undefined;
+    // Подписка на цель: её переименование обновляет подпись, даже если таблица не перерисовывалась
+    const target = useObject(id);
     const text = mixed
         ? 'Различны'
         : !id

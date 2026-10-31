@@ -93,14 +93,13 @@ describe('DataController: refusals before execution', () => {
     });
 
     /**
-     * Проверяет, что при расхождении с сервером отказ запуска остаётся прежним, без текста про перезагрузку
+     * Проверяет, что после отказа сервера отказ запуска остаётся прежним, без постороннего текста
      */
-    it('runAction_refusalWhenNeedsReload_keepsOwnReason', async () => {
+    it('runAction_refusalAfterServerRejection_keepsOwnReason', async () => {
         const { api, data } = await setup();
         data.registerAction('Item', 'ask', () => {});
         api.rejectNext(409, 'Конфликт');
         await data.setProperty('a', 'name', 'Новое');
-        expect(data.getSnapshot().needsReload).toBe(true);
 
         expect(await data.runAction('zzz', 'mark')).toEqual({
             ok: false,

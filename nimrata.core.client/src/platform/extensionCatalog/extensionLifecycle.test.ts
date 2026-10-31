@@ -37,10 +37,22 @@ function deferred<T = void>() {
 /** Контроллер данных с управляемой загрузкой */
 function fakeController(load: () => Promise<void> = async () => {}) {
     let snapshot = { status: 'ready', error: null as string | null };
+    const resyncListeners = new Set<() => void>();
     return {
         load: vi.fn(async () => {
             await load();
         }),
+        onResync(listener: () => void) {
+            resyncListeners.add(listener);
+            return () => void resyncListeners.delete(listener);
+        },
+        /** Сервер прислал `resync` (подключение расширения сменили в другой вкладке) */
+        serverResync() {
+            for (const listener of [...resyncListeners]) listener();
+        },
+        get resyncListenerCount() {
+            return resyncListeners.size;
+        },
         getSnapshot: () => snapshot,
         setSnapshot(next: { status: string; error: string | null }) {
             snapshot = next;
@@ -315,5 +327,140 @@ describe('подписка', () => {
         expect(lifecycle.getState()).toMatchObject({ status: 'loading', error: null });
         await run;
         expect(lifecycle.getState().status).toBe('ready');
+    });
+});
+
+describe('офлайн: кэш каталога и данных', () => {
+    /**
+     * Проверяет старт без сети: каталог берётся из кэша, данные уже из кэша — вместо полной
+     * загрузки догон (его отказ не ошибка), расширения регистрируются и запускаются
+     */
+    it('initialize_offlineWithCache_usesCachedCatalogAndCatchUpInsteadOfLoad', async () => {
+        fetchCatalog.mockRejectedValue(new TypeError('Failed to fetch'));
+        const controller = {
+            ...fakeController(),
+            catchUp: vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
+        };
+        const registry = createExtensionRegistry();
+        const log: string[] = [];
+        registry.register({
+            id: 'a',
+            register: () => () => undefined,
+            ensureStart: async () => {
+                log.push('start:a');
+                return { ok: true };
+            },
+        });
+        const lifecycle = createExtensionLifecycle({
+            api: {} as ApiClient,
+            controller: controller as unknown as DataController,
+            registry,
+            cached: true,
+            catalogCache: { read: async () => [info('a', true)], write: vi.fn() },
+        });
+
+        await lifecycle.initialize();
+
+        expect(lifecycle.getState()).toMatchObject({ status: 'ready', error: null });
+        expect([...lifecycle.getState().activeIds]).toEqual(['a']);
+        expect(controller.load).not.toHaveBeenCalled();
+        expect(controller.catchUp).toHaveBeenCalled();
+        expect(log).toEqual(['start:a']);
+    });
+
+    /**
+     * Проверяет, что загруженный с сервера каталог сохраняется в кэш
+     */
+    it('initialize_catalogFetched_isWrittenToCache', async () => {
+        fetchCatalog.mockResolvedValue([info('a', true)]);
+        const write = vi.fn();
+        const lifecycle = createExtensionLifecycle({
+            api: {} as ApiClient,
+            controller: fakeController() as unknown as DataController,
+            registry: createExtensionRegistry(),
+            catalogCache: { read: async () => undefined, write },
+        });
+
+        await lifecycle.initialize();
+
+        expect(write).toHaveBeenCalledWith([info('a', true)]);
+    });
+
+    /**
+     * Проверяет, что без сети и без кэша каталога остаётся ошибка
+     */
+    it('initialize_offlineWithoutCachedCatalog_isError', async () => {
+        fetchCatalog.mockRejectedValue(new Error('сбой'));
+        const lifecycle = createExtensionLifecycle({
+            api: {} as ApiClient,
+            controller: fakeController() as unknown as DataController,
+            registry: createExtensionRegistry(),
+            catalogCache: { read: async () => undefined, write: vi.fn() },
+        });
+
+        await lifecycle.initialize();
+
+        expect(lifecycle.getState()).toMatchObject({ status: 'error', error: 'сбой' });
+    });
+});
+
+/**
+ * Полная загрузка по сигналу сервера: подключение расширения сменили в другой вкладке
+ */
+describe('resync', () => {
+    /**
+     * Проверяет, что после `resync` каталог перечитывается, регистрации приводятся к нему,
+     * новое подключённое расширение запускается, а выделение недоступного сбрасывается
+     */
+    it('serverResync_connectionChangedElsewhere_refreshesCatalogAndRegistrations', async () => {
+        fetchCatalog.mockResolvedValueOnce([info('a', true), info('b', false)]);
+        const { lifecycle, controller, log, onDataReloaded } = setup();
+        await lifecycle.initialize();
+        log.length = 0;
+        fetchCatalog.mockResolvedValueOnce([info('a', false), info('b', true)]);
+
+        controller.serverResync();
+        await vi.waitFor(() => expect(log).toContain('start:b'));
+
+        expect(log).toEqual(['unregister:a', 'register:b', 'start:b']);
+        expect([...lifecycle.getState().activeIds]).toEqual(['b']);
+        expect(lifecycle.getState().catalog.find((e) => e.id === 'b')?.connected).toBe(true);
+        expect(onDataReloaded).toHaveBeenCalledTimes(1);
+        expect(controller.load).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * Проверяет, что `resync` без смены подключений ничего не перерегистрирует и не запускает
+     */
+    it('serverResync_nothingChanged_keepsRegistrations', async () => {
+        fetchCatalog.mockResolvedValue([info('a', true)]);
+        const { lifecycle, controller, log } = setup();
+        await lifecycle.initialize();
+        log.length = 0;
+
+        controller.serverResync();
+        await vi.waitFor(() => expect(fetchCatalog).toHaveBeenCalledTimes(2));
+
+        expect(log).toEqual([]);
+        expect(lifecycle.getState().status).toBe('ready');
+    });
+
+    /**
+     * Проверяет, что без сети каталог остаётся прежним, а после dispose сигнал не слушается
+     */
+    it('serverResync_catalogFailsOrDisposed_keepsState', async () => {
+        fetchCatalog.mockResolvedValueOnce([info('a', true)]);
+        const { lifecycle, controller, log } = setup();
+        await lifecycle.initialize();
+        fetchCatalog.mockRejectedValueOnce(new Error('нет сети'));
+
+        controller.serverResync();
+        await vi.waitFor(() => expect(fetchCatalog).toHaveBeenCalledTimes(2));
+        lifecycle.dispose();
+
+        expect([...lifecycle.getState().activeIds]).toEqual(['a']);
+        expect(lifecycle.getState().error).toBeNull();
+        expect(controller.resyncListenerCount).toBe(0);
+        expect(log).toEqual(['register:a', 'start:a', 'unregister:a']);
     });
 });

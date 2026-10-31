@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Nimrata.Core.Server.Auth;
 using Nimrata.Core.Server.Controllers.Responses;
 using Npgsql;
+using static Nimrata.Core.Server.Tests.ChangesetApi;
 
 namespace Nimrata.Core.Server.Tests;
 
@@ -138,16 +139,15 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
     /// <summary>
     /// Отправляет набор изменений
     /// </summary>
-    private static Task<HttpResponseMessage> Apply(HttpClient client, params object[] operations) =>
-        client.PostAsJsonAsync("/api/changesets", new { operations });
+    private static Task<ChangesetOutcome> Apply(HttpClient client, params object[] operations) =>
+        ChangesetApi.ApplyAsync(client, operations);
 
     /// <summary>
     /// Применяет набор и проверяет успех
     /// </summary>
     private static async Task ApplyOk(HttpClient client, params object[] operations)
     {
-        var response = await Apply(client, operations);
-        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        AssertApplied(await Apply(client, operations));
     }
 
     /// <summary>
@@ -177,18 +177,6 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
     /// </summary>
     private static Guid[] JournalObjects(JsonElement page) =>
         page.GetProperty("items").EnumerateArray().Select(e => e.GetProperty("objectId").GetGuid()).ToArray();
-
-    /// <summary>
-    /// Проверяет отказ с кодом статуса, фрагментом причины и стабильным кодом
-    /// </summary>
-    private static async Task AssertRejected(
-        HttpResponseMessage response, HttpStatusCode status, string substring, string code)
-    {
-        Assert.Equal(status, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Contains(substring, body.GetProperty("detail").GetString());
-        Assert.Equal(code, body.GetProperty("code").GetString());
-    }
 
     /// <summary>
     /// Запрос SQL к базе теста
@@ -248,7 +236,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
             name = "Открыть X", extension = "alpha", command = "alphaRun", @params = "{}",
         }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
     }
 
     /// <summary>
@@ -267,7 +255,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
         await ApplyOk(_me, Create(settings, "SettingsRoot"), Create(Guid.CreateVersion7(), "AlphaItem", settings));
         var second = await Apply(_me, Create(Guid.CreateVersion7(), "SettingsRoot"));
 
-        await AssertRejected(second, HttpStatusCode.Conflict, "уже есть", "singleton_exists");
+        AssertRejected(second, "уже есть", "singleton_exists");
     }
 
     /// <summary>
@@ -438,7 +426,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
 
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "BetaItem"));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "Расширение отключено", "extension_disabled");
+        AssertRejected(response, "Расширение отключено", "extension_disabled");
     }
 
     /// <summary>
@@ -456,9 +444,9 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
         var move = await Apply(_me, new { op = "move", id = item, number = new { old = 1, @new = 2 } });
         var delete = await Apply(_me, new { op = "delete", id = item });
 
-        await AssertRejected(update, HttpStatusCode.UnprocessableEntity, "Расширение отключено", "extension_disabled");
-        await AssertRejected(move, HttpStatusCode.UnprocessableEntity, "Расширение отключено", "extension_disabled");
-        await AssertRejected(delete, HttpStatusCode.UnprocessableEntity, "Расширение отключено", "extension_disabled");
+        AssertRejected(update, "Расширение отключено", "extension_disabled");
+        AssertRejected(move, "Расширение отключено", "extension_disabled");
+        AssertRejected(delete, "Расширение отключено", "extension_disabled");
         await Connect(_me, "alpha", true);
         Assert.Contains(item, await LoadIds(_me));
     }
@@ -475,7 +463,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
 
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "PlatformItem", root));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "Расширение отключено", "extension_disabled");
+        AssertRejected(response, "Расширение отключено", "extension_disabled");
     }
 
     /// <summary>
@@ -491,7 +479,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
         var response = await Apply(_me,
             new { op = "move", id = platform, parent = new { old = (Guid?)null, @new = root } });
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "Расширение отключено", "extension_disabled");
+        AssertRejected(response, "Расширение отключено", "extension_disabled");
     }
 
     /// <summary>
@@ -504,7 +492,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
 
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "PlatformItem"));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
     }
 
     /// <summary>
@@ -517,7 +505,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
 
         var response = await Apply(_me, Create(a, "AlphaItem"), Create(b, "BetaItem"));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
         Assert.Equivalent(new[] { a, b }, await LoadIds(_me));
     }
 
@@ -532,7 +520,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
 
         var response = await Apply(_me, Create(a, "AlphaItem"), Create(b, "BetaItem"));
 
-        await AssertRejected(response, HttpStatusCode.UnprocessableEntity, "Операция 2: Расширение отключено", "extension_disabled");
+        AssertRejected(response, "Операция 2: Расширение отключено", "extension_disabled");
         Assert.Empty(await LoadIds(_me));
         Assert.Equal(0, await Scalar<long>("select count(*) from changesets"));
     }
@@ -550,7 +538,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
 
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "AlphaRoot", group));
 
-        await AssertRejected(response, HttpStatusCode.Conflict, "уже есть", "singleton_exists");
+        AssertRejected(response, "уже есть", "singleton_exists");
     }
 
     /// <summary>
@@ -563,7 +551,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
 
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "AlphaRoot"));
 
-        await AssertRejected(response, HttpStatusCode.Conflict, "уже есть", "singleton_exists");
+        AssertRejected(response, "уже есть", "singleton_exists");
     }
 
     /// <summary>
@@ -575,7 +563,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
         var response = await Apply(_me,
             Create(Guid.CreateVersion7(), "AlphaRoot"), Create(Guid.CreateVersion7(), "AlphaRoot"));
 
-        await AssertRejected(response, HttpStatusCode.Conflict, "Операция 2", "singleton_exists");
+        AssertRejected(response, "Операция 2", "singleton_exists");
         Assert.Empty(await LoadIds(_me));
     }
 
@@ -591,7 +579,7 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
 
         var response = await Apply(_me, new { op = "move", id = movable, parent = new { old = (Guid?)null, @new = group } });
 
-        await AssertRejected(response, HttpStatusCode.Conflict, "уже есть", "singleton_exists");
+        AssertRejected(response, "уже есть", "singleton_exists");
         Assert.Equal(0, await Scalar<long>(
             "select count(*) from objects where id = @movable and parent_id is not null", new { movable }));
     }
@@ -608,8 +596,8 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
         var toGroup = await Apply(_me, new { op = "move", id = root, parent = new { old = (Guid?)null, @new = group } });
         var reorder = await Apply(_me, new { op = "move", id = root, number = new { old = 1, @new = 5 } });
 
-        Assert.Equal(HttpStatusCode.OK, toGroup.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, reorder.StatusCode);
+        AssertApplied(toGroup);
+        AssertApplied(reorder);
     }
 
     /// <summary>
@@ -625,8 +613,8 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
         var otherParent = await Apply(_me, Create(Guid.CreateVersion7(), "AlphaRoot", otherGroup));
         var otherOwner = await Apply(_other, Create(Guid.CreateVersion7(), "AlphaRoot", null));
 
-        Assert.Equal(HttpStatusCode.OK, otherParent.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, otherOwner.StatusCode);
+        AssertApplied(otherParent);
+        AssertApplied(otherOwner);
     }
 
     /// <summary>
@@ -639,11 +627,11 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
 
         var response = await Apply(_me, Create(Guid.CreateVersion7(), "AlphaItem"));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertApplied(response);
     }
 
     /// <summary>
-    /// Проверяет, что код singleton отличает отказ от занятого идентификатора (тоже 409)
+    /// Проверяет, что код singleton отличает отказ от занятого идентификатора объекта
     /// </summary>
     [Fact]
     public async Task Changeset_DuplicateId_HasNoSingletonCode()
@@ -653,10 +641,8 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
 
         var response = await Apply(_me, Create(id, "AlphaItem"));
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.False(body.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.String
-            && code.GetString() == "singleton_exists");
+        AssertRejected(response, "занят");
+        Assert.NotEqual("singleton_exists", response.Code);
     }
 
     /// <summary>

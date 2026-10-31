@@ -93,8 +93,7 @@ public sealed class JournalTests(ServerFactory factory) : IClassFixture<ServerFa
     /// <returns>Задача применения</returns>
     private static async Task Apply(HttpClient client, params object[] operations)
     {
-        var response = await client.PostAsJsonAsync("/api/changesets", new { operations = operations });
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        ChangesetApi.AssertApplied(await ChangesetApi.ApplyAsync(client, operations));
     }
 
     /// <summary>

@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { useActionLauncher } from '@platform/actions/useActionLauncher';
-import { useData } from '@platform/data/useData';
+import { useDataController } from '@platform/data/useDataController';
+import { useQuery } from '@platform/data/useQuery';
 import { useSelection } from '@platform/selection/useSelection';
 import { Button } from '@platform/ui';
 
@@ -308,12 +309,43 @@ function ActionRow({
 }
 
 /**
+ * То, от чего зависит отрисовка таблицы: выделенные объекты (ссылки), их название и доступность
+ * общих действий. Таблица перерисовывается, только когда что-то из этого меняется
+ *
+ * @param data - контроллер данных
+ * @param selectedId - основной выделенный объект
+ * @param selectedIds - все выделенные объекты
+ * @returns список для поверхностного сравнения
+ */
+function gridDependencies(
+    data: DataController,
+    selectedId: string | null,
+    selectedIds: readonly string[],
+): unknown[] {
+    const object = selectedId ? data.getObject(selectedId) : undefined;
+    if (!object) return [];
+    const group = selectedIds.flatMap((id) => data.getObject(id) ?? []);
+    const objects = group.some((o) => o.id === object.id) ? group : [object];
+    const actions = data
+        .getGroupActions(
+            objects.map((o) => o.id),
+            'propertyGrid',
+        )
+        .map(({ action, unavailable }) => `${action.id}:${unavailable ?? ''}`)
+        .join('|');
+    return [...objects, actions, data.getTitle(object) ?? ''];
+}
+
+/**
  * Таблица свойств выделенных объектов: сквозной порядок свойств и действий, категории, редакторы
  * по виду свойства. Для группы показаны общие свойства и действия; правка и запуск применяются ко всем
  */
 export function PropertyGrid() {
-    const data = useData();
+    const data = useDataController();
     const { selectedId, selectedIds, nameEditRequest, finishNameEdit } = useSelection();
+    // Подписка на выделенные объекты и на то, что таблица показывает о них помимо значений:
+    // название и доступность действий. Правки остальной модели таблицу не перерисовывают
+    useQuery((d) => gridDependencies(d, selectedId, selectedIds), [selectedId, selectedIds]);
     const [error, setError] = useState<string | null>(null);
     const launcher = useActionLauncher();
     // Запрос на правку «Имени» исполняется один раз: после фокуса он снимается

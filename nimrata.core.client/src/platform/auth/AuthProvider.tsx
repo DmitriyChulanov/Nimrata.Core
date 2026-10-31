@@ -8,7 +8,8 @@ import type { ReactNode } from 'react';
 import type { AuthContextValue } from '@platform/auth/AuthContext';
 
 /**
- * Создаёт сессию входа и API-клиента и раздаёт их потомкам; при загрузке пробует восстановить сессию
+ * Создаёт сессию входа и API-клиента и раздаёт их потомкам; при загрузке пробует восстановить
+ * сессию, а в состоянии «офлайн» — обновить её, когда вернётся сеть
  *
  * @param props - дочерние элементы, которым нужна авторизация
  * @returns контекст авторизации вокруг потомков
@@ -26,6 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         void value.session.restore();
+    }, [value]);
+
+    // Сеть вернулась, а вход не проверен («офлайн»): обновляем — сервер решит, действителен ли он
+    useEffect(() => {
+        const onOnline = () => {
+            if (value.session.getState().status === 'offline') void value.session.refresh();
+        };
+        window.addEventListener('online', onOnline);
+        return () => window.removeEventListener('online', onOnline);
     }, [value]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

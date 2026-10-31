@@ -8,13 +8,10 @@ import type { ChangeResult, DataController } from '../data/DataController';
 export const SINGLETON_EXISTS = 'singleton_exists';
 
 /**
- * Обвязка для `ensureStart` расширения: создание стартовой структуры устойчиво к устаревшим
- * данным и гонке с другой вкладкой.
+ * Обвязка для `ensureStart` расширения: создание стартовой структуры устойчиво к гонке с другой вкладкой
  *
- * - Если модель помечена «нужна перезагрузка», данные сначала загружаются заново.
- * - Отказ `singleton_exists` значит «объект уже есть»: данные перезагружаются, результат успешный.
- * - Прочий 409 без кода (расхождение «было») — данные перезагружаются и попытка повторяется один раз.
- * - Остальные отказы возвращаются как есть
+ * - Отказ `singleton_exists` значит «объект уже есть»: данные перезагружаются, результат успешный;
+ * - Остальные отказы возвращаются как есть: «было» сервер не сверяет (LWW), поэтому повтора нет
  *
  * @param data - контроллер данных
  * @param attempt - попытка создания: смотрит в текущую модель, создаёт недостающее
@@ -25,17 +22,7 @@ export async function ensureCreated(
     data: DataController,
     attempt: () => Promise<ChangeResult>,
 ): Promise<ChangeResult> {
-    if (data.getSnapshot().needsReload) {
-        const fresh = await reloadData(data);
-        if (!fresh.ok) return fresh;
-    }
-
-    let result = await attempt();
-    if (!result.ok && result.status === 409 && !result.code) {
-        const fresh = await reloadData(data);
-        if (!fresh.ok) return fresh;
-        result = await attempt();
-    }
+    const result = await attempt();
     if (!result.ok && result.code === SINGLETON_EXISTS) return reloadData(data);
     return result;
 }
