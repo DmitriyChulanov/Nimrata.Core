@@ -1,0 +1,42 @@
+/* Подсказка при наведении и фокусе: под элементом, без перехвата указателя. */
+.tooltip {
+    position: relative;
+    display: inline-flex;
+}
+
+.tooltip .tooltip__content {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    z-index: 20;
+    display: none;
+    width: max-content;
+    max-width: var(--tooltip-max-width);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-normal);
+    line-height: var(--leading-normal);
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    pointer-events: none;
+}
+
+.tooltip.tooltip--end .tooltip__content {
+    right: 0;
+}
+
+.tooltip.tooltip--start .tooltip__content {
+    left: 0;
+}
+
+.tooltip:hover .tooltip__content,
+.tooltip:focus-within .tooltip__content {
+    display: block;
+}
+
+/* Скрыта по Esc до ухода указателя или фокуса. */
+.tooltip.tooltip--dismissed .tooltip__content {
+    display: none;
+}

@@ -17,6 +17,30 @@ const changeset = (id: string): PendingChangeset => ({
 });
 
 /**
+ * Пишет значение в хранилище базы пользователя `u1` в обход обёртки (испорченные данные)
+ *
+ * @param indexedDB - фабрика IndexedDB теста
+ * @param store - хранилище: `meta` или `queues`
+ * @param value - записываемое значение
+ * @param key - ключ для `meta`; у `queues` ключ — поле `tabId`
+ * @returns разрешается после записи
+ */
+async function putRaw(indexedDB: IDBFactory, store: string, value: unknown, key?: string) {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('nimrata:u1', 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error ?? new Error('open'));
+    });
+    await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).put(value, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error('put'));
+    });
+    db.close();
+}
+
+/**
  * Обёртка над IndexedDB: база пользователя со снимком, курсором и очередями вкладок
  */
 describe('offlineDb', () => {
@@ -109,6 +133,40 @@ describe('offlineDb', () => {
         await db.writeValue('catalog', [{ id: 'tasks', connected: true }]);
 
         expect(await db.readValue('catalog')).toEqual([{ id: 'tasks', connected: true }]);
+        db.close();
+    });
+
+    /**
+     * Проверяет, что испорченный снимок в базе считается отсутствующим, а новый снимок пишется поверх
+     */
+    it('readSnapshot_invalidStoredValue_treatedAsCacheMiss', async () => {
+        const indexedDB = new IDBFactory();
+        const db = await openOfflineDb('u1', { indexedDB });
+        await putRaw(indexedDB, 'meta', { seq: 99, objects: 'broken' }, 'snapshot');
+
+        expect(await db.readSnapshot()).toBeUndefined();
+        await db.save('tab1', { snapshot: snapshot(1), queue: [] });
+        expect(await db.readSnapshot()).toEqual(snapshot(1));
+        db.close();
+    });
+
+    /**
+     * Проверяет, что испорченная запись очереди пропускается при чтении и убирается при подхвате
+     */
+    it('queues_invalidRecord_skippedAndDroppedOnAdopt', async () => {
+        const indexedDB = new IDBFactory();
+        const db = await openOfflineDb('u1', { indexedDB });
+        await db.save('tab1', { queue: [changeset('c1')] });
+        await putRaw(indexedDB, 'queues', { tabId: 'bad', changesets: [{ id: 1 }] });
+
+        expect(await db.readQueues()).toEqual(new Map([['tab1', [changeset('c1')]]]));
+        expect(await db.adoptQueue('bad', 'tab1')).toEqual([]);
+
+        await putRaw(indexedDB, 'queues', { tabId: 'tab2', changesets: [changeset('c2')] });
+        expect(await db.adoptQueue('tab2', 'tab1')).toEqual([changeset('c2')]);
+        expect(await db.readQueues()).toEqual(
+            new Map([['tab1', [changeset('c1'), changeset('c2')]]]),
+        );
         db.close();
     });
 

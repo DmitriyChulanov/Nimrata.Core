@@ -85,7 +85,7 @@ describe('dataStore: two layers', () => {
         const store = loaded();
         const { outcome } = edit(store, [rename('a', 'A', 'X')]);
 
-        store.confirm('cs1', 11);
+        store.confirm('cs1', 11, 10);
 
         expect(await outcome).toEqual({ ok: true });
         expect(store.pending()).toEqual([]);
@@ -94,14 +94,31 @@ describe('dataStore: two layers', () => {
     });
 
     /**
-     * Проверяет, что подтверждение с пропуском курсора не сдвигает курсор (между ними есть чужие наборы)
+     * Проверяет, что подтверждение, у которого предыдущий набор пользователя новее курсора, не сдвигает
+     * курсор: между ними есть наборы других вкладок
      */
-    it('confirm_gapInSeq_keepsCursor', () => {
+    it('confirm_prevSeqAheadOfCursor_keepsCursor', () => {
         const store = loaded();
         edit(store, [rename('a', 'A', 'X')]);
-        store.confirm('cs1', 15);
+        store.confirm('cs1', 15, 12);
         expect(store.getSeq()).toBe(10);
         expect(store.getObject('a')?.properties.name).toBe('X');
+    });
+
+    /**
+     * Проверяет, что подтверждение сдвигает курсор через дыру в глобальном `seq`, если предыдущий набор
+     * пользователя — текущий курсор (между ними только наборы других пользователей)
+     */
+    it('confirm_prevSeqEqualsCursor_advancesOverGlobalGap', () => {
+        const store = loaded();
+        edit(store, [rename('a', 'A', 'X')]);
+        edit(store, [rename('a', 'X', 'Y')]);
+
+        store.confirm('cs1', 15, 10);
+        store.confirm('cs2', 23, 15);
+
+        expect(store.getSeq()).toBe(23);
+        expect(store.pending()).toEqual([]);
     });
 
     /**
@@ -255,7 +272,7 @@ describe('dataStore: rejection and cascade', () => {
      */
     it('confirmOrReject_unknownChangeset_isIgnored', () => {
         const store = loaded();
-        store.confirm('nope', 11);
+        store.confirm('nope', 11, 10);
         store.reject('nope', { error: 'x' });
         expect(store.getSeq()).toBe(10);
         expect(store.getObject('a')?.properties.name).toBe('A');
@@ -335,7 +352,7 @@ describe('dataStore: addressed notifications', () => {
         store.subscribe((change) => calls.push(...change.ids));
         store.subscribeObject('a', () => calls.push('object a'));
 
-        store.confirm('cs1', 11);
+        store.confirm('cs1', 11, 10);
         store.applyRemote({ toSeq: 12, changesetIds: ['x'], upserts: [], deletes: [] });
 
         expect(calls).toEqual([]);
@@ -383,7 +400,7 @@ describe('dataStore: reset and cursor', () => {
         expect(store.getConfirmedObject('a')?.properties.name).toBe('A2');
         expect(store.getObject('b')).toBeUndefined();
         expect(store.getChildren('root').map((o) => o.id)).toEqual(['a', 'c']);
-        store.confirm('cs1', 21);
+        store.confirm('cs1', 21, 20);
         await expect(outcome).resolves.toEqual({ ok: true });
     });
 
@@ -414,7 +431,7 @@ describe('dataStore: reset and cursor', () => {
         store.subscribeSeq(() => seen.push(store.getSeq()));
         edit(store, [rename('a', 'A', 'X')]);
 
-        store.confirm('cs1', 11);
+        store.confirm('cs1', 11, 10);
         store.applyRemote({ toSeq: 11, changesetIds: [], upserts: [], deletes: [] });
         store.applyRemote({ toSeq: 15, changesetIds: ['x'], upserts: [], deletes: [] });
         store.reset({ seq: 30, types, objects: [] });
@@ -497,7 +514,7 @@ describe('dataStore: restored queue', () => {
         // Видимая модель — подтверждённый слой: неприменимый набор не накладывается
         expect(store.getObject('n')?.properties.name).toBe('Later');
 
-        store.confirm('saved1', 11);
+        store.confirm('saved1', 11, 10);
 
         expect(store.pending()).toEqual([]);
         expect(store.getConfirmedObject('n')?.properties.name).toBe('Later');
@@ -541,7 +558,7 @@ describe('dataStore: restored queue', () => {
             changesetIds: [],
         });
 
-        store.confirm('cs1', 11);
+        store.confirm('cs1', 11, 10);
 
         expect(store.getConfirmedObject('a')?.properties.name).toBe('Z');
         expect(store.getObject('a')?.properties.name).toBe('Z');

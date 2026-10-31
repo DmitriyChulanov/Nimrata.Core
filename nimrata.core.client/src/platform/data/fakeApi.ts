@@ -250,7 +250,11 @@ export function createFakeApi(
     function applyChangeset(changeset: SubmittedChangeset): ChangesetResult {
         const { id } = changeset;
         const known = appliedSeq.get(id);
-        if (known !== undefined) return { id, status: 'duplicate', seq: known };
+        if (known !== undefined) {
+            // Один пользователь: предыдущий набор — соседний в журнале
+            const index = journal.findIndex((c) => c.seq === known);
+            return { id, status: 'duplicate', seq: known, prevSeq: journal[index - 1]?.seq ?? 0 };
+        }
         if (rejection) {
             const error = rejection;
             rejection = null;
@@ -266,11 +270,12 @@ export function createFakeApi(
         } else {
             for (const [objectId, value] of check.changes) accepted.set(objectId, value);
         }
+        const prevSeq = lastSeq;
         lastSeq += 1;
         appliedSeq.set(id, lastSeq);
         journal.push({ id, seq: lastSeq, touched: [...check.changes.keys()] });
         api.changesets.push(changeset);
-        return { id, status: 'applied', seq: lastSeq };
+        return { id, status: 'applied', seq: lastSeq, prevSeq };
     }
 
     /**

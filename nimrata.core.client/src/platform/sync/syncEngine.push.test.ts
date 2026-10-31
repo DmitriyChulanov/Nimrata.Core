@@ -268,6 +268,27 @@ describe('syncEngine: push', () => {
     });
 
     /**
+     * Проверяет, что снимок и ответ догона неверной формы не попадают в хранилище: запрос
+     * завершается ошибкой, курсор и данные не меняются
+     */
+    it('catchUpAndSnapshot_invalidAnswer_rejectedWithoutTouchingStore', async () => {
+        const { api, store, link } = setup();
+        await link.resync();
+        const get = api.get.bind(api);
+        api.get = (path) =>
+            path === 'snapshot' || path.startsWith('changes')
+                ? Promise.resolve({ seq: 7, objects: 'broken' } as never)
+                : get(path);
+
+        await expect(link.catchUp()).rejects.toThrow();
+        await expect(link.resync()).rejects.toThrow();
+
+        expect(store.getSeq()).toBe(0);
+        expect(store.getObject('a')?.properties.title).toBe('A');
+        expect(link.getState().connection).toBe('error');
+    });
+
+    /**
      * Проверяет, что догон, ответивший `resync`, переходит к полной загрузке
      */
     it('catchUp_resyncAnswer_reloadsSnapshot', async () => {

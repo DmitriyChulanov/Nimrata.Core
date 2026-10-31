@@ -66,6 +66,14 @@ function stubServer(objects: unknown[], connected = { tasks: true, notes: true }
 }
 
 /**
+ * Ожидание запуска расширений. Они запускаются по очереди и ждут подтверждения сервера
+ * (`confirmed: true`): корень «Заметок» появляется только после окна отправки и ответа на набор
+ * «Задач», второй набор уходит ещё через окно. Под нагрузкой полного прогона это дольше 1 с,
+ * которую ждут `findBy` и `waitFor` по умолчанию
+ */
+const START_TIMEOUT = { timeout: SYNC_WINDOW_MS * 20 };
+
+/**
  * Для ручной проверки переключения: вкладка-проба отдаёт наружу значение `useExtensions`
  * (интерфейс Редактора расширений — отдельный тикет)
  */
@@ -97,9 +105,13 @@ it('extensions_firstLoginWithoutRoots_createsEachExtensionStartStructureInItsOwn
     const { api } = stubServer([]);
     render(<App />);
 
-    expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
-    expect(screen.getByRole('treeitem', { name: /Задачи/ })).toBeInTheDocument();
-    await waitFor(() => expect(api.changesets).toHaveLength(2));
+    expect(
+        await screen.findByRole('treeitem', { name: /Задачи/ }, START_TIMEOUT),
+    ).toBeInTheDocument();
+    expect(
+        await screen.findByRole('treeitem', { name: /Заметки/ }, START_TIMEOUT),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(api.changesets).toHaveLength(2), START_TIMEOUT);
 });
 
 /**
@@ -130,8 +142,12 @@ it('extensions_serverRejectsStartStructure_showsErrorAndOtherExtensionStillStart
     api.rejectNext(422, 'тип "CurrentTasksRoot" нельзя разместить внутри типа "TasksRoot".');
     render(<App />);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('нельзя разместить');
-    expect(await screen.findByRole('treeitem', { name: /Заметки/ })).toBeInTheDocument();
+    expect(await screen.findByRole('alert', {}, START_TIMEOUT)).toHaveTextContent(
+        'нельзя разместить',
+    );
+    expect(
+        await screen.findByRole('treeitem', { name: /Заметки/ }, START_TIMEOUT),
+    ).toBeInTheDocument();
 });
 
 /**

@@ -70,7 +70,12 @@ function stubServer(): ServerState {
                 };
                 const results = body.changesets.map((c) => {
                     state.posted.push(c);
-                    return { id: c.id, status: 'applied', seq: state.posted.length };
+                    return {
+                        id: c.id,
+                        status: 'applied',
+                        seq: state.posted.length,
+                        prevSeq: state.posted.length - 1,
+                    };
                 });
                 return jsonResponse(results);
             }
@@ -149,7 +154,12 @@ it('app_logoutWithUnsentChanges_warnsThenDeletesDatabase', async () => {
 
     const dialog = await screen.findByRole('alertdialog');
     expect(dialog).toHaveTextContent('Изменения ещё не отправлены на сервер (1)');
+    // Сеть вернулась, пока открыто предупреждение: отправка приостановлена, очередь не уходит
     server.offline = false;
+    window.dispatchEvent(new Event('online'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(server.posted).toEqual([]);
+    expect(dialog).toHaveTextContent('Изменения ещё не отправлены на сервер (1)');
     await user.click(within(dialog).getByRole('button', { name: 'Выйти' }));
 
     await waitFor(() => expect(screen.getByLabelText('Пароль')).toBeInTheDocument());
@@ -202,6 +212,25 @@ it('app_logoutWarningCancelled_staysInApplication', async () => {
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(screen.getByRole('treeitem', { name: 'Офлайн' })).toBeInTheDocument();
+});
+
+/**
+ * Проверяет, что отмена предупреждения возобновляет отправку: очередь уходит, когда есть сеть
+ */
+it('app_logoutWarningCancelled_resumesSending', async () => {
+    const server = stubServer();
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole('treeitem', { name: 'Идея' });
+    server.offline = true;
+    await rename(user, 'Идея', 'Офлайн');
+    await user.click(screen.getByRole('button', { name: 'Выйти' }));
+    const dialog = await screen.findByRole('alertdialog');
+    server.offline = false;
+
+    await user.click(within(dialog).getByRole('button', { name: 'Отмена' }));
+
+    await waitFor(() => expect(server.posted).toHaveLength(1));
 });
 
 /**

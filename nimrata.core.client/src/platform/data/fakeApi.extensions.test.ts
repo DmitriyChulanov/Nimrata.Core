@@ -169,10 +169,10 @@ describe('fakeApi: extension connections', () => {
             },
         );
         expect(results).toMatchObject([
-            { id: 'c1', status: 'applied', seq: 1 },
+            { id: 'c1', status: 'applied', seq: 1, prevSeq: 0 },
             { id: 'c2', status: 'rejected' },
-            { id: 'c3', status: 'applied', seq: 2 },
-            { id: 'c1', status: 'duplicate', seq: 1 },
+            { id: 'c3', status: 'applied', seq: 2, prevSeq: 1 },
+            { id: 'c1', status: 'duplicate', seq: 1, prevSeq: 0 },
         ]);
         expect(api.changesets.map((c) => c.id)).toEqual(['c1', 'c3']);
     });

@@ -5,8 +5,8 @@ import { DataContext } from '@platform/data/DataContext';
 import type { DataController } from '@platform/data/DataController';
 
 /**
- * Контроллер данных без подписки на модель: компонент не перерисовывается при изменениях данных.
- * Для чтения данных при отрисовке — `useObject`, `useChildren`, `useQuery` или `useData`
+ * Контроллер данных без подписки на модель: компонент не перерисовывается при изменениях данных;
+ * для чтения данных при отрисовке — `useObject`, `useChildren`, `useQuery` или `useData`
  *
  * @returns контроллер из ближайшего `DataProvider`
  * @throws {Error} вне `DataProvider`

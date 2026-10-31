@@ -13,8 +13,8 @@ import type { ActionDefinition, CommandDefinition } from '@platform/types/types'
  */
 export interface ActionLauncher {
     /**
-     * Запускает действие над объектом: без параметров сразу, с параметрами — через диалог.
-     * Отказ запуска без диалога попадает в `error`
+     * Запускает действие над объектом: без параметров сразу, с параметрами — через диалог;
+     * отказ запуска без диалога попадает в `error`
      */
     launch(objectId: string, action: ActionDefinition): Promise<void>;
     /**

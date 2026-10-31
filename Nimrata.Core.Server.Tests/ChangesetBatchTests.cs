@@ -113,7 +113,7 @@ public sealed class ChangesetBatchTests(ServerFactory factory) : IClassFixture<S
 
         var mine = (await ApplyManyAsync(_server.Me, (id, [Create(Guid.CreateVersion7(), "Folder")]))).Single();
 
-        AssertRejected(mine, "занят");
+        AssertRejected(mine, "занят", "invalid_data");
         Assert.Empty((await _server.Me.GetFromJsonAsync<JsonElement[]>("/api/objects"))!);
     }
 
@@ -194,6 +194,61 @@ public sealed class ChangesetBatchTests(ServerFactory factory) : IClassFixture<S
         Assert.True(first.Seq > 0);
         Assert.True(second.Seq > first.Seq);
         Assert.True(third.Seq > second.Seq);
+    }
+
+    /// <summary>
+    /// Проверяет, что prevSeq указывает на предыдущий набор того же пользователя, а не на соседний глобальный seq
+    /// </summary>
+    [Fact]
+    public async Task PrevSeq_ChangesetsOfOtherUserInBetween_PointsToOwnPreviousChangeset()
+    {
+        var first = await ApplyAsync(_server.Me, Create(Guid.CreateVersion7(), "Folder"));
+        var foreign = await ApplyAsync(_server.Other, Create(Guid.CreateVersion7(), "Folder"));
+
+        var second = await ApplyAsync(_server.Me, Create(Guid.CreateVersion7(), "Folder"));
+
+        Assert.Equal(0, first.PrevSeq);
+        Assert.Equal(0, foreign.PrevSeq);
+        Assert.Equal(first.Seq, second.PrevSeq);
+        Assert.True(second.Seq > foreign.Seq);
+    }
+
+    /// <summary>
+    /// Проверяет, что повтор набора возвращает тот же prevSeq, что и первое применение, даже после новых наборов
+    /// </summary>
+    [Fact]
+    public async Task PrevSeq_Duplicate_SameAsOnFirstApply()
+    {
+        var id = Guid.CreateVersion7();
+        var folder = Guid.CreateVersion7();
+        await ApplyAsync(_server.Me, Create(Guid.CreateVersion7(), "Folder"));
+        var first = (await ApplyManyAsync(_server.Me, (id, [Create(folder, "Folder")]))).Single();
+        await ApplyAsync(_server.Me, Create(Guid.CreateVersion7(), "Folder"));
+
+        var again = (await ApplyManyAsync(_server.Me, (id, [Create(folder, "Folder")]))).Single();
+
+        Assert.Equal("duplicate", again.Status);
+        Assert.Equal(first.PrevSeq, again.PrevSeq);
+    }
+
+    /// <summary>
+    /// Проверяет, что набор, который БД не принимает (символ U+0000 в jsonb, SQLSTATE 22P05), отклоняется
+    /// с кодом invalid_data, а не даёт 5xx, и соседние наборы пакета применяются
+    /// </summary>
+    [Fact]
+    public async Task Batch_DataRejectedByDatabase_RejectedWithCodeOthersApplied()
+    {
+        var (poison, good) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+
+        var results = await ApplyManyAsync(_server.Me,
+            (poison, [Create(Guid.CreateVersion7(), "Item", null, "a\u0000b")]),
+            (good, [Create(Guid.CreateVersion7(), "Folder")]));
+
+        AssertRejected(results[0], "22P05", "invalid_data");
+        AssertApplied(results[1]);
+        await using var connection = new NpgsqlConnection(_server.Database);
+        Assert.Equal(0, await connection.ExecuteScalarAsync<long>(
+            "select count(*) from changesets where id = @poison", new { poison }));
     }
 
     /// <summary>

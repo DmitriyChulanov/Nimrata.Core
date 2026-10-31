@@ -70,24 +70,67 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource, IChangeNotifie
             cancellationToken: cancellationToken));
         if (known is not null)
         {
-            return known.UserId == userId
-                ? ChangesetResult.Duplicate(submission.Id, known.Seq)
-                : ChangesetResult.Rejected(submission.Id, $"Идентификатор набора {submission.Id} уже занят.");
+            if (known.UserId != userId)
+            {
+                return ChangesetResult.Rejected(
+                    submission.Id, $"Идентификатор набора {submission.Id} уже занят.", RejectionCodes.InvalidData);
+            }
+            var before = await LastSeqBeforeAsync(connection, transaction, userId, known.Seq, cancellationToken);
+            return ChangesetResult.Duplicate(submission.Id, known.Seq, before);
         }
 
+        // Под блокировкой пользователя это последний его зафиксированный набор: клиент сверяет с ним свой курсор
+        var prevSeq = await LastSeqBeforeAsync(connection, transaction, userId, long.MaxValue, cancellationToken);
         try
         {
             var seq = await ApplyOperationsAsync(connection, transaction, userId, submission, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            notifier.Changed(userId, seq);
-            return ChangesetResult.Applied(submission.Id, seq);
+            notifier.Changed(userId, seq, prevSeq);
+            return ChangesetResult.Applied(submission.Id, seq, prevSeq);
         }
         catch (ChangesetRejectedException rejection)
         {
             await transaction.RollbackAsync(cancellationToken);
             return ChangesetResult.Rejected(submission.Id, rejection.Message, rejection.Code);
         }
+        catch (PostgresException exception) when (IsDeterministic(exception))
+        {
+            // Набор, который БД не принимает, отклоняется: иначе клиент повторял бы его вечно и очередь стояла бы
+            await transaction.RollbackAsync(cancellationToken);
+            return ChangesetResult.Rejected(
+                submission.Id,
+                $"Данные набора не приняты хранилищем ({exception.SqlState}): {exception.MessageText}",
+                RejectionCodes.InvalidData);
+        }
     }
+
+    /// <summary>
+    /// Отказ БД, который повторится при повторе того же набора: класс SQLSTATE 22 (неверные данные)
+    /// или 23 (нарушение ограничения). Сбои соединения, блокировки и перегрузка сюда не входят
+    /// </summary>
+    /// <param name="exception">Ошибка, полученная от Postgres</param>
+    /// <returns><c>true</c>, если набор надо отклонить, а не отдавать клиенту 5xx</returns>
+    private static bool IsDeterministic(PostgresException exception) =>
+        exception.SqlState.StartsWith("22", StringComparison.Ordinal)
+        || exception.SqlState.StartsWith("23", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Курсор последнего набора пользователя, меньший заданного
+    /// </summary>
+    /// <param name="connection">Открытое соединение</param>
+    /// <param name="transaction">Транзакция набора, уже под блокировкой пользователя</param>
+    /// <param name="userId">Автор наборов</param>
+    /// <param name="seq">Граница (не включая); <see cref="long.MaxValue"/> — последний набор пользователя</param>
+    /// <param name="cancellationToken">Отмена</param>
+    /// <returns>Курсор; 0 — таких наборов нет</returns>
+    private static Task<long> LastSeqBeforeAsync(
+        NpgsqlConnection connection, NpgsqlTransaction transaction, Guid userId, long seq,
+        CancellationToken cancellationToken) =>
+        connection.ExecuteScalarAsync<long>(new CommandDefinition(
+            "select coalesce(max(seq), 0) from changesets where user_id = @userId and seq < @seq",
+            new { userId, seq },
+            transaction,
+            cancellationToken: cancellationToken));
 
     /// <summary>
     /// Записывает набор в журнал и выполняет его операции в открытой транзакции
@@ -327,6 +370,11 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource, IChangeNotifie
     /// <summary>
     /// Проверяет структурные инварианты нового родителя и возвращает его (<c>null</c> — корень); «было» не сверяется (LWW)
     /// </summary>
+    /// <param name="context">Контекст применения набора</param>
+    /// <param name="target">Перемещаемый объект</param>
+    /// <param name="change">Значение поля <c>parent</c> операции: объект с <c>new</c> (идентификатор или <c>null</c>)</param>
+    /// <returns>Новый родитель; <c>null</c> — объект переносится в корень</returns>
+    /// <exception cref="ChangesetRejectedException">Нет <c>new</c>, родитель не найден, недопустим или даёт цикл</exception>
     private static async Task<Guid?> ReadNewParentAsync(ChangesetContext context, ObjectRecord target, JsonElement change)
     {
         if (!change.TryGetProperty("new", out var newValue))
@@ -354,6 +402,9 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource, IChangeNotifie
     /// <summary>
     /// Новый номер объекта; «было» не сверяется (LWW)
     /// </summary>
+    /// <param name="change">Значение поля <c>number</c> операции: объект с <c>new</c> (целое ≥ 1)</param>
+    /// <returns>Новый номер</returns>
+    /// <exception cref="ChangesetRejectedException">Нет <c>new</c> или это не целое ≥ 1</exception>
     private static int ReadNewNumber(JsonElement change)
     {
         if (!change.TryGetProperty("new", out var newValue))
@@ -366,6 +417,10 @@ public sealed class ChangesetService(NpgsqlDataSource dataSource, IChangeNotifie
     /// <summary>
     /// «Номер» — целое число не меньше 1
     /// </summary>
+    /// <param name="element">Значение из операции</param>
+    /// <param name="name">Имя поля для текста отказа</param>
+    /// <returns>Номер</returns>
+    /// <exception cref="ChangesetRejectedException">Значение не целое или меньше 1</exception>
     private static int ReadNumber(JsonElement element, string name)
     {
         if (element.ValueKind != JsonValueKind.Number || !element.TryGetInt32(out var number) || number < 1)

@@ -9,7 +9,7 @@ namespace Nimrata.Core.Server.Sync;
 /// <param name="ChangesetIds">Идентификаторы наборов после курсора в порядке <c>seq</c>; по ним клиент узнаёт свои наборы</param>
 /// <param name="Upserts">Финальное состояние видимых объектов, затронутых этими наборами</param>
 /// <param name="Deletes">Затронутые объекты, которых больше нет или которые скрыты (отключённое расширение)</param>
-public sealed record ChangesBatch(
+public record ChangesBatch(
     long ToSeq,
     IReadOnlyList<Guid> ChangesetIds,
     IReadOnlyList<ObjectRecord> Upserts,

@@ -2,13 +2,17 @@
  * SyncEngine — сетевая часть синхронизации, отдельная от хранилища. Берёт наборы из очереди
  * хранилища и отправляет их пакетами `POST /api/changesets`: окно от первой правки, не больше
  * одного запроса в полёте, лимит операций в запросе. Итоги пишет в хранилище через `SyncPort`,
- * при сбое сети повторяет запрос с экспоненциальной задержкой, очередь при этом сохраняется.
- * Входящие изменения приходят push-каналом (`PushChannel`, в приложении — SignalR) в формате
+ * при сбое сети повторяет запрос с экспоненциальной задержкой, очередь при этом сохраняется;
+ * входящие изменения приходят push-каналом (`PushChannel`, в приложении — SignalR) в формате
  * догона; после каждого соединения и при разрыве курсора движок догоняет `GET /api/changes`,
- * по `resync` — полная загрузка `GET /api/snapshot` с переналожением очереди
+ * по `resync` — полная загрузка `GET /api/snapshot` с переналожением очереди. Ответы сервера
+ * проверяются по форме (`dataGuards`): неверный ответ считается сбоем запроса
  */
 import { ApiError } from '@platform/api/apiClient';
+import { isChangesetResult, isRemoteChanges, isStoreSnapshot } from '@platform/data/dataGuards';
 import { errorMessage } from '@platform/data/errorMessage';
+
+import { retryDelay } from './retryDelay';
 
 import type { ApiClient } from '@platform/api/apiClient';
 import type {
@@ -17,21 +21,14 @@ import type {
     SyncPort,
     SyncState,
 } from '@platform/data/DataController';
-import type {
-    ChangesetFailure,
-    PendingChangeset,
-    RemoteChanges,
-    StoreSnapshot,
-} from '@platform/data/dataStore';
+import type { ChangesetFailure, PendingChangeset, RemoteChanges } from '@platform/data/dataStore';
+
+export { SYNC_RETRY_BASE_MS, SYNC_RETRY_MAX_MS } from './retryDelay';
 
 /** Окно отправки, мс: отсчитывается от первой неотправленной правки, не сдвигается следующими */
 export const SYNC_WINDOW_MS = 200;
 /** Лимит операций в одном запросе; набор больше лимита уходит целиком отдельным запросом */
 export const SYNC_MAX_OPERATIONS = 500;
-/** Начальная задержка повтора после сбоя сети, мс; каждая следующая вдвое больше */
-export const SYNC_RETRY_BASE_MS = 1000;
-/** Наибольшая задержка повтора, мс */
-export const SYNC_RETRY_MAX_MS = 30_000;
 /**
  * Пауза перед догоном, если подтверждение своего набора пришло с разрывом курсора (были чужие
  * наборы), мс: обычно курсор раньше сдвинет push
@@ -100,7 +97,7 @@ function settle(port: SyncPort, id: string, result: ChangesetResult | undefined)
             ...(result.code ? { code: result.code } : {}),
         });
     } else {
-        port.confirm(id, result.seq ?? 0);
+        port.confirm(id, result.seq ?? 0, result.prevSeq ?? -1);
     }
 }
 
@@ -169,6 +166,54 @@ export interface SyncEngineOptions {
  */
 type CatchUpAnswer = RemoteChanges | { resync: true };
 
+/** Текст сбоя, когда ответ сервера не прошёл проверку формы */
+export const SYNC_INVALID_RESPONSE_MESSAGE = 'Сервер вернул ответ неверной формы.';
+
+/**
+ * Проверяет, что значение — массив итогов наборов
+ *
+ * @param value - тело ответа `POST /api/changesets`
+ * @returns `true`, если каждый элемент — итог набора
+ */
+function isChangesetResults(value: unknown): value is ChangesetResult[] {
+    return Array.isArray(value) && value.every(isChangesetResult);
+}
+
+/**
+ * Проверяет, что значение — ответ догона: пакет изменений или `{ resync: true }`
+ *
+ * @param value - тело ответа `GET /api/changes`
+ * @returns `true`, если форма подходит
+ */
+function isCatchUpAnswer(value: unknown): value is CatchUpAnswer {
+    return (
+        (typeof value === 'object' &&
+            value !== null &&
+            'resync' in value &&
+            value.resync === true) ||
+        isRemoteChanges(value)
+    );
+}
+
+/**
+ * Дожидается ответа и проверяет его форму. Неверный ответ — сбой сервера (502): запрос
+ * повторяется, как при 5xx, а не принимается молча
+ *
+ * @template T - ожидаемая форма ответа
+ * @param run - запрос
+ * @param guard - проверка формы
+ * @returns проверенный ответ
+ * @throws {ApiError} ответ не прошёл проверку
+ */
+async function checked<T>(
+    run: Promise<unknown>,
+    guard: (value: unknown) => value is T,
+): Promise<T> {
+    const value = await run;
+    if (!guard(value)) throw new ApiError(502, SYNC_INVALID_RESPONSE_MESSAGE);
+    return value;
+}
+
 /**
  * Создаёт SyncEngine для `DataControllerOptions.transport`
  *
@@ -192,6 +237,8 @@ export function createSyncEngine(
         // Таймер повтора после сбоя и номер попытки для задержки
         let retryTimer: ReturnType<typeof setTimeout> | null = null;
         let attempt = 0;
+        // Отправка приостановлена (`pause`): число незакрытых приостановок
+        let paused = 0;
         // Наборы с итогом, которые хранилище ещё не убрало из очереди (итог отложен открытой
         // локальной правкой): повторно их не отправляем
         const settled = new Set<string>();
@@ -260,7 +307,7 @@ export function createSyncEngine(
         };
 
         const flush = () => {
-            if (disposed || inFlight || retryTimer || resyncing || !due) return;
+            if (disposed || paused > 0 || inFlight || retryTimer || resyncing || !due) return;
             const queue = unsent();
             const batch = takeBatch(queue, SYNC_MAX_OPERATIONS);
             // Остаток сверх лимита — из того же окна, уходит сразу следом
@@ -293,12 +340,15 @@ export function createSyncEngine(
         };
 
         const request = async (batch: readonly PendingChangeset[]): Promise<boolean> => {
-            let results: unknown;
+            let results: ChangesetResult[];
             try {
                 results = await tracked(
-                    api.post<ChangesetResult[]>('changesets', {
-                        changesets: batch.map((c) => ({ id: c.id, operations: c.operations })),
-                    }),
+                    checked(
+                        api.post<unknown>('changesets', {
+                            changesets: batch.map((c) => ({ id: c.id, operations: c.operations })),
+                        }),
+                        isChangesetResults,
+                    ),
                 );
             } catch (error) {
                 inFlight = null;
@@ -306,7 +356,7 @@ export function createSyncEngine(
                 if (isRetryable(error)) {
                     // Наборы остаются в очереди; повтор возьмёт и накопившиеся
                     due = true;
-                    const delay = Math.min(SYNC_RETRY_BASE_MS * 2 ** attempt, SYNC_RETRY_MAX_MS);
+                    const delay = retryDelay(attempt);
                     attempt++;
                     if (retryTimer) clearTimeout(retryTimer);
                     retryTimer = setTimeout(() => {
@@ -326,9 +376,7 @@ export function createSyncEngine(
             if (disposed) return false;
             attempt = 0;
             const byId = new Map<string, ChangesetResult>();
-            if (Array.isArray(results)) {
-                for (const result of results as ChangesetResult[]) byId.set(result.id, result);
-            }
+            for (const result of results) byId.set(result.id, result);
             for (const changeset of batch) settled.add(changeset.id);
             inFlight = null;
             // Итоги — строго в порядке очереди, независимо от порядка в ответе
@@ -348,7 +396,8 @@ export function createSyncEngine(
          * Отправляет всё неотправленное сразу и ждёт ответов; на сбое сети останавливается
          */
         const drain = async () => {
-            while (!disposed) {
+            // Приостановленная очередь остаётся у клиента: снимок наложит её поверх
+            while (!disposed && paused === 0) {
                 if (inFlightDone && inFlight) {
                     await inFlightDone;
                     continue;
@@ -376,7 +425,9 @@ export function createSyncEngine(
                         // Снимок уже содержит отправленное: переналагаем только то, чего на
                         // сервере ещё нет, иначе применённое повторилось бы поверх снимка
                         await drain();
-                        const snapshot = await tracked(api.get<StoreSnapshot>('snapshot'));
+                        const snapshot = await tracked(
+                            checked(api.get<unknown>('snapshot'), isStoreSnapshot),
+                        );
                         if (disposed) return;
                         port.reset(snapshot);
                         ready = true;
@@ -407,7 +458,7 @@ export function createSyncEngine(
             resyncRetryTimer = null;
             resync().catch(() => {
                 if (disposed) return;
-                const delay = Math.min(SYNC_RETRY_BASE_MS * 2 ** resyncAttempt, SYNC_RETRY_MAX_MS);
+                const delay = retryDelay(resyncAttempt);
                 resyncAttempt++;
                 resyncRetryTimer = setTimeout(requestResync, delay);
             });
@@ -428,7 +479,10 @@ export function createSyncEngine(
                     do {
                         catchUpAgain = false;
                         const answer = await tracked(
-                            api.get<CatchUpAnswer>(`changes?since=${port.getSeq()}`),
+                            checked(
+                                api.get<unknown>(`changes?since=${port.getSeq()}`),
+                                isCatchUpAnswer,
+                            ),
                         );
                         if (disposed) return;
                         if ('resync' in answer) {
@@ -445,6 +499,19 @@ export function createSyncEngine(
             };
             catchingUp = run();
             return catchingUp;
+        };
+
+        const pause = async (): Promise<() => void> => {
+            paused++;
+            let open = true;
+            const resume = () => {
+                if (!open) return;
+                open = false;
+                paused--;
+                if (paused === 0) kick();
+            };
+            if (inFlightDone && inFlight) await inFlightDone;
+            return resume;
         };
 
         const kick = () => {
@@ -510,6 +577,7 @@ export function createSyncEngine(
             catchUp,
             kick,
             connect,
+            pause,
             getState: () => state,
             subscribeState(listener) {
                 stateListeners.add(listener);

@@ -3,6 +3,8 @@
  * подтверждённого состояния (объекты, типы, курсор), очередями неподтверждённых наборов по вкладкам
  * (`tabId`) и произвольными значениями (каталог расширений)
  */
+import { isPendingChangeset, isRecord, isStoreSnapshot } from '@platform/data/dataGuards';
+
 import type { PendingChangeset, StoreSnapshot } from '@platform/data/dataStore';
 
 /**
@@ -33,6 +35,32 @@ interface QueueRecord {
     tabId: string;
     /** Неподтверждённые наборы в порядке очереди */
     changesets: PendingChangeset[];
+}
+
+/**
+ * Проверяет, что значение из IndexedDB — запись очереди вкладки (база могла остаться от старой
+ * версии клиента или быть испорчена)
+ *
+ * @param value - прочитанное значение
+ * @returns `true`, если есть `tabId` и массив наборов верной формы
+ */
+function isQueueRecord(value: unknown): value is QueueRecord {
+    return (
+        isRecord(value) &&
+        typeof value.tabId === 'string' &&
+        Array.isArray(value.changesets) &&
+        value.changesets.every(isPendingChangeset)
+    );
+}
+
+/**
+ * Снимок из IndexedDB: значение неверной формы считается отсутствующим (кэша нет)
+ *
+ * @param value - прочитанное значение
+ * @returns снимок или `undefined`
+ */
+function snapshotOf(value: unknown): StoreSnapshot | undefined {
+    return isStoreSnapshot(value) ? value : undefined;
 }
 
 /**
@@ -151,8 +179,7 @@ export async function openOfflineDb(
     return {
         async readSnapshot() {
             const tx = db.transaction(META, 'readonly');
-            return (await done(tx.objectStore(META).get(SNAPSHOT_KEY))) as
-                StoreSnapshot | undefined;
+            return snapshotOf(await done<unknown>(tx.objectStore(META).get(SNAPSHOT_KEY)));
         },
         async save(tabId, state) {
             const tx = db.transaction([META, QUEUES], 'readwrite');
@@ -162,7 +189,7 @@ export async function openOfflineDb(
                 const next = state.snapshot;
                 const read = meta.get(SNAPSHOT_KEY);
                 read.onsuccess = () => {
-                    const saved = read.result as StoreSnapshot | undefined;
+                    const saved = snapshotOf(read.result);
                     if (!saved || next.seq > saved.seq) meta.put(next, SNAPSHOT_KEY);
                 };
             }
@@ -177,7 +204,10 @@ export async function openOfflineDb(
         },
         async readQueues() {
             const tx = db.transaction(QUEUES, 'readonly');
-            const records = (await done(tx.objectStore(QUEUES).getAll())) as QueueRecord[];
+            // Испорченные записи пропускаются: их наборы отправить всё равно нельзя
+            const records = (await done<unknown[]>(tx.objectStore(QUEUES).getAll())).filter(
+                isQueueRecord,
+            );
             return new Map(records.map((r) => [r.tabId, r.changesets]));
         },
         async adoptQueue(fromTabId, toTabId) {
@@ -187,13 +217,18 @@ export async function openOfflineDb(
             let adopted: PendingChangeset[] = [];
             const from = queues.get(fromTabId);
             from.onsuccess = () => {
-                const record = from.result as QueueRecord | undefined;
-                if (!record) return;
+                const record: unknown = from.result;
+                if (!isQueueRecord(record)) {
+                    // Испорченную запись закрытой вкладки убираем: подхватить из неё нечего
+                    if (record !== undefined) queues.delete(fromTabId);
+                    return;
+                }
                 adopted = record.changesets;
                 queues.delete(fromTabId);
                 const to = queues.get(toTabId);
                 to.onsuccess = () => {
-                    const own = (to.result as QueueRecord | undefined)?.changesets ?? [];
+                    const target: unknown = to.result;
+                    const own = isQueueRecord(target) ? target.changesets : [];
                     const known = new Set(own.map((c) => c.id));
                     const merged = [...own, ...adopted.filter((c) => !known.has(c.id))];
                     queues.put({ tabId: toTabId, changesets: merged } satisfies QueueRecord);
