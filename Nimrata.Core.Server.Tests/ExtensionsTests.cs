@@ -216,6 +216,18 @@ public sealed class ExtensionsTests(ServerFactory factory) : IClassFixture<Serve
     }
 
     /// <summary>
+    /// Проверяет, что каталог отдаёт версию типов расширения (по ней клиент с кэшем узнаёт об обновлении манифеста)
+    /// </summary>
+    [Fact]
+    public async Task Catalog_Extension_ReturnsTypesVersion()
+    {
+        var catalog = (await _me.GetFromJsonAsync<JsonElement[]>("/api/extensions"))!;
+
+        var alpha = catalog.Single(e => e.GetProperty("id").GetString() == "alpha");
+        Assert.Equal(1, alpha.GetProperty("version").GetInt32());
+    }
+
+    /// <summary>
     /// Проверяет, что платформенный тип «Пользовательская команда» скрыт в дереве, не принадлежит расширению
     /// и создаётся при любых подключениях
     /// </summary>

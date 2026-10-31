@@ -15,7 +15,8 @@ public sealed class ExtensionsService(NpgsqlDataSource dataSource)
     private const string CatalogQuery = """
         select e.id as Id, e.name as Name, e.description as Description, e.icon as Icon,
                e.default_enabled as DefaultEnabled, is_extension_enabled(@userId, e.id) as Connected,
-               e.commands as Commands
+               e.commands as Commands,
+               (select coalesce(max(t.extension_version), 0) from types t where t.extension_id = e.id) as Version
         from extensions e
         """;
 

@@ -19,6 +19,8 @@ export interface ExtensionInfo {
     connected: boolean;
     /** Команды расширения из манифеста (ADR 0004); пусто, если команд нет */
     commands: CommandDefinition[];
+    /** Версия типов расширения на сервере; по ней клиент с кэшем узнаёт, что типы устарели */
+    version?: number;
 }
 
 /**
@@ -37,6 +39,7 @@ function isExtensionInfo(value: unknown): value is ExtensionInfo {
         typeof item.icon === 'string' &&
         typeof item.defaultEnabled === 'boolean' &&
         typeof item.connected === 'boolean' &&
+        (item.version === undefined || typeof item.version === 'number') &&
         Array.isArray(item.commands) &&
         item.commands.every(
             (command: unknown) =>

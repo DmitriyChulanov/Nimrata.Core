@@ -99,6 +99,29 @@ function connectedIds(items: ExtensionInfo[]): Set<string> {
 }
 
 /**
+ * Устарели ли типы в кэше: у подключённого расширения версия типов на сервере новее той, что
+ * в кэшированной модели (после обновления манифеста). Догон `catchUp` типы не обновляет,
+ * поэтому нужна полная загрузка
+ *
+ * @param controller - контроллер данных с моделью из кэша
+ * @param items - каталог расширений от сервера
+ * @returns `true`, если требуется полная загрузка
+ */
+function hasStaleTypes(controller: DataController, items: ExtensionInfo[]): boolean {
+    return items.some((e) => {
+        if (!e.connected || e.version === undefined) return false;
+        const cachedVersion = Math.max(
+            0,
+            ...controller
+                .getTypes()
+                .filter((t) => t.extension === e.id)
+                .map((t) => t.extensionVersion),
+        );
+        return e.version > cachedVersion;
+    });
+}
+
+/**
  * Создаёт подключение расширений
  *
  * @param options - параметры, описаны в `ExtensionLifecycleOptions`
@@ -214,8 +237,8 @@ export function createExtensionLifecycle(options: ExtensionLifecycleOptions): Ex
         update({ catalog: items, activeIds: connected });
 
         // ошибку загрузки данных показывает основной экран (с повтором); данные из кэша
-        // догоняются, без сети работа продолжается на кэше
-        const loaded: ChangeResult = cached
+        // догоняются, без сети работа продолжается на кэше; устаревшие типы кэша — полная загрузка
+        const loaded: ChangeResult = cached && !hasStaleTypes(controller, items)
             ? await controller.catchUp().then(
                   () => ({ ok: true }) as const,
                   () => ({ ok: true }) as const,

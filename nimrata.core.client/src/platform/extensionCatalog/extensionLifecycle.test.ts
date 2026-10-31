@@ -369,6 +369,36 @@ describe('офлайн: кэш каталога и данных', () => {
     });
 
     /**
+     * Проверяет, что при кэше с устаревшими типами (манифест обновился) вместо догона идёт полная
+     * загрузка, а при актуальных типах — догон
+     */
+    it.each([
+        { serverVersion: 21, cachedVersion: 20, full: true },
+        { serverVersion: 21, cachedVersion: 21, full: false },
+    ])(
+        'initialize_cachedTypesVersion$cachedVersion_serverVersion$serverVersion_fullLoad=$full',
+        async ({ serverVersion, cachedVersion, full }) => {
+            fetchCatalog.mockResolvedValue([{ ...info('a', true), version: serverVersion }]);
+            const controller = {
+                ...fakeController(),
+                catchUp: vi.fn(async () => ({ ok: true })),
+                getTypes: () => [{ id: 'T', extension: 'a', extensionVersion: cachedVersion }],
+            };
+            const lifecycle = createExtensionLifecycle({
+                api: {} as ApiClient,
+                controller: controller as unknown as DataController,
+                registry: createExtensionRegistry(),
+                cached: true,
+            });
+
+            await lifecycle.initialize();
+
+            expect(controller.load).toHaveBeenCalledTimes(full ? 1 : 0);
+            expect(controller.catchUp).toHaveBeenCalledTimes(full ? 0 : 1);
+        },
+    );
+
+    /**
      * Проверяет, что загруженный с сервера каталог сохраняется в кэш
      */
     it('initialize_catalogFetched_isWrittenToCache', async () => {
