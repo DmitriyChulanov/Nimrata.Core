@@ -1,11 +1,9 @@
 import { useState } from 'react';
 
 import { useObject } from '@platform/data/useObject';
-import { Icon } from '@platform/icons/Icon';
 import { objectLabel } from '@platform/objectQueries/objectQueries';
 import { useSelection } from '@platform/selection/useSelection';
-import { flatten } from '@platform/tree/treeModel';
-import { TypeIcon } from '@platform/tree/TypeIcon';
+import { ObjectTreePicker } from '@platform/tree/ObjectTreePicker';
 import { Button, Dialog, IconButton } from '@platform/ui';
 
 import type { DataController, DataObject } from '@platform/data/DataController';
@@ -32,18 +30,8 @@ interface PickerProps {
  */
 function ReferencePicker({ data, property, current, onPick, onCancel }: PickerProps) {
     const [chosen, setChosen] = useState<string | null>(current);
-    const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
     const targets = property.targetTypes;
     const allowed = (object: DataObject) => !targets || targets.includes(object.type);
-
-    const toggle = (id: string) =>
-        setExpanded((prev) => {
-            const next = new Set(prev);
-            if (!next.delete(id)) next.add(id);
-            return next;
-        });
-
-    const items = flatten(data, expanded);
 
     const chosenObject = chosen ? data.getObject(chosen) : undefined;
     const canConfirm = chosenObject !== undefined && allowed(chosenObject);
@@ -65,42 +53,14 @@ function ReferencePicker({ data, property, current, onPick, onCancel }: PickerPr
                 </>
             }
         >
-            <div role="tree" aria-label="Объекты">
-                {items.map(({ object, title, level, hasChildren }) => {
-                    const isOpen = expanded.has(object.id);
-                    return (
-                        <div
-                            key={object.id}
-                            role="treeitem"
-                            aria-label={title}
-                            aria-level={level}
-                            aria-selected={chosen === object.id}
-                            aria-disabled={allowed(object) ? undefined : true}
-                            aria-expanded={hasChildren ? isOpen : undefined}
-                            style={{ paddingLeft: `${(level - 1) * 16}px` }}
-                            onClick={() => setChosen(object.id)}
-                            onDoubleClick={() => allowed(object) && onPick(object.id)}
-                        >
-                            {hasChildren ? (
-                                <button
-                                    type="button"
-                                    aria-label={isOpen ? 'Свернуть' : 'Развернуть'}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggle(object.id);
-                                    }}
-                                >
-                                    <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} />
-                                </button>
-                            ) : (
-                                <span aria-hidden="true" />
-                            )}
-                            <TypeIcon type={data.getType(object.type)} />
-                            <span>{title}</span>
-                        </div>
-                    );
-                })}
-            </div>
+            <ObjectTreePicker
+                data={data}
+                label="Объекты"
+                isAllowed={allowed}
+                selected={chosen}
+                onSelect={setChosen}
+                onConfirm={onPick}
+            />
         </Dialog>
     );
 }

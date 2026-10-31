@@ -8,7 +8,7 @@ import {
     registerSettingsGuard,
 } from '@platform';
 
-import { registerCategoryTemplates, templateOptions } from './categoryTemplates';
+import { registerCategoryTemplates } from './categoryTemplates';
 
 import { registerCompletion } from './completion';
 import {
@@ -59,20 +59,11 @@ export function registerTasks(data: DataController, options: ExtensionOptions = 
         ),
     );
 
-    for (const parentType of [CURRENT_TASKS_ROOT, MONTH, CATEGORY]) {
+    for (const parentType of [CURRENT_TASKS_ROOT, MONTH, CATEGORY, ...DAY_TYPES]) {
         disposers.push(
             data.registerAction(parentType, 'createTask', createTaskAction(data, options.reveal)),
         );
     }
-    // У дня выбирается типовая категория; без типовых категорий параметр в диалоге скрыт
-    for (const dayType of DAY_TYPES) {
-        disposers.push(
-            data.registerAction(dayType, 'createTask', createTaskAction(data, options.reveal), {
-                parameterValues: { template: () => templateOptions(data) },
-            }),
-        );
-    }
-
     disposers.push(
         registerCategoryTemplates(data),
         registerSettingsGuard(data, [TASKS_SETTINGS, CATEGORY_TEMPLATES]),

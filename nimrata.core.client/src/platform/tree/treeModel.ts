@@ -90,9 +90,14 @@ export function hasChildren(reader: TreeReader, id: string): boolean {
  *
  * @param reader - доступ к дереву
  * @param expanded - идентификаторы раскрытых узлов
+ * @param root - родитель, чьи потомки показываются первым уровнем; `null` — всё дерево
  * @returns строки по порядку показа
  */
-export function flatten(reader: TreeReader, expanded: ReadonlySet<string>): TreeRow[] {
+export function flatten(
+    reader: TreeReader,
+    expanded: ReadonlySet<string>,
+    root: string | null = null,
+): TreeRow[] {
     const rows: TreeRow[] = [];
     const walk = (parent: string | null, level: number) => {
         for (const node of visibleChildren(reader, parent)) {
@@ -101,7 +106,7 @@ export function flatten(reader: TreeReader, expanded: ReadonlySet<string>): Tree
             if (withChildren && expanded.has(node.object.id)) walk(node.object.id, level + 1);
         }
     };
-    walk(null, 1);
+    walk(root, 1);
     return rows;
 }
 

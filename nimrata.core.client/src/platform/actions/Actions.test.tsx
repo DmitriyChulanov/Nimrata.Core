@@ -251,12 +251,12 @@ describe('Action parameters dialog', () => {
                 .getAllByRole('option')
                 .map((o) => o.textContent),
         ).toEqual(['', 'Низкий', 'Высокий']);
-        const who = within(dialog).getByLabelText('Кому');
+        const who = within(dialog).getByRole('tree', { name: 'Кому' });
         expect(
             within(who)
-                .getAllByRole('option')
+                .getAllByRole('treeitem')
                 .map((o) => o.textContent),
-        ).toEqual(['', 'Входящие']);
+        ).toEqual(['Входящие']);
     });
 
     /**
@@ -282,7 +282,7 @@ describe('Action parameters dialog', () => {
         await userEvent.type(within(dialog).getByLabelText('Комментарий'), 'позже');
         await userEvent.click(within(dialog).getByLabelText('Срочно'));
         await userEvent.selectOptions(within(dialog).getByLabelText('Уровень'), 'high');
-        await userEvent.selectOptions(within(dialog).getByLabelText('Кому'), 'f');
+        await userEvent.click(within(dialog).getByRole('treeitem', { name: 'Входящие' }));
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
 
         expect(calls).toEqual([{ days: 3, note: 'позже', urgent: true, level: 'high', who: 'f' }]);

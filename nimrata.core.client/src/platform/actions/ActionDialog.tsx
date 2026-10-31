@@ -1,9 +1,17 @@
 import { useId, useState } from 'react';
 
 import { useData } from '@platform/data/useData';
-import { objectLabel } from '@platform/objectQueries/objectQueries';
+import { ObjectTreePicker } from '@platform/tree/ObjectTreePicker';
 import './ActionDialog.css';
 import { Button, Checkbox, Dialog, Select, TextArea, TextField } from '@platform/ui';
+
+import {
+    hasReferenceChoices,
+    isReferenceAllowed,
+    readLastChoice,
+    referenceRoot,
+    writeLastChoice,
+} from './referenceParameter';
 
 import type { FormEvent } from 'react';
 import type { DataController } from '@platform/data/DataController';
@@ -52,48 +60,101 @@ function parseField(parameter: PropertyDefinition, raw: string | boolean | undef
 }
 
 /**
- * Начальный черновик формы по значениям параметров по умолчанию
+ * Ключ запомненного выбора ссылочного параметра: одно действие на разных объектах делит выбор
+ */
+function choiceKey(actionId: string, parameter: PropertyDefinition): string {
+    return `${actionId}:${parameter.id}`;
+}
+
+/**
+ * Нужно ли запоминать выбор параметра: дерево с корнем выбора (`targetRootType`)
+ */
+function remembersChoice(parameter: PropertyDefinition): boolean {
+    return parameter.kind === 'reference' && parameter.targetRootType !== undefined;
+}
+
+/**
+ * Показывается ли параметр: ссылочный параметр с корнем выбора, где выбирать нечего, скрыт, если не
+ * обязателен
+ */
+function isVisible(data: DataController, parameter: PropertyDefinition): boolean {
+    if (!remembersChoice(parameter) || parameter.required) return true;
+    const root = referenceRoot(data, parameter);
+    return root !== undefined && hasReferenceChoices(data, parameter, root);
+}
+
+/**
+ * Начальный черновик формы по значениям параметров по умолчанию и запомненному выбору
  *
  * @param parameters - параметры действия
- * @returns черновик с заполненными значениями по умолчанию
+ * @param data - контроллер данных
+ * @param actionId - идентификатор действия
+ * @returns черновик с заполненными значениями
  */
-function initialDraft(parameters: PropertyDefinition[]): Draft {
+function initialDraft(
+    parameters: PropertyDefinition[],
+    data: DataController,
+    actionId: string,
+): Draft {
     const draft: Draft = {};
     for (const p of parameters) {
         if (p.kind === 'boolean') draft[p.id] = p.default === true;
         else if (p.default !== undefined && p.default !== null) draft[p.id] = String(p.default);
+        if (remembersChoice(p)) {
+            const remembered = readLastChoice(choiceKey(actionId, p));
+            const object = remembered ? data.getObject(remembered) : undefined;
+            const root = referenceRoot(data, p);
+            if (object && root !== undefined && isReferenceAllowed(data, p, root, object)) {
+                draft[p.id] = object.id;
+            }
+        }
     }
     return draft;
 }
 
 /**
- * Название объекта для списка выбора: вычисляемое имя, иначе название типа
+ * Поле ссылочного параметра: подпись, кнопка сброса и дерево выбора
  *
- * @param data - контроллер данных
- * @param id - идентификатор объекта
- * @returns текст для показа; идентификатор, если объекта нет
+ * @param props - параметр, подпись, значение, обработчики и контроллер данных
+ * @returns группа с деревом объектов
  */
-function titleOf(data: DataController, id: string): string {
-    const object = data.getObject(id);
-    return object ? objectLabel(data, object) : id;
-}
-
-/**
- * Объекты, которые можно выбрать в ссылочном параметре: по `targetTypes` (без него — любые)
- */
-function referenceOptions(data: DataController, parameter: PropertyDefinition) {
-    const targets = parameter.targetTypes;
-    const result: { id: string; title: string }[] = [];
-    const walk = (parent: string | null) => {
-        for (const o of data.getChildren(parent)) {
-            if (!targets || targets.includes(o.type)) {
-                result.push({ id: o.id, title: titleOf(data, o.id) });
-            }
-            walk(o.id);
-        }
-    };
-    walk(null);
-    return result;
+function ReferenceField({
+    parameter,
+    label,
+    value,
+    onChange,
+    onConfirm,
+    data,
+}: {
+    parameter: PropertyDefinition;
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    onConfirm: (value: string) => void;
+    data: DataController;
+}) {
+    const root = referenceRoot(data, parameter) ?? null;
+    return (
+        <div className="action-dialog-reference">
+            <div className="action-dialog-reference__head">
+                <span aria-hidden="true">{label}</span>
+                {!parameter.required && (
+                    <Button disabled={value === ''} onClick={() => onChange('')}>
+                        {parameter.emptyLabel ?? 'Сбросить'}
+                    </Button>
+                )}
+            </div>
+            <ObjectTreePicker
+                data={data}
+                label={parameter.name}
+                rootId={root}
+                isAllowed={(o) => isReferenceAllowed(data, parameter, root, o)}
+                selected={value === '' ? null : value}
+                onSelect={onChange}
+                onConfirm={onConfirm}
+            />
+        </div>
+    );
 }
 
 /**
@@ -106,11 +167,13 @@ function Field({
     parameter,
     value,
     onChange,
+    onConfirm,
     data,
 }: {
     parameter: PropertyDefinition;
     value: string | boolean | undefined;
     onChange: (value: string | boolean) => void;
+    onConfirm: (value: string) => void;
     data: DataController;
 }) {
     const text = typeof value === 'string' ? value : '';
@@ -145,14 +208,13 @@ function Field({
             );
         case 'reference':
             return (
-                <Select
-                    {...common}
+                <ReferenceField
+                    parameter={parameter}
+                    label={label}
                     value={text}
-                    placeholder=""
-                    options={referenceOptions(data, parameter).map((o) => ({
-                        value: o.id,
-                        label: o.title,
-                    }))}
+                    onChange={onChange}
+                    onConfirm={onConfirm}
+                    data={data}
                 />
             );
         default:
@@ -191,16 +253,17 @@ export interface ActionDialogProps {
 export function ActionDialog({ action, onSubmit, onCancel }: ActionDialogProps) {
     const data = useData();
     const parameters = action.parameters ?? [];
-    const [draft, setDraft] = useState<Draft>(() => initialDraft(parameters));
+    const [draft, setDraft] = useState<Draft>(() => initialDraft(parameters, data, action.id));
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
     const formId = useId();
 
-    async function submit(event: FormEvent) {
-        event.preventDefault();
+    const shown = parameters.filter((p) => isVisible(data, p));
+
+    async function run(values: Draft) {
         const params: Record<string, unknown> = {};
-        for (const p of parameters) {
-            const parsed = parseField(p, draft[p.id]);
+        for (const p of shown) {
+            const parsed = parseField(p, values[p.id]);
             if (!parsed.ok) {
                 setError(parsed.error);
                 return;
@@ -218,7 +281,21 @@ export function ActionDialog({ action, onSubmit, onCancel }: ActionDialogProps) 
         setBusy(true);
         const failure = await onSubmit(params);
         setBusy(false);
-        if (failure !== null) setError(failure);
+        if (failure !== null) {
+            setError(failure);
+            return;
+        }
+        for (const p of shown) {
+            const chosen = params[p.id];
+            if (remembersChoice(p) && typeof chosen === 'string') {
+                writeLastChoice(choiceKey(action.id, p), chosen);
+            }
+        }
+    }
+
+    function submit(event: FormEvent) {
+        event.preventDefault();
+        void run(draft);
     }
 
     return (
@@ -236,16 +313,21 @@ export function ActionDialog({ action, onSubmit, onCancel }: ActionDialogProps) 
         >
             <form
                 id={formId}
-                onSubmit={(e) => void submit(e)}
+                onSubmit={submit}
                 noValidate
                 className="action-dialog-form"
             >
-                {parameters.map((p) => (
+                {shown.map((p) => (
                     <Field
                         key={p.id}
                         parameter={p}
                         value={draft[p.id]}
                         onChange={(value) => setDraft((prev) => ({ ...prev, [p.id]: value }))}
+                        onConfirm={(value) => {
+                            const next = { ...draft, [p.id]: value };
+                            setDraft(next);
+                            void run(next);
+                        }}
                         data={data}
                     />
                 ))}

@@ -29,6 +29,7 @@
     --switch-width: 32px;
     --switch-height: 18px;
     --tooltip-max-width: 320px;
+    --tree-picker-height: 240px;
 
     --transition: 120ms ease;
     --focus-ring: 2px solid var(--accent);

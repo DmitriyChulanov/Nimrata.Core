@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
     DataProvider,
@@ -52,6 +52,10 @@ function mount(data: Awaited<ReturnType<typeof setup>>['data'], selectId?: strin
         </DataProvider>,
     );
 }
+
+beforeEach(() => {
+    localStorage.clear();
+});
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -143,7 +147,7 @@ describe('Tasks: interface', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Создать задачу' }));
         const dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
         await userEvent.type(within(dialog).getByLabelText(/Имя/), 'Ужин');
-        await userEvent.selectOptions(within(dialog).getByLabelText(/Типовая категория/), 'Семья');
+        await userEvent.click(within(dialog).getByRole('treeitem', { name: 'Семья' }));
         await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
 
         const family = data.getChildren(day.id).find((o) => o.properties.name === 'Семья')!;
@@ -162,7 +166,101 @@ describe('Tasks: interface', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Создать задачу' }));
 
         const dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
-        expect(within(dialog).queryByLabelText(/Типовая категория/)).not.toBeInTheDocument();
+        expect(within(dialog).queryByRole('tree')).not.toBeInTheDocument();
+    });
+
+    /**
+     * Создаёт типовые категории «Дом» → «Подкатегория 1», «Подкатегория 2» и «Работа»
+     */
+    async function seedTemplates(data: Awaited<ReturnType<typeof setup>>['data']) {
+        const settings = data.getChildren(null).find((o) => o.type === 'SettingsRoot')!;
+        const group = data.getChildren(data.getChildren(settings.id)[0].id)[0];
+        const add = async (name: string, parent: string) => {
+            const created = await data.create({ type: 'CategoryTemplate', parent });
+            if (!created.ok) throw new Error(created.error);
+            await data.setProperty(created.id, 'name', name);
+            return created.id;
+        };
+        const home = await add('Дом', group.id);
+        const first = await add('Подкатегория 1', home);
+        const second = await add('Подкатегория 2', home);
+        await add('Работа', group.id);
+        return { home, first, second };
+    }
+
+    /**
+     * Проверяет, что диалог дня показывает иерархию шаблонов деревом и создаёт цепочку категорий
+     */
+    it('tasksUi_createTaskInDayWithNestedTemplates_choosesNodeInTreeAndCreatesChain', async () => {
+        const { data } = await setup();
+        const { day } = await seedDay(data);
+        await seedTemplates(data);
+        mount(data, day.id);
+        await userEvent.click(screen.getByRole('button', { name: `выбрать ${day.id}` }));
+
+        await userEvent.click(screen.getByRole('button', { name: 'Создать задачу' }));
+        const dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
+        expect(within(dialog).queryByRole('treeitem', { name: 'Подкатегория 1' })).toBeNull();
+        await userEvent.type(within(dialog).getByLabelText(/Имя/), 'Мусор');
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Развернуть' }));
+        await userEvent.click(within(dialog).getByRole('treeitem', { name: 'Подкатегория 1' }));
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
+
+        const home = data.getChildren(day.id).find((o) => o.properties.name === 'Дом')!;
+        const inner = data.getChildren(home.id).find((o) => o.properties.name === 'Подкатегория 1')!;
+        expect(data.getChildren(inner.id).map((t) => t.properties.name)).toEqual(['Мусор']);
+    });
+
+    /**
+     * Проверяет, что последний выбор запоминается: при следующем показе дерево раскрыто до него, а
+     * сброс «Без категории» кладёт задачу в день
+     */
+    it('tasksUi_createTaskInDay_remembersLastChoiceAndResetPutsInDay', async () => {
+        const { data } = await setup();
+        const { day } = await seedDay(data);
+        await seedTemplates(data);
+        mount(data, day.id);
+        await userEvent.click(screen.getByRole('button', { name: `выбрать ${day.id}` }));
+        await userEvent.click(screen.getByRole('button', { name: 'Создать задачу' }));
+        let dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
+        await userEvent.type(within(dialog).getByLabelText(/Имя/), 'Первая');
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Развернуть' }));
+        await userEvent.click(within(dialog).getByRole('treeitem', { name: 'Подкатегория 2' }));
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
+
+        await userEvent.click(screen.getByRole('button', { name: 'Создать задачу' }));
+        dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
+
+        expect(within(dialog).getByRole('treeitem', { name: 'Подкатегория 2' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        await userEvent.type(within(dialog).getByLabelText(/Имя/), 'Вторая');
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Без категории' }));
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Выполнить' }));
+        expect(data.getChildren(day.id).some((o) => o.properties.name === 'Вторая')).toBe(true);
+    });
+
+    /**
+     * Проверяет, что запомненный узел, которого уже нет, молча сбрасывается
+     */
+    it('tasksUi_createTaskInDay_removedRememberedNode_startsCollapsedWithoutChoice', async () => {
+        const { data } = await setup();
+        const { day } = await seedDay(data);
+        const { second } = await seedTemplates(data);
+        localStorage.setItem('nimrata:lastChoice:createTask:template', second);
+        await data.remove(second);
+        mount(data, day.id);
+        await userEvent.click(screen.getByRole('button', { name: `выбрать ${day.id}` }));
+
+        await userEvent.click(screen.getByRole('button', { name: 'Создать задачу' }));
+
+        const dialog = screen.getByRole('dialog', { name: 'Создать задачу' });
+        expect(within(dialog).getAllByRole('treeitem').map((i) => i.getAttribute('aria-label'))).toEqual([
+            'Дом',
+            'Работа',
+        ]);
+        expect(within(dialog).queryByRole('treeitem', { selected: true })).toBeNull();
     });
 
     /**

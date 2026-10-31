@@ -170,6 +170,29 @@ describe('Tracker: complete and postpone', () => {
         });
 
         /**
+         * Проверяет, что завершение сохраняет цепочку категорий глубиной в три уровня и убирает пустые
+         */
+        it('complete_taskInThreeLevelCategories_recreatesWholeChainAndPrunesCurrent', async () => {
+            const { data } = await start();
+            await createTask(data, { name: 'Мусор', date: '2026-03-05', category: 'Дом' });
+            await moveIntoNewCategory(data, 'Мусор', 'Кухня');
+            await moveIntoNewCategory(data, 'Мусор', 'Полка');
+            const dayId = data.getObject(
+                data.getObject(data.getObject(task(data, 'Мусор').parent!)!.parent!)!.parent!,
+            )!.parent!;
+
+            await run(data, task(data, 'Мусор'), 'complete');
+
+            expect(path(data, task(data, 'Мусор')).slice(5)).toEqual([
+                'Дом',
+                'Кухня',
+                'Полка',
+                'Мусор',
+            ]);
+            expect(data.getChildren(dayId)).toHaveLength(0);
+        });
+
+        /**
          * Проверяет, что категория остаётся, пока в ней есть другие задачи
          */
         it('complete_task_keepsCategoryWhenOtherTasksRemain', async () => {
@@ -425,6 +448,35 @@ describe('Tracker: complete and postpone', () => {
                 '06.03.2026, пятница',
                 'Работа',
                 'Рядом',
+            ]);
+            expect(data.getChildren(oldDay)).toHaveLength(0);
+        });
+
+        /**
+         * Проверяет, что откладывание верхней категории переносит все уровни трёхуровневой иерархии
+         */
+        it('postpone_topCategoryOfThreeLevels_movesAllLevelsAndPrunesOld', async () => {
+            const { data } = await start();
+            await createTask(data, { name: 'Мусор', category: 'Дом' });
+            await createTask(data, { name: 'Посуда', category: 'Дом' });
+            await moveIntoNewCategory(data, 'Мусор', 'Кухня');
+            await moveIntoNewCategory(data, 'Мусор', 'Полка');
+            const top = task(data, 'Посуда').parent!;
+            const oldDay = data.getObject(top)!.parent!;
+
+            await run(data, data.getObject(top)!, 'postpone', { date: '2026-03-06' });
+
+            expect(path(data, task(data, 'Мусор')).slice(-5)).toEqual([
+                '06.03.2026, пятница',
+                'Дом',
+                'Кухня',
+                'Полка',
+                'Мусор',
+            ]);
+            expect(path(data, task(data, 'Посуда')).slice(-3)).toEqual([
+                '06.03.2026, пятница',
+                'Дом',
+                'Посуда',
             ]);
             expect(data.getChildren(oldDay)).toHaveLength(0);
         });

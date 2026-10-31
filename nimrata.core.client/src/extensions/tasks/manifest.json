@@ -1,6 +1,6 @@
 {
     "extension": "tasks",
-    "version": 20,
+    "version": 21,
     "name": "Трекер задач",
     "description": "Задачи по годам, месяцам и дням: категории, повторы, выбор текущего дня и уведомления.",
     "icon": "list-checks",
@@ -189,14 +189,10 @@
                         {
                             "id": "template",
                             "name": "Типовая категория",
-                            "kind": "enum",
-                            "default": "none",
-                            "values": [
-                                {
-                                    "value": "none",
-                                    "name": "Без категории"
-                                }
-                            ]
+                            "kind": "reference",
+                            "targetTypes": ["CategoryTemplate"],
+                            "targetRootType": "CategoryTemplates",
+                            "emptyLabel": "Без категории"
                         }
                     ],
                     "category": "Основное"
@@ -242,14 +238,10 @@
                         {
                             "id": "template",
                             "name": "Типовая категория",
-                            "kind": "enum",
-                            "default": "none",
-                            "values": [
-                                {
-                                    "value": "none",
-                                    "name": "Без категории"
-                                }
-                            ]
+                            "kind": "reference",
+                            "targetTypes": ["CategoryTemplate"],
+                            "targetRootType": "CategoryTemplates",
+                            "emptyLabel": "Без категории"
                         }
                     ],
                     "category": "Основное"
@@ -507,7 +499,7 @@
             "id": "CategoryTemplate",
             "name": "Типовая категория",
             "sealed": true,
-            "allowedChildren": [],
+            "allowedChildren": ["CategoryTemplate"],
             "properties": [
                 {
                     "id": "name",

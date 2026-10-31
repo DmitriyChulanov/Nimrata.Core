@@ -93,6 +93,8 @@ export { useOptionalSelection } from './selection/useOptionalSelection';
 export { useSelection } from './selection/useSelection';
 export type { SelectionValue } from './selection/SelectionContext';
 export { Tree } from './tree/Tree';
+export { ObjectTreePicker } from './tree/ObjectTreePicker';
+export type { ObjectTreePickerProps } from './tree/ObjectTreePicker';
 export { PropertyGrid } from './properties/PropertyGrid';
 export { Workspace } from './layout/Workspace';
 export type { WorkspaceProps, WorkspaceWidths } from './layout/Workspace';

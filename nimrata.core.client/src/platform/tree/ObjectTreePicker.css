@@ -1,0 +1,51 @@
+/* Панель выбора объекта в дереве: фиксированная высота с прокруткой */
+.object-tree-picker {
+    height: var(--tree-picker-height);
+    padding: var(--space-1);
+    overflow: auto;
+    background: var(--bg-input);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius);
+}
+
+.object-tree-picker__item {
+    display: flex;
+    gap: var(--space-1);
+    align-items: center;
+    min-height: var(--control-height);
+    padding-right: var(--space-2);
+    cursor: pointer;
+    border-radius: var(--radius);
+}
+
+.object-tree-picker__item:hover {
+    background: var(--bg-hover);
+}
+
+.object-tree-picker__item[aria-selected='true'] {
+    font-weight: var(--weight-strong);
+    background: var(--accent-bg);
+}
+
+.object-tree-picker__item[aria-disabled='true'] {
+    color: var(--text-muted);
+    cursor: default;
+}
+
+.object-tree-picker__item:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: -2px;
+}
+
+.object-tree-picker__toggle {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--icon-lg);
+    height: var(--icon-lg);
+    padding: 0;
+    color: var(--text-muted);
+    background: none;
+    border: 0;
+}

@@ -134,6 +134,19 @@ export function ensureCategory(
 }
 
 /**
+ * Находит или создаёт вложенную цепочку категорий внутри родителя; возвращает идентификатор
+ * последней категории (родителя, если цепочка пуста)
+ */
+export function ensureCategoryChain(
+    data: DataController,
+    tx: ChangeScope,
+    parent: string,
+    names: readonly string[],
+): string {
+    return names.reduce((container, name) => ensureCategory(data, tx, container, name), parent);
+}
+
+/**
  * Корень «Текущие задачи» или «Завершённые задачи» (`type`): рядом с объектом `near`
  * (в той же ветке «Задачи»), а без него или если ветки нет — среди всех корней «Задачи»
  */

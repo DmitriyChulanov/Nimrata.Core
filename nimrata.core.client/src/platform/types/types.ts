@@ -48,6 +48,13 @@ export interface PropertyDefinition {
     values?: EnumValue[];
     /** Допустимые типы целевого объекта (для `kind: 'reference'`) */
     targetTypes?: string[];
+    /**
+     * Для `kind: 'reference'` в параметре действия: тип корня выбора. Диалог показывает дерево
+     * потомков первого объекта этого типа (сам корень не показывается)
+     */
+    targetRootType?: string;
+    /** Для необязательного `kind: 'reference'` в параметре действия: подпись кнопки сброса выбора */
+    emptyLabel?: string;
     /** Для `kind: 'reference'`: ссылка ведёт к цели, которую можно показать в основном дереве */
     revealTarget?: boolean;
 }

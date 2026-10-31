@@ -104,6 +104,32 @@ public sealed class ManifestValidatorTests
     /// <param name="metadata">JSON полей метаданных (без внешних фигурных скобок)</param>
     /// <param name="type">JSON типа</param>
     /// <returns>JSON манифеста</returns>
+    /// <summary>
+    /// Проверяет, что корень выбора ссылки допустим для известного типа
+    /// </summary>
+    [Fact]
+    public void TargetRootType_ForReferenceWithKnownType_IsAllowed()
+    {
+        var errors = Validate(WithType("""{ "id": "t", "name": "T", "kind": "reference", "targetRootType": "A" }"""));
+
+        Assert.Empty(errors);
+    }
+
+    /// <summary>
+    /// Проверяет, что корень выбора отклоняется для не-ссылки и неизвестного типа
+    /// </summary>
+    /// <param name="property">JSON свойства</param>
+    /// <param name="substring">Фрагмент ожидаемой ошибки</param>
+    [Theory]
+    [InlineData("""{ "id": "t", "name": "T", "kind": "string", "targetRootType": "A" }""", "reference")]
+    [InlineData("""{ "id": "t", "name": "T", "kind": "reference", "targetRootType": "Нет" }""", "неизвестный тип")]
+    public void TargetRootType_Invalid_IsRejected(string property, string substring)
+    {
+        var errors = Validate(WithType(property));
+
+        Assert.Contains(errors, error => error.Contains("targetRootType") && error.Contains(substring));
+    }
+
     private static string WithMetadata(string metadata, string type = """{ "id": "A", "name": "A" }""") =>
         $$"""{ "extension": "demo", "version": 1, {{metadata}}, "types": [ {{type}} ] }""";
 

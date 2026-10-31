@@ -236,6 +236,14 @@ public static class ManifestValidator
                 errors.Add($"{path}.revealTarget: допустим только для вида reference");
         }
 
+        if (property.TryGetProperty("targetRootType", out var rootType))
+        {
+            if (kind != "reference")
+                errors.Add($"{path}.targetRootType: допустим только для вида reference");
+            else if (rootType.ValueKind != JsonValueKind.String || !typeIds.Contains(rootType.GetString()!))
+                errors.Add($"{path}.targetRootType: неизвестный тип \"{rootType}\"");
+        }
+
         if (kind == "reference" && property.TryGetProperty("targetTypes", out var targets))
         {
             if (targets.ValueKind != JsonValueKind.Array) errors.Add($"{path}.targetTypes: нужен массив");

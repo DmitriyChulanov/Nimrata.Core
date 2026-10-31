@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createDataController, findSettingsNode } from '@platform';
 import { createFakeApi } from '@platform/data/fakeApi';
 
-import { templateOptions } from './categoryTemplates';
+import { categoryChainFromTemplate } from './categoryTemplates';
 import manifest from './manifest.json';
 import { ensureTasksStart, registerTasks } from './tasksExtension';
 
@@ -29,8 +29,11 @@ function group(data: DataController): DataObject {
     return data.getChildren(settings.id).find((o) => o.type === 'CategoryTemplates')!;
 }
 
-async function addTemplate(data: DataController, name: string) {
-    const created = await data.create({ type: 'CategoryTemplate', parent: group(data).id });
+async function addTemplate(data: DataController, name: string, parent?: string) {
+    const created = await data.create({
+        type: 'CategoryTemplate',
+        parent: parent ?? group(data).id,
+    });
     if (!created.ok) throw new Error(created.error);
     const named = await data.setProperty(created.id, 'name', name);
     if (!named.ok) throw new Error(named.error);
@@ -72,18 +75,69 @@ describe('Tracker: category templates', () => {
     });
 
     /**
-     * Проверяет, что без типовых категорий список вариантов пуст, а с ними начинается с «Без категории»
+     * Проверяет, что цепочка названий идёт от корня иерархии шаблонов до выбранного
      */
-    it('templateOptions_withAndWithoutTemplates_hidesOrListsWithNone', async () => {
+    it('categoryChainFromTemplate_nestedTemplate_returnsNamesFromRoot', async () => {
         const { data } = await start();
-        expect(templateOptions(data)).toEqual([]);
+        const home = await addTemplate(data, 'Дом');
+        const kitchen = await addTemplate(data, 'Кухня', home);
+        const shelf = await addTemplate(data, 'Полка', kitchen);
 
-        const id = await addTemplate(data, 'Работа');
+        expect(categoryChainFromTemplate(data, home)).toEqual(['Дом']);
+        expect(categoryChainFromTemplate(data, shelf)).toEqual(['Дом', 'Кухня', 'Полка']);
+        expect(categoryChainFromTemplate(data, undefined)).toEqual([]);
+        expect(categoryChainFromTemplate(data, 'none')).toEqual([]);
+        expect(() => categoryChainFromTemplate(data, 'gone')).toThrow(
+            'Типовая категория не найдена.',
+        );
+    });
 
-        expect(templateOptions(data)).toEqual([
-            { value: 'none', name: 'Без категории' },
-            { value: id, name: 'Работа' },
-        ]);
+    /**
+     * Проверяет, что одинаковые названия допустимы на разных ветках, но не среди соседей
+     */
+    it('categoryTemplate_sameNameInDifferentBranches_isAllowedAmongSiblingsRejected', async () => {
+        const { data } = await start();
+        const home = await addTemplate(data, 'Дом');
+        const work = await addTemplate(data, 'Работа');
+        await addTemplate(data, 'Прочее', home);
+        const other = await addTemplate(data, 'Другое', work);
+
+        const sameElsewhere = await data.setProperty(other, 'name', 'Прочее');
+        const sibling = await addTemplate(data, 'Одно', home);
+        const duplicate = await data.setProperty(sibling, 'name', 'Прочее');
+
+        expect(sameElsewhere.ok).toBe(true);
+        expect(duplicate.ok).toBe(false);
+    });
+
+    /**
+     * Проверяет, что удаление шаблона убирает его поддерево
+     */
+    it('categoryTemplate_remove_removesSubtree', async () => {
+        const { data } = await start();
+        const home = await addTemplate(data, 'Дом');
+        const kitchen = await addTemplate(data, 'Кухня', home);
+
+        const result = await data.remove(home);
+
+        expect(result.ok).toBe(true);
+        expect(data.getObject(kitchen)).toBeUndefined();
+    });
+
+    /**
+     * Проверяет, что шаблон можно перенести под другой шаблон, но не под самого себя или потомка
+     */
+    it('categoryTemplate_move_underOtherTemplateAllowedButNotIntoOwnSubtree', async () => {
+        const { data } = await start();
+        const home = await addTemplate(data, 'Дом');
+        const work = await addTemplate(data, 'Работа');
+        const kitchen = await addTemplate(data, 'Кухня', home);
+
+        const ok = await data.move(work, { parent: kitchen, number: 1 });
+        const cycle = await data.move(home, { parent: kitchen, number: 1 });
+
+        expect(ok.ok).toBe(true);
+        expect(cycle.ok).toBe(false);
     });
 
     /**
@@ -136,6 +190,32 @@ describe('Tracker: category templates', () => {
                 .map((t) => t.properties.name)
                 .sort(),
         ).toEqual(['А', 'Б']);
+    });
+
+    /**
+     * Проверяет, что вложенный шаблон создаёт в дне всю цепочку категорий и переиспользует уровни
+     */
+    it('createTask_nestedTemplate_createsChainAndReusesLevels', async () => {
+        const { data } = await start();
+        const home = await addTemplate(data, 'Дом');
+        const first = await addTemplate(data, 'Подкатегория 1', home);
+        const second = await addTemplate(data, 'Подкатегория 2', home);
+        const day = await seedDay(data);
+
+        await data.runAction(day.id, 'createTask', { name: 'А', template: first });
+        await data.runAction(day.id, 'createTask', { name: 'Б', template: second });
+        await data.runAction(day.id, 'createTask', { name: 'В', template: home });
+
+        const roots = data.getChildren(day.id).filter((o) => o.type === 'Category');
+        expect(roots.map((c) => c.properties.name)).toEqual(['Дом']);
+        const inner = data.getChildren(roots[0].id).filter((o) => o.type === 'Category');
+        expect(inner.map((c) => c.properties.name).sort()).toEqual([
+            'Подкатегория 1',
+            'Подкатегория 2',
+        ]);
+        const names = (id: string) => data.getChildren(id).map((t) => t.properties.name);
+        expect(names(inner.find((c) => c.properties.name === 'Подкатегория 1')!.id)).toEqual(['А']);
+        expect(names(roots[0].id)).toContain('В');
     });
 
     /**

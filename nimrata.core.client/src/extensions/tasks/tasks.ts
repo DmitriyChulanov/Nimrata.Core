@@ -1,9 +1,9 @@
 import { ancestors, cancelIfFailed, createNode } from '@platform';
 
-import { categoryFromTemplate } from './categoryTemplates';
+import { categoryChainFromTemplate } from './categoryTemplates';
 import { CURRENT_TASKS_ROOT, DAY_TYPES, TASK } from './constants';
 import { parseIso, todayIso } from './dates';
-import { ensureCategory, ensureDay, findRoot } from './nodes';
+import { ensureCategory, ensureCategoryChain, ensureDay, findRoot } from './nodes';
 
 import type { ChangeScope, DataController, DataObject, HookResult } from '@platform';
 
@@ -105,10 +105,13 @@ export function createTaskAction(data: DataController, reveal?: (id: string) => 
             container = ensureDay(data, tx, root.id, ymd);
         }
 
-        const templateCategory = categoryFromTemplate(data, params.template);
-        const category =
-            templateCategory ?? (typeof params.category === 'string' ? params.category.trim() : '');
-        if (category !== '') container = ensureCategory(data, tx, container, category);
+        const templateChain = categoryChainFromTemplate(data, params.template);
+        if (templateChain.length > 0) {
+            container = ensureCategoryChain(data, tx, container, templateChain);
+        } else {
+            const category = typeof params.category === 'string' ? params.category.trim() : '';
+            if (category !== '') container = ensureCategory(data, tx, container, category);
+        }
 
         // Созданную задачу показываем в дереве и выделяем, как при обычном создании узла
         const id = createNode(tx, container, TASK, { name });

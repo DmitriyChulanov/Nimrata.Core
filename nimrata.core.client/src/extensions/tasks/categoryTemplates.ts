@@ -1,8 +1,8 @@
-import { findSettingsNode } from '@platform';
+import { ancestors } from '@platform';
 
-import { CATEGORY_TEMPLATE, CATEGORY_TEMPLATES, NO_TEMPLATE, TASKS_SETTINGS } from './constants';
+import { CATEGORY_TEMPLATE, NO_TEMPLATE } from './constants';
 
-import type { DataController, DataObject, EnumValue, HookResult } from '@platform';
+import type { DataController, DataObject, HookResult } from '@platform';
 
 /**
  * Название типовой категории без пробелов по краям; пустая строка, если оно не задано
@@ -13,54 +13,24 @@ function templateName(object: DataObject): string {
 }
 
 /**
- * Типовые категории пользователя с непустым названием в порядке дерева
+ * Названия категорий дня по выбранной типовой категории: от корня иерархии до выбранной
+ * («Дом», «Подкатегория 1»); пустой список для пустого выбора
  *
  * @param data - контроллер данных
- * @returns объекты типа `CategoryTemplate`
+ * @param value - значение параметра `template`: идентификатор типовой категории
+ * @throws если типовая категория или любой её предок-шаблон не найдены либо без названия
+ * (например, удалены после открытия диалога)
  */
-export function categoryTemplates(data: DataController): DataObject[] {
-    const settings = findSettingsNode(data, TASKS_SETTINGS);
-    const group =
-        settings && data.getChildren(settings.id).find((o) => o.type === CATEGORY_TEMPLATES);
-    if (!group) return [];
-    return data
-        .getChildren(group.id)
-        .filter((o) => o.type === CATEGORY_TEMPLATE && templateName(o) !== '')
-        .sort(
-            (a, b) => a.number - b.number || templateName(a).localeCompare(templateName(b), 'ru'),
-        );
-}
-
-/**
- * Варианты параметра «Типовая категория»: «Без категории» и типовые категории; без типовых
- * категорий список пуст, и диалог параметр не показывает
- *
- * @param data - контроллер данных
- * @returns значения для диалога
- */
-export function templateOptions(data: DataController): EnumValue[] {
-    const templates = categoryTemplates(data);
-    if (templates.length === 0) return [];
-    return [
-        { value: NO_TEMPLATE, name: 'Без категории' },
-        ...templates.map((t) => ({ value: t.id, name: templateName(t) })),
-    ];
-}
-
-/**
- * Название категории по выбранной типовой; `undefined` для «Без категории» и пустого выбора
- *
- * @param data - контроллер данных
- * @param value - значение параметра `template`
- * @throws если типовая категория не найдена (например, удалена после открытия диалога)
- */
-export function categoryFromTemplate(data: DataController, value: unknown): string | undefined {
-    if (value === undefined || value === '' || value === NO_TEMPLATE) return undefined;
+export function categoryChainFromTemplate(data: DataController, value: unknown): string[] {
+    if (value === undefined || value === '' || value === NO_TEMPLATE) return [];
     const template = typeof value === 'string' ? data.getObject(value) : undefined;
-    if (template?.type !== CATEGORY_TEMPLATE || templateName(template) === '') {
-        throw new Error('Типовая категория не найдена.');
-    }
-    return templateName(template);
+    if (template?.type !== CATEGORY_TEMPLATE) throw new Error('Типовая категория не найдена.');
+    const chain = [template, ...ancestors(data, template)]
+        .filter((o) => o.type === CATEGORY_TEMPLATE)
+        .reverse();
+    const names = chain.map(templateName);
+    if (names.some((name) => name === '')) throw new Error('Типовая категория не найдена.');
+    return names;
 }
 
 /**
